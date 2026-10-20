@@ -111,12 +111,14 @@ const getJson = u => fetch(u).then(r => r.json()).catch(() => null);
 const SECTIONS = {
   home:   { label: 'Home',        icon: '🏠', tabs: [['today', 'Today'], ['mv', 'Mission & Vision'], ['e4', '4E']] },
   prayer: { label: 'Prayer',      icon: '🙏', tabs: [['chain', 'Prayer Chain']] },
+  worship: { label: 'Worship',    icon: '🎵', tabs: [['songs', 'Songs'], ['news', 'Announcements'], ['cal', 'Calendar'], ['fellow', 'Fellowship']] },
   kids:   { label: 'Kids Shine',  icon: '🧒', tabs: [['verse', 'Memory Verse'], ['games', 'Games'], ['lesson', 'Lesson'], ['hw', 'Assignments'], ['chat', 'Chat'], ['news', 'Announcements'], ['me', 'My Kids'], ['teach', 'Teacher']] },
   youth:  { label: 'Youth Shine', icon: '🔥', tabs: [['verse', 'Memory Verse'], ['lesson', 'Teaching'], ['hw', 'Assignments'], ['notes', 'Notes'], ['chat', 'Chat'], ['news', 'Announcements'], ['me', 'My Profile'], ['teach', 'Teacher']] },
-  bible:  { label: 'Bible',       icon: '📖', tabs: [['read', 'Read'], ['find', 'Find a Verse'], ['notes', 'My Notes']] }
+  bible:  { label: 'Bible',       icon: '📖', tabs: [['read', 'Read'], ['find', 'Find a Verse'], ['notes', 'My Notes']] },
+  leaders: { label: 'Leaders',    icon: '🛡️', tabs: [['post', 'Post'], ['res', 'Resources'], ['lboard', 'Leader Board'], ['team', 'Team']] }
 };
 let sec = 'home';
-const tabOf = { home: 'today', prayer: 'chain', kids: 'verse', youth: 'verse', bible: 'read' };
+const tabOf = { home: 'today', prayer: 'chain', worship: 'songs', kids: 'verse', youth: 'verse', bible: 'read', leaders: 'post' };
 let showTimer = null;
 function goHome() { sec = 'home'; tabOf.home = 'today'; render(); window.scrollTo(0, 0); }
 
@@ -132,6 +134,7 @@ function render() {
   const fn = VIEWS[sec + '.' + tabOf[sec]];
   fn ? fn(v) : (v.innerHTML = '<div class="card">Coming soon.</div>');
   applyLang();
+  if (hubOn()) refreshBadge();
 }
 
 /* ---------- Bible versions + passages ---------- */
@@ -162,10 +165,22 @@ async function webText(ref) {
   if (t) { S.cache[ref] = t; save(); }
   return t;
 }
+const REF_ALIAS = { Psalm: 'Psalms', 'Song of Songs': 'Song of Solomon', 'Song of Solomon': 'Song of Solomon' };
+function yvUrl(ref, v) {
+  const base = 'https://www.bible.com/bible/' + v.yv + '/';
+  const m = String(ref).trim().match(/^(.+?)\s+(\d+)(?::(\d+)(?:\s*[-–]\s*(\d+))?)?$/);
+  if (!m) return base + 'JHN.1.' + v.abbr;
+  const name = REF_ALIAS[m[1].trim()] || m[1].trim(), i = BOOKS.indexOf(name);
+  if (i < 0) return base + 'JHN.1.' + v.abbr;
+  return base + USFM[i] + '.' + m[2] + (m[3] ? '.' + m[3] + (m[4] ? '-' + m[4] : '') : '') + '.' + v.abbr;
+}
 const encRef = s => encodeURIComponent(s).replace(/%3A/gi, ':');
 async function showPassage(el, ref, ver) {
   const v = ver || curVersion();
   if (v.type === 'none') { el.innerHTML = `<p class="bad">${esc(v.note || 'This version is not connected yet.')}</p>`; return; }
+  if (v.type === 'youversion') {
+    el.innerHTML = `<a class="btn" href="${esc(yvUrl(ref, v))}" target="_blank" rel="noopener">📖 Read ${esc(ref)} in ${esc(v.name)} (YouVersion)</a><p class="muted">${esc(v.note || '')}</p>`; return;
+  }
   if (v.type === 'link') {
     const url = v.url.replace('{refNoSpace}', encRef(ref.replace(/\s+/g, ''))).replace('{ref}', encRef(ref));
     el.innerHTML = `<a class="btn" href="${esc(url)}" target="_blank" rel="noopener">📖 Read ${esc(ref)} in ${esc(v.name)}</a><p class="muted">${esc(v.note || '')}</p>`; return;
@@ -230,7 +245,16 @@ function showcaseHTML() {
       </div>`).join('')}
     <div class="dots">${sl.map((s, i) => `<button class="dot ${i === 0 ? 'on' : ''}" aria-label="Slide ${i + 1} of ${sl.length}"></button>`).join('')}</div></div>`;
 }
-const tilesHTML = () => `<div class="tiles">${[['prayer', '🙏', 'Prayer Chain', 't1'], ['kids', '🧒', 'Kids Shine', 't2'], ['youth', '🔥', 'Youth Shine', 't3'], ['bible', '📖', 'Bible', 't4']].map(([k, i, n, c]) => `<button class="tile ${c}" data-go="${k}"><span>${i}</span>${n}</button>`).join('')}</div>`;
+async function fillNews() {
+  const box = $('#newsbox'); if (!box || !hubOn()) return;
+  const f = await hubFeed(); const box2 = $('#newsbox'); if (!box2 || !f) return;
+  const top = (f.announcements || []).slice(0, 2);
+  const nxt = (f.events || []).filter(e => e.date >= todayKey()).slice(0, 1);
+  if (!top.length && !nxt.length) return;
+  box2.innerHTML = `<div class="card gold"><h2>What's new</h2>${top.map(a => `<p><b>${esc(pickLang(a, 'title') || a.en || a.ne)}</b></p>`).join('')}${nxt.map(e => `<p>📅 ${esc(LANG === 'ne' && e.ne ? e.ne : e.en || e.ne)} · ${esc(fmtLong(e.date))} ${esc(fmtTime(e.time))}</p>`).join('')}<button class="btn small" id="newsgo">See Worship</button></div>`;
+  $('#newsgo').onclick = () => { sec = 'worship'; tabOf.worship = 'news'; render(); window.scrollTo(0, 0); };
+}
+const tilesHTML = () => `<div id="newsbox"></div><div class="tiles">${[['prayer', '🙏', 'Prayer Chain', 't1'], ['worship', '🎵', 'Worship', 't5'], ['kids', '🧒', 'Kids Shine', 't2'], ['youth', '🔥', 'Youth Shine', 't3'], ['bible', '📖', 'Bible', 't4'], ['leaders', '🛡️', 'AGC Leaders', 't6']].map(([k, i, n, c]) => `<button class="tile ${c}" data-go="${k}"><span>${i}</span>${n}</button>`).join('')}</div>`;
 function wireShowcase(v) {
   v.querySelectorAll('[data-go]').forEach(b => b.onclick = () => { sec = b.dataset.go; render(); window.scrollTo(0, 0); });
   const box = $('#showcase', v); if (!box) return;
@@ -256,7 +280,7 @@ async function homeToday(v) {
       <div class="votd-lang">English</div><div id="ven"></div>
       <div class="votd-lang">नेपाली</div><div id="vne"></div>
       <p class="muted" id="vsrc"></p></div>`;
-  wireShowcase(v);
+  wireShowcase(v); fillNews();
   const ref = await votdRef();
   if (!ref) { $('#vref').textContent = '—'; return; }
   $('#vref').textContent = ref;
@@ -617,7 +641,8 @@ function chatView(v, g) {
       <div>${esc(m.text)}</div><div>${['👍', '🙏', '😊'].map(e => `<button class="btn ghost small" data-re="${m.id}|${e}">${e} ${(m.re || {})[e] || ''}</button>`).join('')}
       ${S.leader ? `<button class="btn ghost small" data-pin="${m.id}">${m.pinned ? 'Unpin' : 'Pin'}</button><button class="btn ghost small" data-del="${m.id}">Delete</button>` : `<button class="btn ghost small" data-rep="${m.id}">Report</button>`}</div></div>`).join('') : '<span class="muted">No messages yet.</span>'}</div>`;
   $('#ld').onclick = async () => {
-    if (S.leader) { S.leader = false; save(); return render(); }
+    if (S.leader) { if (hubOn() && HUB.me) { try { await hubCall({ action: 'logout' }); } catch (e) {} hubLocalLogout(); } else { S.leader = false; save(); } return render(); }
+    if (hubOn()) { sec = 'leaders'; tabOf.leaders = 'post'; render(); return window.scrollTo(0, 0); }
     const h = (CFG.leaderPinSha256 || '').toLowerCase();
     if (!h) { alert('Leader sign-in is not set up yet. Set a leader PIN in data/config.json.'); return; }
     const pin = prompt('Leader PIN'); if (pin == null) return;
@@ -712,14 +737,19 @@ function assignView(v, g) {
     const done = p.hw[a.id], late = a.due && a.due < today && !done;
     return `<div class="card ${done ? 'done' : ''}"><h2>${esc(pickLang(a, 'title'))}</h2>${pickLang(a, 'detail') ? `<p>${esc(pickLang(a, 'detail'))}</p>` : ''}${a.ref ? `<p>📖 ${esc(a.ref)}</p>` : ''}
       <p class="muted">${a.due ? 'Due ' + esc(fmtDay(a.due)) : 'No due date'}${late ? ' · <span class="bad">Past due</span>' : ''}</p>
-      <button class="btn small ${done ? 'ghost' : ''}" data-hw="${esc(a.id)}">${done ? '✓ Done. Tap to undo' : 'Mark done'}</button></div>`;
+      <button class="btn small ${done ? 'ghost' : ''}" data-hw="${esc(a.id)}">${done ? '✓ Done. Tap to undo' : 'Mark done'}</button>${a.due ? calBtns({ title: pickLang(a, 'title'), date: a.due, allDay: true, details: pickLang(a, 'detail') }) : ''}</div>`;
   }).join('') : '<div class="card">No assignments right now. Check back soon!</div>');
   wireBar(g);
   v.querySelectorAll('[data-hw]').forEach(b => b.onclick = () => { const id = b.dataset.hw; if (p.hw[id]) delete p.hw[id]; else p.hw[id] = todayKey(); save(); render(); });
 }
 function teacherView(v, g) {
   const h = (CFG.leaderPinSha256 || '').toLowerCase();
-  if (h && !S.leader) {
+  if (hubOn() && !S.leader) {
+    v.innerHTML = '<div class="card"><h2>Teacher</h2><p>This page is for teachers and leaders. Sign in with your own leader PIN.</p><button class="btn" id="tl">Go to AGC Leaders sign-in</button></div>';
+    $('#tl').onclick = () => { sec = 'leaders'; tabOf.leaders = 'post'; render(); window.scrollTo(0, 0); };
+    return;
+  }
+  if (!hubOn() && h && !S.leader) {
     v.innerHTML = '<div class="card"><h2>Teacher</h2><p>This page is for teachers and leaders.</p><button class="btn" id="tl">Leader sign-in</button></div>';
     $('#tl').onclick = async () => { const pin = prompt('Leader PIN'); if (pin == null) return; if ((await sha256(pin)) === h) { S.leader = true; save(); render(); } else alert('That PIN is not right.'); };
     return;
@@ -756,9 +786,263 @@ function teacherView(v, g) {
   };
 }
 
+/* ---------- AGC Hub: Worship + Leaders (data lives in your Google Drive through your own Apps Script) ---------- */
+const HUBKEY = 'agc.hub.v1', SEENKEY = 'agc.seen', FEEDKEY = 'agc.hub.feed';
+let HUB = { feed: null, at: 0, me: null, offline: false };
+let WORSHIP = { announcements: [], songs: [], events: [] };
+try { const m = JSON.parse(localStorage.getItem(HUBKEY) || 'null'); if (m && m.token && m.exp > Date.now()) HUB.me = m; } catch (e) {}
+const hubOn = () => !!(CFG.hubUrl && /^https:\/\//.test(CFG.hubUrl));
+const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch (e) { return d; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+function deviceId() { let d = lsGet('agc.dev', ''); if (!d) { d = 'd' + uid() + uid() + uid(); lsSet('agc.dev', d); } return d; }
+function hubLocalLogout() { HUB.me = null; try { localStorage.removeItem(HUBKEY); } catch (e) {} S.leader = false; save(); }
+async function hubCall(body) {
+  if (!hubOn()) throw new Error('The shared server is not connected yet.');
+  const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 25000);
+  try {
+    const r = await fetch(CFG.hubUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(Object.assign({ token: HUB.me && HUB.me.token }, body)), signal: ctl.signal });
+    const j = await r.json();
+    if (j.error) { if (/sign in again/i.test(j.error)) hubLocalLogout(); throw new Error(j.error); }
+    HUB.at = 0; return j;
+  } catch (e) {
+    if (e && e.name === 'AbortError') throw new Error('The server took too long. Please try again.');
+    if (e instanceof TypeError) throw new Error('No connection. Please check your internet and try again.');
+    throw e;
+  } finally { clearTimeout(to); }
+}
+async function hubFeed(force) {
+  if (!hubOn()) return null;
+  if (!force && HUB.feed && Date.now() - HUB.at < 20000) return HUB.feed;
+  try {
+    const r = await fetch(CFG.hubUrl + '?action=hub'), j = await r.json();
+    if (!j || j.error || !Array.isArray(j.songs)) throw new Error('bad feed');
+    HUB.feed = j; HUB.at = Date.now(); HUB.offline = false; lsSet(FEEDKEY, JSON.stringify(j));
+  } catch (e) {
+    HUB.offline = true;
+    if (!HUB.feed) { try { HUB.feed = JSON.parse(lsGet(FEEDKEY, 'null')); } catch (x) {} }
+  }
+  return HUB.feed;
+}
+const wData = async force => { const f = await hubFeed(force); return f || WORSHIP; };
+const hubNote = () => hubOn() ? '' : '<div class="preview">The shared Drive server is not connected yet, so this page shows only what the pastor has put in the app files. See hub/SETUP.md.</div>';
+const offNote = () => HUB.offline ? '<div class="preview">You are offline. Showing what was saved last time.</div>' : '';
+const fmtLong = d => parseKey(d).toLocaleDateString(LANG === 'ne' ? 'ne-NP' : 'en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+const fmtTime = t => { if (!/^\d\d:\d\d$/.test(t || '')) return ''; const [h, m] = t.split(':').map(Number); return new Date(2000, 0, 1, h, m).toLocaleTimeString(LANG === 'ne' ? 'ne-NP' : 'en-US', { hour: 'numeric', minute: '2-digit' }); };
+const safeUrl = u => /^https?:\/\//i.test(u || '') ? u : '';
+const linkBtn = (u, label, cls) => safeUrl(u) ? `<a class="btn small ${cls || ''}" href="${esc(safeUrl(u))}" target="_blank" rel="noopener">${label}</a>` : '';
+
+/* what's new dot on the Worship tab */
+function newCount(f) { if (!f) return 0; const seen = lsGet(SEENKEY, ''); return (f.announcements || []).filter(x => (x.created || '') > seen).length + (f.events || []).filter(x => (x.created || '') > seen).length; }
+function markSeen() { lsSet(SEENKEY, new Date().toISOString()); const b = $('#tabs [data-s="worship"]'); if (b) b.classList.remove('has-new'); }
+async function refreshBadge() { const f = await hubFeed(); const b = $('#tabs [data-s="worship"]'); if (b) b.classList.toggle('has-new', newCount(f) > 0 && !(sec === 'worship' && tabOf.worship === 'news')); }
+
+/* add to calendar (works offline, no account needed) */
+const CAL = {};
+function zonedToUtc(date, time, tz) {
+  const [y, m, d] = date.split('-').map(Number), [hh, mm] = (time || '00:00').split(':').map(Number), guess = Date.UTC(y, m - 1, d, hh, mm);
+  const off = t => { const p = new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric' }).formatToParts(new Date(t)); const g = k => +p.find(x => x.type === k).value; return Date.UTC(g('year'), g('month') - 1, g('day'), g('hour'), g('minute')) - t; };
+  let t = guess - off(guess); t = guess - off(t); return new Date(t);
+}
+const icsStamp = d => d.toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z');
+const icsDay = k => k.replace(/-/g, '');
+const icsEsc = s => String(s || '').replace(/\\/g, '\\\\').replace(/\r?\n/g, '\\n').replace(/[,;]/g, m => '\\' + m);
+function calTimes(ev) {
+  if (ev.allDay || !ev.time) return { allDay: true, s: icsDay(ev.date), e: icsDay(dateKey(addDays(parseKey(ev.date), 1))) };
+  const s = zonedToUtc(ev.date, ev.time, 'America/Chicago'), e = new Date(s.getTime() + (ev.minutes || 60) * 60000);
+  return { allDay: false, s: icsStamp(s), e: icsStamp(e) };
+}
+function makeIcs(ev) {
+  const t = calTimes(ev);
+  return ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//AGC Connect//EN', 'CALSCALE:GREGORIAN', 'BEGIN:VEVENT', 'UID:' + uid() + uid() + '@agc-connect', 'DTSTAMP:' + icsStamp(new Date()),
+    t.allDay ? 'DTSTART;VALUE=DATE:' + t.s : 'DTSTART:' + t.s, t.allDay ? 'DTEND;VALUE=DATE:' + t.e : 'DTEND:' + t.e,
+    'SUMMARY:' + icsEsc(ev.title), ev.place ? 'LOCATION:' + icsEsc(ev.place) : '', ev.details ? 'DESCRIPTION:' + icsEsc(ev.details) : '',
+    'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + icsEsc(ev.title), t.allDay ? 'TRIGGER:-PT12H' : 'TRIGGER:-PT30M', 'END:VALARM', 'END:VEVENT', 'END:VCALENDAR'].filter(Boolean).join('\r\n') + '\r\n';
+}
+function gcalUrl(ev) {
+  const t = calTimes(ev);
+  return 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=' + encodeURIComponent(ev.title) + '&dates=' + t.s + '/' + t.e + '&details=' + encodeURIComponent(ev.details || '') + '&location=' + encodeURIComponent(ev.place || '') + (t.allDay ? '' : '&ctz=America/Chicago');
+}
+function downloadIcs(ev) {
+  const blob = new Blob([makeIcs(ev)], { type: 'text/calendar;charset=utf-8' }), a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = (ev.title || 'event').replace(/[^\w]+/g, '-').slice(0, 40) + '.ics';
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+}
+function calBtns(ev) {
+  const k = uid(); CAL[k] = ev;
+  return `<div class="row"><button class="btn small ghost" data-cal="${k}" data-k="ics">📅 Add to calendar</button><button class="btn small ghost" data-cal="${k}" data-k="g">Google Calendar</button></div>`;
+}
+
+/* ---------- Worship ---------- */
+async function worshipSongs(v) {
+  v.innerHTML = '<div class="card">Loading…</div>';
+  const d = await wData(), songs = d.songs || [];
+  v.innerHTML = `${hubNote()}${offNote()}<div class="card gold"><h2>Nepali Christian songs</h2><p class="muted">Search the church list, or search YouTube. Song words and chords stay with their owners; each song here opens its own link.</p>
+    <input id="sq" placeholder="Song name or type (Nepali or English)" aria-label="Search songs" autocomplete="off">
+    <a class="btn small" id="syt" target="_blank" rel="noopener" href="#">🔎 Search YouTube</a></div><div id="slist"></div>`;
+  const ytUrl = q => 'https://www.youtube.com/results?search_query=' + encodeURIComponent((q || '') + ' Nepali Christian song');
+  const draw = () => {
+    const q = $('#sq').value.trim().toLowerCase();
+    $('#syt').href = ytUrl($('#sq').value.trim());
+    const list = songs.filter(s => !q || [s.ne, s.en, s.cat, s.key].join(' ').toLowerCase().includes(q));
+    $('#slist').innerHTML = list.length ? list.map(s => `<div class="card song"><b lang="ne" data-keep>${esc(s.ne || s.en)}</b>${s.ne && s.en ? ` <span class="muted">${esc(s.en)}</span>` : ''}
+      <div>${s.cat ? `<span class="pill">${esc(s.cat)}</span> ` : ''}${s.key ? `<span class="muted">Key ${esc(s.key)}</span>` : ''}</div>
+      <div class="row">${linkBtn(s.link, '🎼 Words / chords')}${linkBtn(s.audio, '▶ Listen', 'ghost')}</div></div>`).join('')
+      : `<div class="card">${songs.length ? 'No song matches that. Try the YouTube search above.' : 'No songs have been added yet. Worship leaders add songs in the AGC Leaders tab. You can still search YouTube above.'}</div>`;
+  };
+  $('#sq').oninput = draw; draw();
+}
+async function worshipNews(v) {
+  v.innerHTML = '<div class="card">Loading…</div>';
+  const d = await wData(), list = d.announcements || [];
+  v.innerHTML = `${hubNote()}${offNote()}` + (list.length ? list.map(a => `<div class="card ${a.pinned ? 'gold' : ''}"><h2>${a.pinned ? '📌 ' : ''}${esc(pickLang(a, 'title') || a.en || a.ne)}</h2>${(LANG === 'ne' && a.bodyNe) || a.bodyEn || a.bodyNe ? `<p>${esc(LANG === 'ne' && a.bodyNe ? a.bodyNe : (a.bodyEn || a.bodyNe))}</p>` : ''}
+    <p class="muted">${a.created ? esc(fmtDay(a.created.slice(0, 10))) : ''}${a.by ? ' · ' + esc(a.by) : ''}</p>${linkBtn(a.link, 'Open link')}</div>`).join('') : '<div class="card">No announcements right now. Check back soon!</div>');
+  markSeen();
+}
+async function worshipCal(v) {
+  v.innerHTML = '<div class="card">Loading…</div>';
+  const d = await wData(), list = d.events || [];
+  v.innerHTML = `${hubNote()}${offNote()}<p class="muted">Times are Central Time (Sioux Falls). Your calendar shows them in your own time.</p>` + (list.length ? list.map(e => {
+    const title = (LANG === 'ne' && e.ne ? e.ne : (e.en || e.ne));
+    return `<div class="card"><h2>${esc(title)}</h2><p><b>${esc(fmtLong(e.date))}</b> ${esc(fmtTime(e.time))}</p>${e.place ? `<p>📍 ${esc(e.place)}</p>` : ''}${e.notes ? `<p class="muted">${esc(e.notes)}</p>` : ''}
+      ${linkBtn(e.link, 'Open link', 'ghost')}${calBtns({ title, date: e.date, time: e.time, minutes: e.minutes, place: e.place, details: e.notes || '' })}</div>`;
+  }).join('') : '<div class="card">No upcoming events yet.</div>');
+  markSeen();
+}
+async function worshipFellow(v) {
+  v.innerHTML = '<div class="card">Loading…</div>';
+  const d = await wData(), list = d.board || [];
+  if (!hubOn()) { v.innerHTML = hubNote() + '<div class="card"><h2>Fellowship</h2><p>This is where church family shares praises, encouragement and prayer needs with each other. It turns on when the shared Drive server is connected.</p></div>'; return; }
+  v.innerHTML = `${offNote()}<div class="card gold"><h2>Fellowship</h2><p class="muted">Encourage one another. First names only. Links are removed. Be kind. Leaders can remove posts. This board is for adults and families. Children use their own groups.</p>
+    <label for="fn">Your first name</label><input id="fn" maxlength="20" autocomplete="given-name" value="${esc(lsGet('agc.name', ''))}">
+    <label for="ft">Message</label><textarea id="ft" maxlength="280" rows="3" placeholder="Share a praise or an encouragement…"></textarea>
+    <button class="btn" id="fgo">Post</button> <button class="btn ghost small" id="fref">Refresh</button><div id="fmsg" aria-live="polite"></div></div>
+    <div id="fl">${list.length ? list.map(p => `<div class="card"><b>${esc(p.name)}</b> <span class="muted">${esc(fmtDay((p.created || '').slice(0, 10) || todayKey()))}</span><p>${esc(p.text)}</p>
+      <button class="btn small ghost" data-rep="${esc(p.id)}">Report</button>${HUB.me ? ` <button class="btn small ghost" data-del="${esc(p.id)}">Remove (leader)</button>` : ''}</div>`).join('') : '<div class="card">No posts yet. Be the first to encourage someone.</div>'}</div>`;
+  $('#fref').onclick = async () => { await hubFeed(true); worshipFellow(v); applyLang(); };
+  $('#fgo').onclick = async () => {
+    const name = $('#fn').value.trim(), text = $('#ft').value.trim();
+    if (!name || !text) { $('#fmsg').innerHTML = '<span class="bad">Please type your first name and a message.</span>'; return; }
+    $('#fgo').disabled = true;
+    try { await hubCall({ action: 'post', name, text, deviceId: deviceId() }); lsSet('agc.name', name.split(/\s+/)[0]); await hubFeed(true); worshipFellow(v); applyLang(); }
+    catch (e) { $('#fmsg').innerHTML = `<span class="bad">${esc(e.message)}</span>`; $('#fgo').disabled = false; }
+  };
+  v.querySelectorAll('[data-rep]').forEach(b => b.onclick = async () => { if (!confirm('Report this post to a leader?')) return; try { await hubCall({ action: 'report', id: b.dataset.rep }); await hubFeed(true); worshipFellow(v); applyLang(); } catch (e) { alert(e.message); } });
+  v.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => { if (!confirm('Remove this post?')) return; try { await hubCall({ action: 'boardSet', id: b.dataset.del, status: 'delete' }); await hubFeed(true); worshipFellow(v); applyLang(); } catch (e) { alert(e.message); } });
+}
+
+/* ---------- AGC Leaders ---------- */
+const fld = (id, label, extra) => `<label for="${id}">${label}</label><input id="${id}" ${extra || ''}>`;
+async function leaderGate(v, then) {
+  if (!hubOn()) { v.innerHTML = hubNote() + '<div class="card"><h2>AGC Leaders</h2><p>Leaders share announcements, songs, events and ministry resources here. Each leader has a personal PIN. It turns on when the shared Drive server is connected.</p></div>'; return; }
+  if (HUB.me && HUB.me.exp > Date.now()) return then();
+  v.innerHTML = '<div class="card">Loading…</div>';
+  const f = await hubFeed(true), people = (f && f.leaders) || [];
+  v.innerHTML = `${offNote()}<div class="card gold"><h2>AGC Leaders sign-in</h2><p class="muted">Each leader has their own PIN, given by the pastor. Keep it private.</p>
+    <label for="ln">Your name</label><select id="ln">${people.map(p => `<option value="${esc(p.id)}">${esc(p.name)}${p.role ? ' (' + esc(p.role) + ')' : ''}</option>`).join('')}</select>
+    <label for="lp">PIN</label><input id="lp" type="password" inputmode="numeric" autocomplete="off">
+    <button class="btn" id="lgo">Sign in</button><div id="lmsg" aria-live="polite"></div></div>`;
+  const go = async () => {
+    $('#lgo').disabled = true;
+    try {
+      const r = await hubCall({ action: 'login', leader: $('#ln').value, pin: $('#lp').value });
+      HUB.me = { token: r.token, name: r.name, role: r.role, admin: !!r.admin, exp: Date.now() + 21000 * 1000 }; lsSet(HUBKEY, JSON.stringify(HUB.me)); S.leader = true; save(); render();
+    } catch (e) { $('#lmsg').innerHTML = `<span class="bad">${esc(e.message)}</span>`; $('#lgo').disabled = false; }
+  };
+  $('#lgo').onclick = go; $('#lp').onkeydown = e => { if (e.key === 'Enter') go(); };
+}
+const meBar = () => `<div class="pbar"><b>${esc(HUB.me.name)}</b><span class="muted">${esc(HUB.me.role || '')}</span><button class="btn small ghost" id="lout">Sign out</button></div>`;
+function wireOut() { const b = $('#lout'); if (b) b.onclick = async () => { try { await hubCall({ action: 'logout' }); } catch (e) {} hubLocalLogout(); render(); }; }
+async function leaderLoad(v) { try { return await hubCall({ action: 'leaderData' }); } catch (e) { v.innerHTML = `<div class="card"><span class="bad">${esc(e.message)}</span></div>`; return null; } }
+const act = (v, body, again) => async () => { try { await hubCall(body); await hubFeed(true); await again(); } catch (e) { alert(e.message); } };
+
+function leadersPost(v) {
+  leaderGate(v, async () => {
+    v.innerHTML = '<div class="card">Loading…</div>';
+    const d = await leaderLoad(v); if (!d) return; const f = (await hubFeed(true)) || {};
+    v.innerHTML = `${meBar()}
+    <details class="card" open><summary><b>New announcement</b></summary>
+      <label for="as">Who sees it</label><select id="as"><option value="all">Everyone</option><option value="worship">Worship tab</option><option value="leaders">Leaders only</option></select>
+      ${fld('at', 'Title (English)', 'maxlength="120"')}${fld('atn', 'Title (Nepali, optional)', 'maxlength="120" lang="ne"')}
+      <label for="ab">Message (English)</label><textarea id="ab" rows="3" maxlength="1000"></textarea><label for="abn">Message (Nepali, optional)</label><textarea id="abn" rows="3" maxlength="1000" lang="ne"></textarea>
+      ${fld('al', 'Link (optional)', 'type="url" placeholder="https://"')}<label class="chk"><input type="checkbox" id="ap"> Pin to the top</label><button class="btn" id="asave">Post announcement</button><div id="amsg"></div></details>
+    <details class="card"><summary><b>New event (adds to calendars)</b></summary>
+      ${fld('ed', 'Date', 'type="date"')}${fld('et', 'Start time (Central)', 'type="time"')}${fld('em', 'Length in minutes', 'type="number" value="60" min="5" max="1440"')}
+      ${fld('et1', 'Title (English)', 'maxlength="120"')}${fld('et2', 'Title (Nepali, optional)', 'maxlength="120" lang="ne"')}${fld('ep', 'Place', 'maxlength="120"')}${fld('el', 'Link (optional)', 'type="url" placeholder="https://"')}${fld('en', 'Notes', 'maxlength="500"')}
+      <button class="btn" id="esave">Save event</button><div id="emsg"></div></details>
+    <details class="card"><summary><b>New song</b></summary>
+      <p class="muted">Add the song name and a link to its words or chords (a website, YouTube, or a Drive file). Do not paste copyrighted lyrics here.</p>
+      ${fld('sn', 'Song name (Nepali)', 'maxlength="120" lang="ne"')}${fld('se', 'Song name (English, optional)', 'maxlength="120"')}${fld('sc', 'Type (Worship, Praise, Hymn…)', 'maxlength="40"')}${fld('sk', 'Key (optional)', 'maxlength="10"')}${fld('sl', 'Link to words / chords', 'type="url" placeholder="https://"')}${fld('sa', 'Link to listen (optional)', 'type="url" placeholder="https://"')}
+      <button class="btn" id="ssave">Save song</button><div id="smsg"></div></details>
+    <div class="card"><h2>Posted announcements</h2>${d.announcements.length ? d.announcements.map(a => `<div class="slot"><div class="t">${esc(a.en || a.ne)} <span class="muted">${a.scope === 'leaders' ? 'Leaders only' : a.scope === 'worship' ? 'Worship' : 'Everyone'}</span></div><button class="btn small ghost" data-ad="${esc(a.id)}">Delete</button></div>`).join('') : '<p class="muted">None yet.</p>'}</div>
+    <div class="card"><h2>Events</h2>${(f.events || []).length ? f.events.map(e => `<div class="slot"><div class="t">${esc(e.en || e.ne)} <span class="muted">${esc(e.date)}</span></div><button class="btn small ghost" data-ed="${esc(e.id)}">Delete</button></div>`).join('') : '<p class="muted">None yet.</p>'}</div>
+    <div class="card"><h2>Songs</h2>${(f.songs || []).length ? f.songs.map(s => `<div class="slot"><div class="t">${esc(s.ne || s.en)}</div><button class="btn small ghost" data-sd="${esc(s.id)}">Delete</button></div>`).join('') : '<p class="muted">None yet.</p>'}</div>
+    <div class="card"><h2>Fellowship posts waiting for review</h2>${d.flagged.length ? d.flagged.map(p => `<div class="card"><b>${esc(p.name)}</b> <span class="muted">${esc(p.status)}</span><p>${esc(p.text)}</p><button class="btn small" data-bk="${esc(p.id)}">Put back</button> <button class="btn small ghost" data-bd="${esc(p.id)}">Delete</button></div>`).join('') : '<p class="muted">Nothing reported.</p>'}</div>`;
+    wireOut();
+    const reload = () => render();
+    const send = (body, msgEl, ok) => async () => { try { await hubCall(body()); await hubFeed(true); msgEl && (msgEl.innerHTML = `<span class="good">${ok}</span>`); setTimeout(reload, 600); } catch (e) { if (msgEl) msgEl.innerHTML = `<span class="bad">${esc(e.message)}</span>`; else alert(e.message); } };
+    $('#asave').onclick = send(() => ({ action: 'annSave', scope: $('#as').value, titleEn: $('#at').value, titleNe: $('#atn').value, bodyEn: $('#ab').value, bodyNe: $('#abn').value, link: $('#al').value, pinned: $('#ap').checked }), $('#amsg'), 'Posted.');
+    $('#esave').onclick = send(() => ({ action: 'eventSave', date: $('#ed').value, time: $('#et').value, minutes: $('#em').value, titleEn: $('#et1').value, titleNe: $('#et2').value, place: $('#ep').value, link: $('#el').value, notes: $('#en').value }), $('#emsg'), 'Saved.');
+    $('#ssave').onclick = send(() => ({ action: 'songSave', titleNe: $('#sn').value, titleEn: $('#se').value, category: $('#sc').value, songKey: $('#sk').value, link: $('#sl').value, audio: $('#sa').value }), $('#smsg'), 'Saved.');
+    const del = (attr, action, extra) => v.querySelectorAll('[' + attr + ']').forEach(b => b.onclick = async () => { if (!confirm('Delete this?')) return; try { await hubCall(Object.assign({ action, id: b.getAttribute(attr) }, extra || {})); await hubFeed(true); render(); } catch (e) { alert(e.message); } });
+    del('data-ad', 'annDelete'); del('data-ed', 'eventDelete'); del('data-sd', 'songDelete'); del('data-bd', 'boardSet', { status: 'delete' }); del('data-bk', 'boardSet', { status: 'ok' });
+    applyLang();
+  });
+}
+function leadersRes(v) {
+  leaderGate(v, async () => {
+    v.innerHTML = '<div class="card">Loading…</div>';
+    const d = await leaderLoad(v); if (!d) return;
+    v.innerHTML = `${meBar()}<div class="card gold"><h2>Ministry resources</h2><p class="muted">Documents live in your Google Drive folder <b>Executive Assistant Workspace › AGC Connect › Leader Resources</b>. Put a file there and it shows here. To let a leader open it, share that folder with their Google account in Drive.</p></div>
+    <div class="card"><h2>Files in Drive</h2>${d.files.length ? d.files.map(f => `<div class="slot"><div class="t">${esc(f.name)}<div class="muted">${esc(f.cat || '')} ${esc(f.type)}</div></div>${linkBtn(f.url, 'Open')}</div>`).join('') : '<p class="muted">No files yet.</p>'}</div>
+    <div class="card"><h2>Shared links</h2>${d.resources.length ? d.resources.map(r => `<div class="slot"><div class="t">${esc(r.title)}<div class="muted">${esc(r.cat || '')} ${esc(r.desc || '')}</div></div>${linkBtn(r.url, 'Open')}<button class="btn small ghost" data-rd="${esc(r.id)}">✕</button></div>`).join('') : '<p class="muted">None yet.</p>'}
+      <h2 style="margin-top:14px">Add a link</h2>${fld('rt', 'Title', 'maxlength="120"')}${fld('rc', 'Group (Youth, Worship, Training…)', 'maxlength="40"')}${fld('rds', 'Short note', 'maxlength="300"')}${fld('ru', 'Link', 'type="url" placeholder="https://"')}<button class="btn" id="rsave">Save link</button><div id="rmsg"></div></div>`;
+    wireOut();
+    $('#rsave').onclick = async () => { try { await hubCall({ action: 'resSave', title: $('#rt').value, category: $('#rc').value, desc: $('#rds').value, url: $('#ru').value }); render(); } catch (e) { $('#rmsg').innerHTML = `<span class="bad">${esc(e.message)}</span>`; } };
+    v.querySelectorAll('[data-rd]').forEach(b => b.onclick = async () => { if (!confirm('Remove this link?')) return; try { await hubCall({ action: 'resDelete', id: b.dataset.rd }); render(); } catch (e) { alert(e.message); } });
+    applyLang();
+  });
+}
+function leadersBoard(v) {
+  leaderGate(v, async () => {
+    v.innerHTML = '<div class="card">Loading…</div>';
+    const d = await leaderLoad(v); if (!d) return;
+    v.innerHTML = `${meBar()}<div class="card gold"><h2>Leader Board</h2><p class="muted">Private to signed-in leaders. Share updates, needs and plans.</p><textarea id="lt" rows="3" maxlength="1000" aria-label="Message to leaders"></textarea><button class="btn" id="lpost">Post</button><div id="lmsg"></div></div>
+    ${d.lboard.length ? d.lboard.map(m => `<div class="card"><b>${esc(m.by)}</b> <span class="muted">${esc(fmtDay((m.created || '').slice(0, 10) || todayKey()))}</span><p>${esc(m.text)}</p>${m.by === HUB.me.name || HUB.me.admin ? `<button class="btn small ghost" data-md="${esc(m.id)}">Delete</button>` : ''}</div>`).join('') : '<div class="card">No messages yet.</div>'}`;
+    wireOut();
+    $('#lpost').onclick = async () => { try { await hubCall({ action: 'lboardPost', text: $('#lt').value }); render(); } catch (e) { $('#lmsg').innerHTML = `<span class="bad">${esc(e.message)}</span>`; } };
+    v.querySelectorAll('[data-md]').forEach(b => b.onclick = async () => { if (!confirm('Delete this message?')) return; try { await hubCall({ action: 'lboardDelete', id: b.dataset.md }); render(); } catch (e) { alert(e.message); } });
+    applyLang();
+  });
+}
+function leadersTeam(v) {
+  leaderGate(v, async () => {
+    if (!HUB.me.admin) { v.innerHTML = meBar() + '<div class="card"><h2>Team</h2><p>Only the pastor (admin) can add leaders and give out PINs.</p></div>'; wireOut(); return; }
+    v.innerHTML = '<div class="card">Loading…</div>';
+    const d = await leaderLoad(v); if (!d) return;
+    const pinHtml = v.__pin ? `<div class="card red"><h2>PIN for ${esc(v.__pin.name)}</h2><div class="bigpin" data-keep>${esc(v.__pin.pin)}</div><p>This is shown only once. Write it down now.</p></div>` : '';
+    v.innerHTML = `${meBar()}${pinHtml}<div class="card gold"><h2>Add a leader</h2><p class="muted">Each leader gets their own 6-digit PIN. It is shown once. Write it down and give it to them in person or by a private message.</p>${fld('tn', 'First name', 'maxlength="20"')}${fld('tr', 'Role (Worship, Youth, Kids…)', 'maxlength="40"')}<button class="btn" id="tadd">Add leader</button><div id="tmsg"></div></div>
+    <div class="card"><h2>Leaders</h2>${d.team.length ? d.team.map(t => `<div class="slot"><div class="t">${esc(t.name)} <span class="muted">${esc(t.role)}${t.active ? '' : ' · removed'}</span></div>${t.active ? `<button class="btn small ghost" data-tr="${esc(t.id)}">New PIN</button><button class="btn small ghost" data-tx="${esc(t.id)}">Remove</button>` : ''}</div>`).join('') : '<p class="muted">No leaders yet. You are signed in as admin.</p>'}</div>`;
+    wireOut();
+    const showPin = (name, pin) => { v.__pin = { name, pin }; leadersTeam(v); window.scrollTo(0, 0); };
+    $('#tadd').onclick = async () => { try { const r = await hubCall({ action: 'leaderAdd', name: $('#tn').value, role: $('#tr').value }); await hubFeed(true); showPin(r.name, r.pin); } catch (e) { $('#tmsg').innerHTML = `<span class="bad">${esc(e.message)}</span>`; } };
+    v.querySelectorAll('[data-tr]').forEach(b => b.onclick = async () => { if (!confirm('Make a new PIN for this leader? Their old PIN stops working.')) return; try { const r = await hubCall({ action: 'leaderReset', id: b.dataset.tr }); showPin(r.name, r.pin); } catch (e) { alert(e.message); } });
+    v.querySelectorAll('[data-tx]').forEach(b => b.onclick = async () => { if (!confirm('Remove this leader? They lose access right away.')) return; try { await hubCall({ action: 'leaderRemove', id: b.dataset.tx }); await hubFeed(true); render(); } catch (e) { alert(e.message); } });
+    applyLang();
+  });
+}
+
+
+/* calendar buttons work anywhere in the page */
+$('#view').addEventListener('click', e => {
+  const btn = e.target.closest('[data-cal]'); if (!btn) return;
+  const ev = CAL[btn.dataset.cal]; if (!ev) return;
+  if (btn.dataset.k === 'g') window.open(gcalUrl(ev), '_blank', 'noopener'); else downloadIcs(ev);
+});
+
 const VIEWS = {
   'home.today': homeToday, 'home.mv': homeMV, 'home.e4': homeE4,
-  'prayer.chain': prayerEmbed,
+  'prayer.chain': prayerEmbed, 'worship.songs': worshipSongs, 'worship.news': worshipNews, 'worship.cal': worshipCal, 'worship.fellow': worshipFellow,
+  'leaders.post': leadersPost, 'leaders.res': leadersRes, 'leaders.lboard': leadersBoard, 'leaders.team': leadersTeam,
   'kids.verse': v => memorize(v, 'kids'), 'kids.games': kidsGames, 'kids.lesson': shineText('kids', 'lesson', DEFAULT_LESSON.kids), 'kids.hw': v => assignView(v, 'kids'), 'kids.teach': v => teacherView(v, 'kids'),
   'kids.chat': v => chatView(v, 'kids'), 'kids.news': shineText('kids', 'news', 'No announcements right now. Check back soon!'), 'kids.me': v => profilesTab(v, 'kids'),
   'youth.verse': v => memorize(v, 'youth'), 'youth.lesson': shineText('youth', 'lesson', DEFAULT_LESSON.youth), 'youth.hw': v => assignView(v, 'youth'), 'youth.teach': v => teacherView(v, 'youth'), 'youth.notes': v => notesView(v, 'youth'),
@@ -771,7 +1055,7 @@ $('#brandlink').onclick = goHome; $('#homebtn').onclick = goHome;
 document.querySelectorAll('.langtog').forEach(b => b.onclick = () => setLang(LANG === 'ne' ? 'en' : 'ne'));
 
 /* ---------- start + member password ---------- */
-function startApp() { S.lang = LANG; $('#gate').hidden = true; $('#auth').hidden = true; $('#app').hidden = false; $('#signout').hidden = !(CLOUD && ME); render(); }
+function startApp() { S.lang = LANG; if (hubOn() && !HUB.me) S.leader = false; $('#gate').hidden = true; $('#auth').hidden = true; $('#app').hidden = false; $('#signout').hidden = !(CLOUD && ME); render(); }
 
 /* sign-in screen (parents) */
 let authMode = 'in';
@@ -836,6 +1120,7 @@ async function afterGate() {
   CFG = Object.assign(CFG, (await getJson('data/config.json')) || {});
   NE = ((await getJson('data/i18n.json')) || {}).ne || {}; S.lang = LANG; applyLang();
   SHINE = (await getJson('data/shine.json')) || SHINE; PRAYER = (await getJson('data/prayer.json')) || PRAYER;
+  WORSHIP = Object.assign({ announcements: [], songs: [], events: [], board: [] }, (await getJson('data/worship.json')) || {});
   HOME = (await getJson('data/home.json')) || HOME; VOTD = (await getJson('data/votd.json')) || VOTD; GAMES = (await getJson('data/games.json')) || GAMES;
   const hash = (CFG.passwordSha256 || '').toLowerCase();
   let ok = !hash;

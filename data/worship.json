@@ -1,0 +1,7 @@
+{
+  "_note": "Used when the shared Drive server (hub) is not connected, and as a starting list. Songs: {ne, en, cat, key, link, audio}. Announcements: {en, ne, bodyEn, bodyNe, link, created}. Events: {id, date:'YYYY-MM-DD', time:'HH:MM' (Central), minutes, en, ne, place, notes, link, created}. Link to words and chords; do not paste copyrighted lyrics.",
+  "announcements": [],
+  "songs": [],
+  "events": [],
+  "board": []
+}

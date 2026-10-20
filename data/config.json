@@ -2,19 +2,115 @@
   "appName": "AGC Connect",
   "passwordSha256": "",
   "leaderPinSha256": "",
-  "youversion": { "appKey": "", "baseUrl": "https://api.youversion.com" },
-  "firebase": { "apiKey": "", "authDomain": "", "projectId": "", "appId": "" },
-  "chat": { "kids": "leaders-only", "youth": "open", "maxLength": 280 },
-  "defaultVersion": { "en": "NASB1995", "ne": "NNRV" },
+  "youversion": {
+    "appKey": "",
+    "baseUrl": "https://api.youversion.com"
+  },
+  "firebase": {
+    "apiKey": "",
+    "authDomain": "",
+    "projectId": "",
+    "appId": ""
+  },
+  "chat": {
+    "kids": "leaders-only",
+    "youth": "open",
+    "maxLength": 280
+  },
+  "defaultVersion": {
+    "en": "NASB1995",
+    "ne": "NNRV"
+  },
   "versions": [
-    { "id": "NASB1995", "name": "NASB 1995", "lang": "en", "type": "link",
-      "url": "https://biblia.com/books/nasb95/{refNoSpace}",
-      "note": "Opens the NASB 1995 in a new tab. The text is not stored in this app because it is licensed." },
-    { "id": "WEB", "name": "World English Bible (public domain, shown here)", "lang": "en", "type": "api", "api": "web" },
-    { "id": "NNRV", "name": "NNRV", "lang": "ne", "type": "none",
-      "note": "NNRV is not connected yet. It needs a licensed source from its publisher. [Needs manual verification] Until then, pick ERV-NE." },
-    { "id": "ERV-NE", "name": "ERV-NE (Nepali)", "lang": "ne", "type": "link",
-      "url": "https://www.biblegateway.com/passage/?search={ref}&version=ERV-NE",
-      "note": "Opens ERV-NE in a new tab." }
-  ]
+    {
+      "id": "NASB1995",
+      "name": "NASB 1995",
+      "lang": "en",
+      "type": "youversion",
+      "yv": 100,
+      "abbr": "NASB1995",
+      "note": "Opens in YouVersion. The text is not stored in this app because it is licensed."
+    },
+    {
+      "id": "ESV",
+      "name": "ESV",
+      "lang": "en",
+      "type": "youversion",
+      "yv": 59,
+      "abbr": "ESV",
+      "note": "Opens in YouVersion."
+    },
+    {
+      "id": "NIV",
+      "name": "NIV",
+      "lang": "en",
+      "type": "youversion",
+      "yv": 111,
+      "abbr": "NIV",
+      "note": "Opens in YouVersion."
+    },
+    {
+      "id": "NKJV",
+      "name": "NKJV",
+      "lang": "en",
+      "type": "youversion",
+      "yv": 114,
+      "abbr": "NKJV",
+      "note": "Opens in YouVersion."
+    },
+    {
+      "id": "NLT",
+      "name": "NLT",
+      "lang": "en",
+      "type": "youversion",
+      "yv": 116,
+      "abbr": "NLT",
+      "note": "Opens in YouVersion."
+    },
+    {
+      "id": "KJV",
+      "name": "KJV",
+      "lang": "en",
+      "type": "youversion",
+      "yv": 1,
+      "abbr": "KJV",
+      "note": "Opens in YouVersion."
+    },
+    {
+      "id": "WEB",
+      "name": "World English Bible (public domain, shown in this app)",
+      "lang": "en",
+      "type": "api",
+      "api": "web"
+    },
+    {
+      "id": "NNRV",
+      "name": "NNRV नेपाली नयाँ संशोधित संस्करण",
+      "lang": "ne",
+      "type": "youversion",
+      "yv": 1483,
+      "abbr": "NNRV",
+      "note": "YouVersion मा खुल्छ। Opens in YouVersion."
+    },
+    {
+      "id": "NERV",
+      "name": "NERV पवित्र बाइबल",
+      "lang": "ne",
+      "type": "youversion",
+      "yv": 2671,
+      "abbr": "NERV",
+      "note": "YouVersion मा खुल्छ। Opens in YouVersion."
+    },
+    {
+      "id": "NCV",
+      "name": "NCV नेपाली समकालीन संस्करण",
+      "lang": "ne",
+      "type": "youversion",
+      "yv": 3261,
+      "abbr": "NCV",
+      "note": "YouVersion मा खुल्छ। Opens in YouVersion."
+    }
+  ],
+  "_note_versions": "All Bible links open in YouVersion (bible.com). IDs checked on bible.com: NASB1995 100, NNRV 1483, ESV 59, NIV 111, NKJV 114, NLT 116, KJV 1, NERV 2671, NCV 3261. Only the World English Bible (public domain) is shown inside the app, for games and practice.",
+  "hubUrl": ""
 }

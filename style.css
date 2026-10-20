@@ -112,3 +112,12 @@ main.flush{padding:0;max-width:none}
   .top .btn.small{padding:6px 9px;font-size:14px;min-height:36px}}
 @media (max-width:350px){.brand{display:none}}
 .flushpage{padding-bottom:0!important;overflow:hidden}
+
+/* worship + leaders */
+.t5{background:linear-gradient(135deg,#4a148c,#7b1fa2)}.t6{background:linear-gradient(135deg,#0b3d2e,#2e7d32)}
+.tabs button{font-size:11px;padding:6px 1px;text-align:center;line-height:1.1;position:relative}.tabs button span{font-size:21px}
+.tabs button.has-new::after{content:"";position:absolute;top:6px;left:calc(50% + 8px);width:11px;height:11px;border-radius:50%;background:#e53935;border:2px solid var(--card);animation:pulse 1.6s ease-in-out infinite}
+@keyframes pulse{50%{transform:scale(1.35)}}
+.song b{font-size:19px}.bigpin{font-size:44px;font-weight:900;letter-spacing:8px;text-align:center;margin:8px 0}
+details.card summary{cursor:pointer;font-size:17px;padding:4px 0}
+@media (prefers-reduced-motion:reduce){.tabs button.has-new::after{animation:none}}

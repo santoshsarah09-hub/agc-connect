@@ -8,7 +8,9 @@ One web app for Awakening Generations Church. Works in any phone browser (iPhone
 - **Prayer:** the full AGC Prayer Chain app (Pick a Time, Pray Together, Requests, My Hours, Translate, Admin). It runs inside this app and keeps its data in your Google Drive (see `prayer/SETUP.md`).
 - **Kids Shine:** Memory Verse (6 steps), Games (7), Lesson, Assignments, Chat, Announcements, My Kids (with this week's progress), Teacher
 - **Youth Shine:** Memory Verse (same 6 steps), Teaching, Assignments, Notes, Chat, Announcements, My Profile, Teacher
-- **Bible:** Read, Find a Verse, My Notes
+- **Worship:** Songs (search the church list or YouTube), Announcements, Calendar (add to phone calendar), Fellowship (a place to encourage each other)
+- **Bible:** Read, Find a Verse, My Notes (all open in YouVersion)
+- **AGC Leaders:** Post (announcements, events, songs), Resources (Drive folder and links), Leader Board (private), Team (admin adds leaders and gives each a personal PIN). Needs the Hub (see `hub/SETUP.md`).
 
 ## English and Nepali
 The button at the top right switches the whole app between English and नेपाली, and remembers the choice on that phone (a phone set to Nepali starts in Nepali). Tap it again any time to go back. Button and label words are translated from `data/i18n.json`; add or fix any line there. Mission, Vision, 4E, assignments and verses show in Nepali only where you have supplied Nepali (`ne` fields, `title_ne`, `detail_ne`); otherwise they show in English. Nothing is machine-translated at run time. The labels in `i18n.json` were drafted by Claude and should be checked by a Nepali speaker. The Prayer Chain app was already side by side English and Nepali.
@@ -18,8 +20,15 @@ The button at the top right switches the whole app between English and नेप
 - **Parents see progress:** My Kids shows this week (Sunday to Saturday): stars, verses learned, memory steps, game rounds, assignments done.
 - **Teacher sees the week:** a parent taps Send report to teacher (it shares or copies a short message). The teacher pastes the messages into Teacher > Add reports and sees a table for the week. Reports stay on the teacher's phone. Nothing is sent automatically.
 
+## What the Google scripts do (Apps Script)
+Apps Script is the free "back room" that lets phones share information and keeps it in **your Drive**. The app works without it, but only for things that stay on one phone. There are two small scripts:
+- **Prayer Chain script** (`prayer/backend/Code.gs`): the prayer hours, group prayer times and requests. Already running.
+- **Hub script** (`hub/Code.gs`): Worship (announcements, songs, events, Fellowship) and AGC Leaders (leader PINs, resources, Leader Board). Setup: `hub/SETUP.md`.
+Without the Hub, Worship shows only what is in `data/worship.json`, and Leaders and Fellowship say they are not connected yet.
+
 ## Where data lives
-- **Prayer Chain:** your Google Drive (Executive Assistant Workspace / AGC Prayer Chain), through your own Google Apps Script. Free.
+- **Prayer Chain:** your Google Drive (Executive Assistant Workspace / AGC Prayer Chain), through your own Apps Script. Free.
+- **Worship and Leaders (once the Hub is set up):** your Google Drive (Executive Assistant Workspace / AGC Connect): a data sheet plus the Leader Resources folder.
 - **Everything else (profiles, stars, assignments done, notes, chat, teacher reports):** on each person's own phone. It is not in your Drive and not on any server. If someone clears browser data or changes phones, that phone's progress is gone. Pastor-edited content (`data/*.json`) lives in the GitHub repo.
 
 ## Memory verse steps (Kids and Youth)
@@ -37,11 +46,7 @@ Word Order, Which Verse Is It, Missing Word, Who Am I, Books in Order, Old or Ne
 - `data/config.json`: Bible versions, member password, leader PIN, chat rules, YouVersion key
 
 ## Bible versions
-Defaults: NASB 1995 (English) and NNRV (Nepali). People can switch.
-- NASB 1995 is licensed, so the text is not stored here; it opens in a new tab. [Needs manual verification: licensing to show it inside the app]
-- NNRV is not connected yet; it needs a verified, licensed source. [Needs manual verification] ERV-NE opens as a stand-in.
-- The public-domain World English Bible shows inside the app and powers the games.
-- To practice memory verses in NASB or NNRV, paste the verse text into `verseText` in `data/shine.json` (only text you are permitted to use). Otherwise practice uses the World English Bible.
+Everything opens in **YouVersion** (bible.com). Defaults: **NASB 1995** (English) and **NNRV** (Nepali). People can pick others: ESV, NIV, NKJV, NLT, KJV, and the Nepali NERV and NCV. Version IDs were checked on bible.com. Only the public-domain World English Bible is shown inside the app (for games and practice). To practice memory verses in NASB or NNRV, paste the verse text into `verseText` in `data/shine.json` (only text you are permitted to use).
 
 ## Verse of the Day (YouVersion)
 YouVersion has a Verse of the Day service. It needs a free app key from platform.youversion.com. Paste it in `config.json` under `youversion.appKey`. Until then the app uses `data/votd.json`. [Needs manual verification: whether a key may be used in public browser code, and which Nepali versions your key can show.] Anything placed in a public repo can be read by anyone.
