@@ -1,0 +1,12 @@
+{
+  "_note": "Used for the Verse of the Day until a YouVersion app key is added in config.json. References only; the text comes from the selected Bible version. One is picked per day of the year.",
+  "refs": [
+    "John 3:16", "Psalm 23:1", "Philippians 4:13", "Proverbs 3:5-6", "Romans 8:28", "Isaiah 41:10",
+    "Jeremiah 29:11", "Joshua 1:9", "Matthew 6:33", "Psalm 46:1", "Romans 12:2", "2 Timothy 1:7",
+    "Psalm 119:105", "Galatians 2:20", "Ephesians 2:8-9", "Hebrews 11:1", "1 John 4:19", "Psalm 118:24",
+    "Matthew 11:28", "Isaiah 40:31", "Psalm 27:1", "Colossians 3:23", "James 1:5", "Romans 5:8",
+    "Psalm 37:4", "Proverbs 16:3", "Matthew 28:19-20", "Micah 6:8", "Lamentations 3:22-23", "1 Peter 5:7",
+    "Philippians 4:6-7", "John 14:6", "Romans 8:38-39", "Psalm 91:1", "Deuteronomy 31:6", "Psalm 34:8",
+    "John 8:36", "2 Corinthians 5:17", "Ephesians 4:32", "Galatians 5:22-23", "Psalm 139:14"
+  ]
+}

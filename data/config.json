@@ -1,6 +1,9 @@
 {
   "appName": "AGC Connect",
   "passwordSha256": "",
+  "leaderPinSha256": "",
+  "youversion": { "appKey": "", "baseUrl": "https://api.youversion.com" },
+  "chat": { "kids": "leaders-only", "youth": "open", "maxLength": 280 },
   "defaultVersion": { "en": "NASB1995", "ne": "NNRV" },
   "versions": [
     { "id": "NASB1995", "name": "NASB 1995", "lang": "en", "type": "link",

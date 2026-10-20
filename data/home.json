@@ -1,0 +1,26 @@
+{
+  "_note": "Church Mission, Vision and 4E. English comes from the church website. Put the Nepali in the 'ne' fields yourself; it is left empty on purpose so nothing is guessed.",
+  "tagline": "Making life better and brighter through Jesus",
+  "mission": {
+    "en": "At Awakening Generations Church, we are dedicated to evangelizing God’s Word in Nepali, exalting His glory, edifying our community for spiritual growth, and equipping believers for a purposeful, godly life. We strive to be a spiritually rich and supportive faith community, embracing our unique cultural heritage while advancing the teachings of Christ.",
+    "ne": ""
+  },
+  "vision": {
+    "en": "Our vision at Awakening Generations Church is to be a beacon of hope and faith for the Nepali-speaking community. We envisage inspiring and empowering believers to lead fulfilling lives rooted deeply in the teachings of Scripture, fostering a vibrant and enduring legacy of faith, hope, and love across generations.",
+    "ne": ""
+  },
+  "fourE": [
+    { "icon": "🛠️", "name": "Equipping", "color": "#001f3f",
+      "en": "Preparing believers for a purposeful, godly life.", "ne": "",
+      "refs": ["Ephesians 4:12", "2 Timothy 3:16-17"] },
+    { "icon": "📢", "name": "Evangelism", "color": "#c62828",
+      "en": "Our mandate is to spread the Good News.", "ne": "",
+      "refs": ["Mark 16:15", "Acts 1:8"] },
+    { "icon": "🙌", "name": "Exaltation", "color": "#ffc107",
+      "en": "We aim to honor and glorify God above all.", "ne": "",
+      "refs": ["Philippians 2:3", "James 1:9"] },
+    { "icon": "🏠", "name": "Edification", "color": "#333333",
+      "en": "We seek to strengthen our community's spiritual growth.", "ne": "",
+      "refs": ["Romans 14:2", "Romans 14:15", "Romans 14:19", "2 Corinthians 13:10"] }
+  ]
+}

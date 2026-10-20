@@ -1,36 +1,47 @@
 # AGC Connect
 
-One web app for Awakening Generations Church: **Prayer Chain**, **Kids Shine**, **Youth Shine**, and **Bible**. Each has its own inside tabs. Works in any phone browser (iPhone and Android). iPhone: Share > Add to Home Screen. Android: menu > Install app.
+One web app for Awakening Generations Church. Works in any phone browser (iPhone and Android). iPhone: Share > Add to Home Screen. Android: menu > Install app.
 
-## Inside tabs
-- Prayer Chain: Sign Up, Schedule, Prayer Requests
-- Kids Shine: Memory Verse, Lesson, Games, Announcements
-- Youth Shine: Memory Verse, Teaching, Notes, Announcements
-- Bible: Read, Find a Verse, My Notes
+## Sections and inside tabs
+- **Home:** Today (logo + Verse of the Day in English and Nepali), Mission & Vision, 4E with scriptures
+- **Prayer:** Sign Up, Schedule, Prayer Requests
+- **Kids Shine:** Memory Verse (6 steps), Games (7), Lesson, Chat, Announcements, My Kids
+- **Youth Shine:** Memory Verse (same 6 steps), Teaching, Notes, Chat, Announcements, My Profile
+- **Bible:** Read, Find a Verse, My Notes
 
-## Weekly updates (pastor edits these files)
-- `data/shine.json`: weekly verse, lesson, announcements, game verses
-- `data/prayer.json`: monthly prayer requests, English in `en`, Nepali in `ne`. Leave `ne` empty rather than guessing.
-- `data/config.json`: Bible versions and the member password
+## Memory verse steps (Kids and Youth)
+1 Read it 3 times, 2 Listen, 3 Pieces (phrase by phrase), 4 Fill the blanks (easy, medium, hard), 5 First letters, 6 Recite. Finishing all six marks the verse learned (+5 stars).
 
-## Member password
-Leave `passwordSha256` empty for no password. To set one, make its SHA-256 and paste it in:
+## Kids games
+Word Order, Which Verse Is It, Missing Word, Who Am I, Books in Order, Old or New Testament, Memory Match.
 
-    printf 'YourPassword' | sha256sum
-
-**Honest limit:** on a static site this password only keeps casual visitors out. Anyone who knows how to view page files can get around it, and the data files are readable. Do not put sensitive details (full names, phone numbers, medical or family details) in `data/`. For real privacy, the app needs a login backend.
+## Weekly updates (pastor edits these files in the repo)
+- `data/shine.json`: weekly verse, lesson, announcements, game verses, optional `verseText`
+- `data/prayer.json`: monthly prayer requests, English in `en`, Nepali in `ne`
+- `data/home.json`: Mission, Vision, 4E. The Nepali (`ne`) fields are empty on purpose; add your own.
+- `data/games.json`: "Who Am I" questions
+- `data/votd.json`: church list of daily verses (used until a YouVersion key is added)
+- `data/config.json`: Bible versions, member password, leader PIN, chat rules, YouVersion key
 
 ## Bible versions
-Defaults: **NASB 1995** (English) and **NNRV** (Nepali). People can switch versions in the app.
-- NASB 1995 is licensed, so the text is not stored here. The app opens it in a new tab. [Needs manual verification: licensing for showing it inside the app]
-- NNRV is not connected yet. A verified, licensed source is needed. [Needs manual verification] ERV-NE (Nepali) opens in a new tab as a stand-in.
+Defaults: NASB 1995 (English) and NNRV (Nepali). People can switch.
+- NASB 1995 is licensed, so the text is not stored here; it opens in a new tab. [Needs manual verification: licensing to show it inside the app]
+- NNRV is not connected yet; it needs a verified, licensed source. [Needs manual verification] ERV-NE opens as a stand-in.
 - The public-domain World English Bible shows inside the app and powers the games.
+- To practice memory verses in NASB or NNRV, paste the verse text into `verseText` in `data/shine.json` (only text you are permitted to use). Otherwise practice uses the World English Bible.
+
+## Verse of the Day (YouVersion)
+YouVersion has a Verse of the Day service. It needs a free app key from platform.youversion.com. Paste it in `config.json` under `youversion.appKey`. Until then the app uses `data/votd.json`. [Needs manual verification: whether a key may be used in public browser code, and which Nepali versions your key can show.] Anything placed in a public repo can be read by anyone.
+
+## Member password and leader PIN
+Leave `passwordSha256` empty for no password. To set one: `printf 'YourPassword' | sha256sum` and paste the result. Same for `leaderPinSha256` (leaders can post in Kids chat, pin and delete messages).
+**Honest limit:** on a static site these only keep casual visitors out. Do not put sensitive details in `data/`.
+
+## Chat
+Kids chat is leaders-post, kids-react by default (`chat.kids` in config; set `"open"` to let kids post). Youth chat is open. Rules built in: no links (removed), 280-character limit, no private messages, report button (reported messages are hidden from members until a leader reviews), leaders can pin and delete.
 
 ## Preview mode (what is not shared yet)
-Prayer sign-ups and notes are saved on each person's own phone, so two people cannot yet see each other's slots. A shared sign-up sheet needs an online database (Firebase or Supabase). Prayer requests and Shine content already work for everyone, because they come from the `data/` files.
-
-## Not built yet
-Homework with teacher grading, announcements push notifications, shared sign-ups.
+Prayer sign-ups, profiles and stars, notes, and chat are saved on each person's own phone, so people cannot yet see each other's slots or messages. Sharing needs an online database with logins (Firebase or Supabase). The chat's safety rules cannot be enforced across phones until then, so do not open chat to children before that is in place.
 
 ## Child safety
-No kid-to-kid chat, no public profiles, first names only. Review US children's privacy rules (COPPA) before collecting any child data online. [Needs manual verification]
+First names only. No kid-to-kid private messages. Review US children's privacy rules (COPPA) before collecting any child data online. [Needs manual verification]

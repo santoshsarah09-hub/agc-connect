@@ -1,0 +1,15 @@
+{
+  "_note": "Edit or add to these. Keep each clue simple and sure. 'options' must include the answer.",
+  "whoAmI": [
+    { "clue": "I built a huge boat because God told me a flood was coming.", "answer": "Noah", "options": ["Noah", "Moses", "Samuel"] },
+    { "clue": "I used a sling and a stone to defeat a giant named Goliath.", "answer": "David", "options": ["David", "Daniel", "Joseph"] },
+    { "clue": "I was thrown into a den of lions, but God kept me safe.", "answer": "Daniel", "options": ["Daniel", "Jonah", "Elijah"] },
+    { "clue": "I was swallowed by a big fish after I ran away from God.", "answer": "Jonah", "options": ["Jonah", "Noah", "Peter"] },
+    { "clue": "God used me to lead His people out of Egypt.", "answer": "Moses", "options": ["Moses", "Abraham", "David"] },
+    { "clue": "My brothers sold me, but God later made me a leader in Egypt.", "answer": "Joseph", "options": ["Joseph", "Isaac", "Jacob"] },
+    { "clue": "I was a queen who bravely spoke up to save my people.", "answer": "Esther", "options": ["Esther", "Ruth", "Mary"] },
+    { "clue": "I was a fisherman Jesus called to follow Him. I walked on water for a moment.", "answer": "Peter", "options": ["Peter", "Paul", "John"] },
+    { "clue": "I was the mother of Jesus.", "answer": "Mary", "options": ["Mary", "Martha", "Esther"] },
+    { "clue": "I was a little boy who heard God call my name in the night at the temple.", "answer": "Samuel", "options": ["Samuel", "David", "Timothy"] }
+  ]
+}

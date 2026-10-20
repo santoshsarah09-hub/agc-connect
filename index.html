@@ -7,14 +7,16 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="AGC Connect">
 <link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="64x64" href="assets/favicon-64.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
 <link rel="stylesheet" href="style.css">
 <title>AGC Connect</title>
 </head>
 <body>
 <div id="gate" hidden>
   <div class="gate-box">
+    <img src="assets/logo-full.png" alt="Awakening Generations Church" class="gate-logo">
     <h1>AGC Connect</h1>
-    <p>Awakening Generations Church</p>
     <label for="pw">Church password</label>
     <input id="pw" type="password" autocomplete="current-password">
     <button class="btn" id="pwgo">Enter</button>
@@ -23,7 +25,7 @@
 </div>
 
 <div id="app" hidden>
-  <header class="top"><div class="brand">AGC <span>Connect</span></div></header>
+  <header class="top"><img src="assets/emblem.png" alt="" class="top-logo"><div class="brand">AGC <span>Connect</span></div></header>
   <nav class="inner" id="inner" aria-label="Section tabs"></nav>
   <main id="view" aria-live="polite"></main>
   <nav class="tabs" id="tabs" aria-label="Main sections"></nav>
