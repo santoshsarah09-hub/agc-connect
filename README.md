@@ -5,10 +5,22 @@ One web app for Awakening Generations Church. Works in any phone browser (iPhone
 ## Sections and inside tabs
 - **Home:** Today (a bright slideshow that fades through the welcome, Mission, Vision and 4E, then four quick buttons and the Verse of the Day in English and Nepali), Mission & Vision, 4E with scriptures
 - **Getting around:** the logo / "AGC Connect" in the middle of the top bar always returns to Home. A "← Home" button appears on every other screen. The slideshow pauses on tap, can be moved with the dots or arrow keys, and stays still for people who have reduced motion turned on.
-- **Prayer:** Sign Up, Schedule, Prayer Requests
-- **Kids Shine:** Memory Verse (6 steps), Games (7), Lesson, Chat, Announcements, My Kids
-- **Youth Shine:** Memory Verse (same 6 steps), Teaching, Notes, Chat, Announcements, My Profile
+- **Prayer:** the full AGC Prayer Chain app (Pick a Time, Pray Together, Requests, My Hours, Translate, Admin). It runs inside this app and keeps its data in your Google Drive (see `prayer/SETUP.md`).
+- **Kids Shine:** Memory Verse (6 steps), Games (7), Lesson, Assignments, Chat, Announcements, My Kids (with this week's progress), Teacher
+- **Youth Shine:** Memory Verse (same 6 steps), Teaching, Assignments, Notes, Chat, Announcements, My Profile, Teacher
 - **Bible:** Read, Find a Verse, My Notes
+
+## English and Nepali
+The button at the top right switches the whole app between English and नेपाली, and remembers the choice on that phone (a phone set to Nepali starts in Nepali). Tap it again any time to go back. Button and label words are translated from `data/i18n.json`; add or fix any line there. Mission, Vision, 4E, assignments and verses show in Nepali only where you have supplied Nepali (`ne` fields, `title_ne`, `detail_ne`); otherwise they show in English. Nothing is machine-translated at run time. The labels in `i18n.json` were drafted by Claude and should be checked by a Nepali speaker. The Prayer Chain app was already side by side English and Nepali.
+
+## Assignments, weekly progress and the Teacher tab
+- **Teacher posts an assignment:** in the Teacher tab, type a title, details and due date, then copy the text it makes into `data/shine.json` under `kids` or `youth` > `assignments` (or send it to Claude). Children and youth see it in Assignments and tap Mark done.
+- **Parents see progress:** My Kids shows this week (Sunday to Saturday): stars, verses learned, memory steps, game rounds, assignments done.
+- **Teacher sees the week:** a parent taps Send report to teacher (it shares or copies a short message). The teacher pastes the messages into Teacher > Add reports and sees a table for the week. Reports stay on the teacher's phone. Nothing is sent automatically.
+
+## Where data lives
+- **Prayer Chain:** your Google Drive (Executive Assistant Workspace / AGC Prayer Chain), through your own Google Apps Script. Free.
+- **Everything else (profiles, stars, assignments done, notes, chat, teacher reports):** on each person's own phone. It is not in your Drive and not on any server. If someone clears browser data or changes phones, that phone's progress is gone. Pastor-edited content (`data/*.json`) lives in the GitHub repo.
 
 ## Memory verse steps (Kids and Youth)
 1 Read it 3 times, 2 Listen, 3 Pieces (phrase by phrase), 4 Fill the blanks (easy, medium, hard), 5 First letters, 6 Recite. Finishing all six marks the verse learned (+5 stars).
@@ -56,7 +68,7 @@ The Firebase web config is meant to be public; the rules, not the config, protec
 Kids chat is leaders-post, kids-react by default (`chat.kids` in config; set `"open"` to let kids post). Youth chat is open. Rules built in: no links (removed), 280-character limit, no private messages, report button (reported messages are hidden from members until a leader reviews), leaders can pin and delete.
 
 ## Preview mode (what is not shared yet)
-Prayer sign-ups, profiles and stars, notes, and chat are saved on each person's own phone, so people cannot yet see each other's slots or messages. Sharing needs an online database with logins (Firebase or Supabase). The chat's safety rules cannot be enforced across phones until then, so do not open chat to children before that is in place.
+Profiles and stars, notes, and chat are saved on each person's own phone, so people cannot see each other's messages. (The Prayer Chain is shared; it uses your Drive.) Sharing needs an online database with logins (Firebase or Supabase). The chat's safety rules cannot be enforced across phones until then, so do not open chat to children before that is in place.
 
 ## Child safety
 First names only. No kid-to-kid private messages. Review US children's privacy rules (COPPA) before collecting any child data online. [Needs manual verification]

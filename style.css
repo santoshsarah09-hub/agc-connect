@@ -94,3 +94,21 @@ textarea{min-height:140px}label{font-weight:700;font-size:15px}
 .bigword{font-size:22px;font-weight:800;text-align:center;padding:12px}
 .letters{font-size:24px;letter-spacing:3px;line-height:1.8;font-weight:700;color:var(--blue)}
 @media (prefers-color-scheme:dark){.letters{color:#9ec9ff}.stepper button.on{background:#2a6fb5}}
+
+/* language button, prayer embed, progress, teacher */
+.langtog{font-weight:800;min-height:36px;padding:4px 12px;margin-right:6px}
+.gate-box .langtog{float:right;margin:0}
+main.flush{padding:0;max-width:none}
+.pframe{display:block;width:100%;border:0;height:calc(100vh - 130px);height:calc(100dvh - 130px);background:var(--bg)}
+.stat{padding:10px 0;border-top:1px solid var(--line)}.stat:first-of-type{border-top:0}.stat b{display:block;font-size:17px}.stat .btn{margin-top:8px}
+.card.done{opacity:.8;border-left:6px solid #2e9e5b}
+.scrollx{overflow-x:auto}.tbl{border-collapse:collapse;width:100%;font-size:14px;margin-top:8px}
+.tbl th,.tbl td{padding:8px 6px;border-bottom:1px solid var(--line);text-align:center}.tbl th:first-child,.tbl td:first-child{text-align:left;font-weight:700}
+@media (max-width:420px){.langtog{padding:4px 8px;margin-right:4px}.so{padding:4px 8px}}
+.top{grid-template-columns:minmax(0,1fr) auto minmax(0,1fr)}
+.top .langtog{color:#fff!important;border-color:#fff!important;margin:0 6px 0 0!important;white-space:nowrap}
+.top-r{display:flex;align-items:center;justify-content:flex-end;gap:0}
+@media (max-width:480px){.brand{font-size:14px;letter-spacing:1px;white-space:nowrap}.top-logo{height:26px}.brandlink{gap:6px;padding:4px}.top{padding-left:10px;padding-right:10px;gap:4px}
+  .top .btn.small{padding:6px 9px;font-size:14px;min-height:36px}}
+@media (max-width:350px){.brand{display:none}}
+.flushpage{padding-bottom:0!important;overflow:hidden}

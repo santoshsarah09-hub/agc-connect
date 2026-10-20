@@ -1,16 +1,31 @@
 {
-  "_note": "Edit this file each week. 'verse' is the weekly memory verse reference. 'verseText' is optional: paste the verse text for a version you are allowed to use (for example NASB1995 or NNRV) so kids can practice in that version. If empty, practice uses the public-domain World English Bible. Verses below are samples; replace with yours.",
+  "_note": "Edit this file each week. 'verse' is the weekly memory verse reference. 'verseText' is optional: paste the verse text for a version you are allowed to use (for example NASB1995 or NNRV) so kids can practice in that version. If empty, practice uses the public-domain World English Bible. Verses below are samples; replace with yours. 'assignments' (optional, per group): each is {id, title, title_ne, detail, detail_ne, due:'YYYY-MM-DD', ref}. The Teacher tab can make the text for you.",
   "kids": {
     "verse": "Psalm 118:24",
-    "verseText": { "NASB1995": "", "NNRV": "" },
-    "gameVerses": ["Genesis 1:1", "Psalm 118:24", "John 3:16", "Ephesians 4:32", "Philippians 4:13", "Psalm 56:3"],
+    "verseText": {
+      "NASB1995": "",
+      "NNRV": ""
+    },
+    "gameVerses": [
+      "Genesis 1:1",
+      "Psalm 118:24",
+      "John 3:16",
+      "Ephesians 4:32",
+      "Philippians 4:13",
+      "Psalm 56:3"
+    ],
     "lesson": "",
-    "news": ""
+    "news": "",
+    "assignments": []
   },
   "youth": {
     "verse": "1 Timothy 4:12",
-    "verseText": { "NASB1995": "", "NNRV": "" },
+    "verseText": {
+      "NASB1995": "",
+      "NNRV": ""
+    },
     "lesson": "",
-    "news": ""
+    "news": "",
+    "assignments": []
   }
 }

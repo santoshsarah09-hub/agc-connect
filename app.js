@@ -15,8 +15,18 @@ const USFM = 'GEN EXO LEV NUM DEU JOS JDG RUT 1SA 2SA 1KI 2KI 1CH 2CH EZR NEH ES
 /* ---------- storage (this device) ---------- */
 const KEYBASE = 'agc.connect.v2';
 let KEY = KEYBASE;
-const blank = () => ({ slots: {}, notes: [], lang: 'en', ver: {}, cache: {}, profiles: [], cur: {}, chat: { kids: [], youth: [] }, leader: false });
-const loadState = () => { try { return Object.assign(blank(), JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { return blank(); } };
+const blank = () => ({ slots: {}, notes: [], lang: 'en', ver: {}, cache: {}, profiles: [], cur: {}, chat: { kids: [], youth: [] }, leader: false, teacher: { reports: {} } });
+const loadState = () => {
+  const b = blank();
+  try {
+    const o = JSON.parse(localStorage.getItem(KEY) || '{}'), s = Object.assign(b, o && typeof o === 'object' ? o : {});
+    ['notes', 'profiles'].forEach(k => { if (!Array.isArray(s[k])) s[k] = []; });
+    ['slots', 'ver', 'cache', 'cur'].forEach(k => { if (!s[k] || typeof s[k] !== 'object') s[k] = {}; });
+    if (!s.chat || !Array.isArray(s.chat.kids) || !Array.isArray(s.chat.youth)) s.chat = { kids: [], youth: [] };
+    s.profiles = s.profiles.filter(p => p && p.id && p.name).map(p => Object.assign({ stars: 0, learned: [], steps: {}, hw: {}, log: [] }, p));
+    return s;
+  } catch (e) { return blank(); }
+};
 let S = loadState();
 const localSave = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} };
 
@@ -58,6 +68,40 @@ function accountNote() {
   return '<div class="preview">Sign-in is not turned on yet, so profiles are saved on this phone only.</div>';
 }
 
+/* ---------- language: English / Nepali ---------- */
+let LANG = 'en', NE = {};
+try { LANG = localStorage.getItem('agc.lang') || ((navigator.language || '').toLowerCase().startsWith('ne') ? 'ne' : 'en'); } catch (e) {}
+if (LANG !== 'ne') LANG = 'en';
+const T = s => (LANG === 'ne' && NE[s]) || s;
+const pickLang = (o, k) => !o ? '' : (LANG === 'ne' && o[k + '_ne']) ? o[k + '_ne'] : (o[k] || '');
+function setLang(l) { LANG = l === 'ne' ? 'ne' : 'en'; try { localStorage.setItem('agc.lang', LANG); } catch (e) {} S.lang = LANG; save(); render(); }
+const ATTRS = ['placeholder', 'aria-label', 'title', 'alt'];
+let xlActive = false;
+function applyLang() {
+  document.documentElement.lang = LANG;
+  document.querySelectorAll('.langtog').forEach(b => { b.textContent = LANG === 'ne' ? 'English' : 'नेपाली'; b.setAttribute('aria-label', LANG === 'ne' ? 'Switch to English' : 'नेपालीमा हेर्नुहोस्. Switch to Nepali'); });
+  if (LANG === 'en' && !xlActive) return;
+  const root = document.body; if (!root) return;
+  if (LANG === 'ne') xlActive = true;
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode: n => /^(SCRIPT|STYLE|TEXTAREA|OPTION)$/.test(n.parentNode.nodeName) || n.parentNode.closest('[data-keep],.msg,.langtog') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT });
+  const nodes = []; while (w.nextNode()) nodes.push(w.currentNode);
+  nodes.forEach(n => {
+    const cur = n.nodeValue, orig = (n.__tr !== undefined && n.__tr === cur) ? n.__en : cur, t = orig.trim();
+    if (LANG === 'ne' && NE[t]) { n.__en = orig; n.__tr = orig.replace(t, NE[t]); n.nodeValue = n.__tr; }
+    else if (n.__tr !== undefined && n.__tr === cur) { n.nodeValue = n.__en; n.__tr = undefined; }
+  });
+  document.querySelectorAll(ATTRS.map(a => '[' + a + ']').join(',')).forEach(el => ATTRS.forEach(a => {
+    if (!el.hasAttribute(a) || el.closest('.langtog')) return;
+    const cur = el.getAttribute(a), key = 'xl' + a, rec = el.__xl && el.__xl[a];
+    const orig = rec && rec.tr === cur ? rec.en : cur;
+    if (LANG === 'ne' && NE[orig]) { (el.__xl = el.__xl || {})[a] = { en: orig, tr: NE[orig] }; el.setAttribute(a, NE[orig]); }
+    else if (rec && rec.tr === cur) { el.setAttribute(a, rec.en); delete el.__xl[a]; }
+  }));
+  if (LANG === 'en') xlActive = false;
+}
+let xlQueued = false;
+if (window.MutationObserver) new MutationObserver(() => { if (xlQueued) return; xlQueued = true; requestAnimationFrame(() => { xlQueued = false; applyLang(); }); }).observe(document.body, { childList: true, subtree: true });
+
 /* ---------- data ---------- */
 let CFG = { versions: [], defaultVersion: { en: 'NASB1995', ne: 'NNRV' }, youversion: {}, chat: { kids: 'leaders-only', youth: 'open', maxLength: 280 } };
 let SHINE = { kids: {}, youth: {} }, PRAYER = { months: [] }, HOME = {}, VOTD = { refs: [] }, GAMES = { whoAmI: [] };
@@ -66,13 +110,13 @@ const getJson = u => fetch(u).then(r => r.json()).catch(() => null);
 /* ---------- sections ---------- */
 const SECTIONS = {
   home:   { label: 'Home',        icon: '🏠', tabs: [['today', 'Today'], ['mv', 'Mission & Vision'], ['e4', '4E']] },
-  prayer: { label: 'Prayer',      icon: '🙏', tabs: [['signup', 'Sign Up'], ['schedule', 'Schedule'], ['requests', 'Prayer Requests']] },
-  kids:   { label: 'Kids Shine',  icon: '🧒', tabs: [['verse', 'Memory Verse'], ['games', 'Games'], ['lesson', 'Lesson'], ['chat', 'Chat'], ['news', 'Announcements'], ['me', 'My Kids']] },
-  youth:  { label: 'Youth Shine', icon: '🔥', tabs: [['verse', 'Memory Verse'], ['lesson', 'Teaching'], ['notes', 'Notes'], ['chat', 'Chat'], ['news', 'Announcements'], ['me', 'My Profile']] },
+  prayer: { label: 'Prayer',      icon: '🙏', tabs: [['chain', 'Prayer Chain']] },
+  kids:   { label: 'Kids Shine',  icon: '🧒', tabs: [['verse', 'Memory Verse'], ['games', 'Games'], ['lesson', 'Lesson'], ['hw', 'Assignments'], ['chat', 'Chat'], ['news', 'Announcements'], ['me', 'My Kids'], ['teach', 'Teacher']] },
+  youth:  { label: 'Youth Shine', icon: '🔥', tabs: [['verse', 'Memory Verse'], ['lesson', 'Teaching'], ['hw', 'Assignments'], ['notes', 'Notes'], ['chat', 'Chat'], ['news', 'Announcements'], ['me', 'My Profile'], ['teach', 'Teacher']] },
   bible:  { label: 'Bible',       icon: '📖', tabs: [['read', 'Read'], ['find', 'Find a Verse'], ['notes', 'My Notes']] }
 };
 let sec = 'home';
-const tabOf = { home: 'today', prayer: 'signup', kids: 'verse', youth: 'verse', bible: 'read' };
+const tabOf = { home: 'today', prayer: 'chain', kids: 'verse', youth: 'verse', bible: 'read' };
 let showTimer = null;
 function goHome() { sec = 'home'; tabOf.home = 'today'; render(); window.scrollTo(0, 0); }
 
@@ -83,9 +127,11 @@ function render() {
   $('#inner').innerHTML = SECTIONS[sec].tabs.map(([k, l]) => `<button data-t="${k}" class="${k === tabOf[sec] ? 'on' : ''}">${l}</button>`).join('');
   $('#tabs').querySelectorAll('button').forEach(b => b.onclick = () => { sec = b.dataset.s; render(); window.scrollTo(0, 0); });
   $('#inner').querySelectorAll('button').forEach(b => b.onclick = () => { tabOf[sec] = b.dataset.t; render(); });
-  const v = $('#view'); v.innerHTML = '';
+  $('#inner').hidden = SECTIONS[sec].tabs.length < 2;
+  const v = $('#view'); v.innerHTML = ''; v.classList.toggle('flush', sec === 'prayer'); document.body.classList.toggle('flushpage', sec === 'prayer');
   const fn = VIEWS[sec + '.' + tabOf[sec]];
   fn ? fn(v) : (v.innerHTML = '<div class="card">Coming soon.</div>');
+  applyLang();
 }
 
 /* ---------- Bible versions + passages ---------- */
@@ -180,8 +226,8 @@ function showcaseHTML() {
   return `<div class="showcase" id="showcase" role="region" aria-label="AGC mission and vision" tabindex="0">
     ${sl.map((s, i) => `<div class="slide ${i === 0 ? 'on' : ''}" aria-hidden="${i !== 0}">
       ${s.logo ? '<img class="slogo" src="assets/logo-full.png" alt="Awakening Generations Church">' : `<div class="lab">${esc(s.lab)}</div>`}
-      ${s.list ? `<div class="e4list">${s.list.map(x => `<span>${esc(x)}</span>`).join('')}</div>` : `<div class="txt">${esc(s.en)}</div>`}
-      ${s.ne ? `<div class="txt ne" lang="ne">${esc(s.ne)}</div>` : ''}</div>`).join('')}
+      ${s.list ? `<div class="e4list">${s.list.map(x => `<span>${esc(x)}</span>`).join('')}</div>` : `<div class="txt" ${LANG === 'ne' && s.ne ? 'lang="ne" data-keep' : ''}>${esc(LANG === 'ne' && s.ne ? s.ne : s.en)}</div>`}
+      </div>`).join('')}
     <div class="dots">${sl.map((s, i) => `<button class="dot ${i === 0 ? 'on' : ''}" aria-label="Slide ${i + 1} of ${sl.length}"></button>`).join('')}</div></div>`;
 }
 const tilesHTML = () => `<div class="tiles">${[['prayer', '🙏', 'Prayer Chain', 't1'], ['kids', '🧒', 'Kids Shine', 't2'], ['youth', '🔥', 'Youth Shine', 't3'], ['bible', '📖', 'Bible', 't4']].map(([k, i, n, c]) => `<button class="tile ${c}" data-go="${k}"><span>${i}</span>${n}</button>`).join('')}</div>`;
@@ -224,13 +270,13 @@ function wireChips(el, out) {
   el.querySelectorAll('[data-r]').forEach(c => c.onclick = () => { out.hidden = false; showPassage(out, c.dataset.r, usableVer('en').v); });
 }
 function homeMV(v) {
-  const box = (title, o, cls) => `<div class="card ${cls}"><h2>${title}</h2><p>${esc((o || {}).en)}</p>${(o || {}).ne ? `<p lang="ne">${esc(o.ne)}</p>` : ''}</div>`;
+  const box = (title, o, cls) => { o = o || {}; const useNe = LANG === 'ne' && o.ne; return `<div class="card ${cls}"><h2>${title}</h2><p ${useNe ? 'lang="ne" data-keep' : ''}>${esc(useNe ? o.ne : o.en)}</p>${LANG === 'ne' && !o.ne ? '<p class="muted">Nepali text has not been added yet.</p>' : ''}</div>`; };
   v.innerHTML = box('Our Mission', HOME.mission, 'gold') + box('Our Vision', HOME.vision, 'red') +
     `<div class="card"><h2>${esc(HOME.tagline || '')}</h2><p class="muted">Equip • Evangelize • Exalt • Edify</p></div>`;
 }
 function homeE4(v) {
   const list = HOME.fourE || [];
-  v.innerHTML = list.map((e, i) => `<div class="card e4" style="border-top-color:${esc(e.color)}"><h2>${esc(e.icon)} ${esc(e.name)}</h2><p>${esc(e.en)}</p>${e.ne ? `<p lang="ne">${esc(e.ne)}</p>` : ''}<div>${ref2chips(e.refs || [])}</div><div class="out" hidden></div></div>`).join('');
+  v.innerHTML = list.map((e, i) => `<div class="card e4" style="border-top-color:${esc(e.color)}"><h2>${esc(e.icon)} ${esc(e.name)}</h2><p ${LANG === 'ne' && e.ne ? 'lang="ne" data-keep' : ''}>${esc(LANG === 'ne' && e.ne ? e.ne : e.en)}</p><div>${ref2chips(e.refs || [])}</div><div class="out" hidden></div></div>`).join('');
   v.querySelectorAll('.card').forEach(c => wireChips(c, $('.out', c)));
 }
 
@@ -274,41 +320,16 @@ const chainTitle = d => 'Saturday, ' + d.toLocaleDateString('en-US', { month: 'l
 const slotKey = (d, h) => dateKey(d) + '-' + String(h).padStart(2, '0');
 const previewNote = () => '<div class="preview">Preview: sign-ups are saved on this phone only until the shared sign-up sheet is connected.</div>';
 
-function prayerSignup(v) {
-  const d = chainDate();
-  v.innerHTML = `${previewNote()}<div class="card gold"><div class="muted">Next prayer chain</div><h2>${esc(chainTitle(d))}</h2>
-    <p class="muted">24 hours, 12 AM to 12 AM Central Time. Pick an open 1-hour slot.</p>
-    <label for="who">Your first name</label><input id="who" maxlength="20" autocomplete="given-name"><div id="smsg"></div></div>
-    <div class="card" id="open"></div>`;
-  const draw = () => {
-    const open = [...Array(24).keys()].filter(h => !S.slots[slotKey(d, h)]);
-    $('#open').innerHTML = open.length ? '<h2>Open slots</h2>' + open.map(h => `<div class="slot"><div class="t">${hourLabel(h)}</div><button class="btn small" data-h="${h}">Take it</button></div>`).join('') : '<b>All 24 hours are taken. Thank you!</b>';
-    v.querySelectorAll('[data-h]').forEach(b => b.onclick = () => {
-      const name = $('#who').value.trim().split(/\s+/)[0];
-      if (!name) { $('#smsg').innerHTML = '<span class="bad">Please type your first name first.</span>'; $('#who').focus(); return; }
-      S.slots[slotKey(d, +b.dataset.h)] = name; save();
-      $('#smsg').innerHTML = `<span class="good">Thank you, ${esc(name)}! You have ${hourLabel(+b.dataset.h)}.</span>`; draw();
-    });
-  };
-  draw();
-}
-function prayerSchedule(v) {
-  const d = chainDate();
-  v.innerHTML = `${previewNote()}<div class="card gold"><h2>${esc(chainTitle(d))}</h2><p class="muted">12 AM to 12 AM Central Time</p></div>
-    <div class="card">${[...Array(24).keys()].map(h => { const n = S.slots[slotKey(d, h)]; return `<div class="slot"><div class="t">${hourLabel(h)}</div>${n ? `<b>${esc(n)}</b> <button class="btn ghost small" data-r="${h}" aria-label="Release slot">✕</button>` : '<span class="open">Open</span>'}</div>`; }).join('')}</div>`;
-  v.querySelectorAll('[data-r]').forEach(b => b.onclick = () => { if (confirm('Release this slot?')) { delete S.slots[slotKey(d, +b.dataset.r)]; save(); render(); } });
-}
-function prayerRequests(v) {
-  const ms = (PRAYER.months || []).slice(), m = ms.length ? ms[ms.length - 1] : null;
-  if (!m || !(m.items || []).length) { v.innerHTML = '<div class="card red"><h2>Prayer requests</h2><p>This month\'s prayer requests will be posted here before the chain.</p></div>'; return; }
-  v.innerHTML = `<div class="card red"><h2>${esc(m.month || 'This month')}</h2><div class="cols"><b>English</b><b>नेपाली</b></div></div>` +
-    m.items.map(i => `<div class="card"><div class="cols"><div>${esc(i.en)}</div><div>${esc(i.ne)}</div></div></div>`).join('');
+function prayerEmbed(v) {
+  v.innerHTML = '<iframe class="pframe" id="pframe" title="Prayer Chain" src="prayer/index.html?embed=1" loading="eager"></iframe>';
+  const f = $('#pframe'), fit = () => { if (!f.isConnected) return window.removeEventListener('resize', fit); f.style.height = Math.max(320, window.innerHeight - f.getBoundingClientRect().top - $('#tabs').offsetHeight) + 'px'; };
+  fit(); window.addEventListener('resize', fit); setTimeout(fit, 300);
 }
 
 /* ---------- profiles (add a child / youth profile) ---------- */
 const profilesOf = g => S.profiles.filter(p => p.group === g);
 function curProfile(g) { return S.profiles.find(p => p.id === S.cur[g] && p.group === g) || profilesOf(g)[0] || null; }
-function awardStars(g, n) { const p = curProfile(g); if (p) { p.stars += n; save(); } }
+function awardStars(g, n) { const p = curProfile(g); if (p) { p.stars += n; logAct(p, 'game', '', n); save(); } }
 function addForm(g) {
   const kidsG = g === 'kids';
   return `<div class="card gold"><h2>${kidsG ? 'Add a child' : 'Add your profile'}</h2>
@@ -322,7 +343,7 @@ function wireAdd(g) {
   b.onclick = () => {
     const name = $('#pn').value.trim().split(/\s+/)[0];
     if (!name) { $('#pmsg').innerHTML = '<span class="bad">Please type a first name.</span>'; return; }
-    const p = { id: uid(), name: name.slice(0, 20), group: g, age: g === 'kids' ? $('#pa').value : 'older', stars: 0, learned: [], steps: {} };
+    const p = { id: uid(), name: name.slice(0, 20), group: g, age: g === 'kids' ? $('#pa').value : 'older', stars: 0, learned: [], steps: {}, hw: {}, log: [] };
     S.profiles.push(p); S.cur[g] = p.id; save(); render();
   };
 }
@@ -342,8 +363,9 @@ function profilesTab(v, g) {
     ${list.length ? `<div class="card"><h2>${g === 'kids' ? 'Your children' : 'Profiles'}</h2>${list.map(p => `<div class="slot"><div class="t">${esc(p.name)} <span class="muted">${g === 'kids' ? (p.age === 'younger' ? 'Younger' : 'Older') + ' · ' : ''}⭐ ${p.stars} · ${p.learned.length} learned</span></div>
       <button class="btn small ${p.id === (curProfile(g) || {}).id ? '' : 'ghost'}" data-s="${p.id}">${p.id === (curProfile(g) || {}).id ? 'Active' : 'Switch'}</button>
       <button class="btn small ghost" data-x="${p.id}" aria-label="Remove ${esc(p.name)}">✕</button></div>`).join('')}</div>` : ''}
+    ${list.length ? weekCard(list) : ''}
     ${addForm(g)}`;
-  wireAdd(g);
+  wireAdd(g); wireWeek(v);
   v.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { S.cur[g] = b.dataset.s; save(); render(); });
   v.querySelectorAll('[data-x]').forEach(b => b.onclick = () => {
     if (!confirm('Remove this profile and its progress from this phone?')) return;
@@ -368,9 +390,9 @@ function stepDone(p, ref, id) { return ((p.steps || {})[ref] || []).includes(id)
 function finishStep(g, ref, id) {
   const p = curProfile(g); p.steps = p.steps || {};
   const a = p.steps[ref] = p.steps[ref] || [];
-  if (!a.includes(id)) a.push(id);
+  if (!a.includes(id)) { a.push(id); logAct(p, 'step', ref + ' ' + id, 0); }
   let all = false;
-  if (STEPS.every(s => a.includes(s[0])) && !p.learned.includes(ref)) { p.learned.push(ref); p.stars += 5; all = true; }
+  if (STEPS.every(s => a.includes(s[0])) && !p.learned.includes(ref)) { p.learned.push(ref); p.stars += 5; logAct(p, 'learned', ref, 5); all = true; }
   save(); return all;
 }
 async function memorize(v, g) {
@@ -633,21 +655,123 @@ function bibleFind(v) {
   $('#go').onclick = () => { const r = $('#fr').value.trim(); if (r) showPassage($('#pass'), r); };
 }
 
+/* ---------- weekly progress, assignments, teacher view ---------- */
+const todayKey = () => dateKey(new Date());
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+const weekStartOf = d => addDays(new Date(d.getFullYear(), d.getMonth(), d.getDate()), -d.getDay());   // weeks run Sunday to Saturday
+const parseKey = k => { const [y, m, d] = String(k).split('-').map(Number); return new Date(y, m - 1, d); };
+const fmtDay = d => (typeof d === 'string' ? parseKey(d) : d).toLocaleDateString(LANG === 'ne' ? 'ne-NP' : 'en-US', { month: 'short', day: 'numeric' });
+const weekLabel = k => { const ws = parseKey(k); return 'Sun ' + fmtDay(ws) + ' – Sat ' + fmtDay(addDays(ws, 6)); };
+function logAct(p, k, t, n) { p.log = Array.isArray(p.log) ? p.log : []; p.log.push({ d: todayKey(), k, t: String(t || '').slice(0, 40), n: n || 0 }); if (p.log.length > 400) p.log = p.log.slice(-400); }
+function hwForWeek(g, wk) { const s = wk, e = dateKey(addDays(parseKey(wk), 6)); return (((SHINE[g] || {}).assignments) || []).filter(x => x && x.id && x.due && x.due >= s && x.due <= e); }
+function weekStats(p, wk) {
+  const e = dateKey(addDays(parseKey(wk), 6)), L = (Array.isArray(p.log) ? p.log : []).filter(x => x.d >= wk && x.d <= e), hw = hwForWeek(p.group, wk);
+  return { name: p.name, group: p.group, week: wk, stars: L.reduce((a, x) => a + (x.n || 0), 0), learned: L.filter(x => x.k === 'learned').length, steps: L.filter(x => x.k === 'step').length, games: L.filter(x => x.k === 'game').length, hwDone: hw.filter(x => (p.hw || {})[x.id]).length, hwTotal: hw.length };
+}
+const thisWeek = () => dateKey(weekStartOf(new Date()));
+function reportText(st) {
+  const who = st.group === 'kids' ? 'Kids Shine' : 'Youth Shine';
+  return `AGC weekly report: ${st.name} (${who})\nWeek: ${weekLabel(st.week)}\n⭐ ${st.stars} stars · ${st.learned} verse(s) learned · ${st.steps} memory steps · ${st.games} game rounds · ${st.hwDone} of ${st.hwTotal} assignments done\nCode: ${['AGC1', st.name.replace(/\|/g, ''), st.group, st.week, st.stars, st.learned, st.steps, st.games, st.hwDone, st.hwTotal].join('|')}`;
+}
+function parseReports(text) {
+  const out = []; let bad = 0;
+  String(text || '').split(/\r?\n/).forEach(line => {
+    const m = line.match(/AGC1\|[^\r\n]*/); if (!m) return;
+    const f = m[0].trim().split('|');
+    const n = i => Math.max(0, Math.min(9999, parseInt(f[i], 10) || 0));
+    if (f.length !== 10 || !/^(kids|youth)$/.test(f[2]) || !/^\d{4}-\d{2}-\d{2}$/.test(f[3]) || !f[1].trim()) { bad++; return; }
+    out.push({ name: f[1].trim().slice(0, 20), group: f[2], week: f[3], stars: n(4), learned: n(5), steps: n(6), games: n(7), hwDone: n(8), hwTotal: n(9) });
+  });
+  return { out, bad };
+}
+async function shareText(text) {
+  if (navigator.share) { try { await navigator.share({ text }); return 'shared'; } catch (e) { if (e && e.name === 'AbortError') return 'cancel'; } }
+  try { await navigator.clipboard.writeText(text); return 'copied'; } catch (e) { return 'fail'; }
+}
+function weekCard(list) {
+  const wk = thisWeek();
+  return `<div class="card gold"><h2>This week</h2><p class="muted">${esc(weekLabel(wk))}. Parents can see progress here. Tap Send to share a short report with the teacher.</p>` + list.map(p => {
+    const st = weekStats(p, wk);
+    return `<div class="stat"><b>${esc(p.name)}</b><div>⭐ ${st.stars} · 📖 ${st.learned} verse${st.learned === 1 ? '' : 's'} learned · 🪜 ${st.steps} steps · 🎮 ${st.games} rounds · ✅ ${st.hwDone}/${st.hwTotal} assignments</div>
+      <button class="btn small" data-rep="${p.id}">Send report to teacher</button></div>`;
+  }).join('') + '<div id="repmsg" class="muted" aria-live="polite"></div></div>';
+}
+function wireWeek(v) {
+  v.querySelectorAll('[data-rep]').forEach(b => b.onclick = async () => {
+    const p = S.profiles.find(x => x.id === b.dataset.rep); if (!p) return;
+    const r = await shareText(reportText(weekStats(p, thisWeek())));
+    $('#repmsg', v).textContent = r === 'shared' ? T('Report ready to send.') : r === 'copied' ? T('Report copied. Paste it into a message to the teacher.') : r === 'fail' ? T('Could not copy. Please try again.') : '';
+  });
+}
+function assignView(v, g) {
+  const p = needProfile(v, g); if (!p) return;
+  p.hw = p.hw && typeof p.hw === 'object' ? p.hw : {};
+  const today = todayKey(), min = dateKey(addDays(new Date(), -14));
+  const list = (((SHINE[g] || {}).assignments) || []).filter(a => a && a.id && (!a.due || a.due >= min)).sort((a, b) => (a.due || '9').localeCompare(b.due || '9'));
+  v.innerHTML = profileBar(g) + (list.length ? list.map(a => {
+    const done = p.hw[a.id], late = a.due && a.due < today && !done;
+    return `<div class="card ${done ? 'done' : ''}"><h2>${esc(pickLang(a, 'title'))}</h2>${pickLang(a, 'detail') ? `<p>${esc(pickLang(a, 'detail'))}</p>` : ''}${a.ref ? `<p>📖 ${esc(a.ref)}</p>` : ''}
+      <p class="muted">${a.due ? 'Due ' + esc(fmtDay(a.due)) : 'No due date'}${late ? ' · <span class="bad">Past due</span>' : ''}</p>
+      <button class="btn small ${done ? 'ghost' : ''}" data-hw="${esc(a.id)}">${done ? '✓ Done. Tap to undo' : 'Mark done'}</button></div>`;
+  }).join('') : '<div class="card">No assignments right now. Check back soon!</div>');
+  wireBar(g);
+  v.querySelectorAll('[data-hw]').forEach(b => b.onclick = () => { const id = b.dataset.hw; if (p.hw[id]) delete p.hw[id]; else p.hw[id] = todayKey(); save(); render(); });
+}
+function teacherView(v, g) {
+  const h = (CFG.leaderPinSha256 || '').toLowerCase();
+  if (h && !S.leader) {
+    v.innerHTML = '<div class="card"><h2>Teacher</h2><p>This page is for teachers and leaders.</p><button class="btn" id="tl">Leader sign-in</button></div>';
+    $('#tl').onclick = async () => { const pin = prompt('Leader PIN'); if (pin == null) return; if ((await sha256(pin)) === h) { S.leader = true; save(); render(); } else alert('That PIN is not right.'); };
+    return;
+  }
+  S.teacher = S.teacher && typeof S.teacher === 'object' && S.teacher.reports ? S.teacher : { reports: {} };
+  const R = S.teacher.reports, all = Object.values(R).filter(r => r.group === g);
+  const weeks = [...new Set([thisWeek(), ...all.map(r => r.week)])].sort().reverse();
+  const sel = weeks.includes(v.__wk) ? v.__wk : weeks[0];
+  const rows = all.filter(r => r.week === sel).sort((a, b) => a.name.localeCompare(b.name));
+  const posted = ((SHINE[g] || {}).assignments || []).filter(a => a && a.id);
+  v.innerHTML = `<div class="card gold"><h2>Weekly progress</h2>
+    <label for="wk">Week</label><select id="wk">${weeks.map(w => `<option value="${w}" ${w === sel ? 'selected' : ''}>${esc(weekLabel(w))}</option>`).join('')}</select>
+    ${rows.length ? `<div class="scrollx"><table class="tbl"><tr><th>Name</th><th>⭐</th><th>Verses</th><th>Steps</th><th>Rounds</th><th>Assignments</th></tr>${rows.map(r => `<tr><td>${esc(r.name)}</td><td>${r.stars}</td><td>${r.learned}</td><td>${r.steps}</td><td>${r.games}</td><td>${r.hwDone}/${r.hwTotal}</td></tr>`).join('')}</table></div><p class="muted">${rows.length} reported this week.</p>` : '<p class="muted">No reports for this week yet. Parents send them from My Kids. Paste them below.</p>'}</div>
+    <div class="card"><h2>Add reports</h2><p class="muted">Paste the messages parents send you. You can paste many at once.</p><textarea id="rp" rows="4" aria-label="Paste reports"></textarea>
+    <button class="btn" id="radd">Add reports</button> <button class="btn ghost small" id="rclr">Clear all reports</button><div id="rmsg" aria-live="polite"></div></div>
+    <div class="card"><h2>Assignments posted</h2>${posted.length ? posted.map(a => `<div class="slot"><div class="t">${esc(a.title)} <span class="muted">${a.due ? esc(fmtDay(a.due)) : ''}</span></div></div>`).join('') : '<p class="muted">None yet.</p>'}
+    <h2 style="margin-top:14px">New assignment</h2><label for="at">Title</label><input id="at" maxlength="80"><label for="ad">Details (optional)</label><textarea id="ad" rows="2" maxlength="300"></textarea>
+    <label for="adu">Due date</label><input id="adu" type="date"><button class="btn" id="agen">Make assignment text</button>
+    <p class="muted">Copy the text this makes into <b>data/shine.json</b> under "${g}" then "assignments" (or send it to Claude to add). It shows for everyone after the next update.</p><textarea id="aout" rows="5" readonly aria-label="Assignment text"></textarea></div>`;
+  $('#wk').onchange = e => { v.__wk = e.target.value; teacherView(v, g); applyLang(); };
+  $('#radd').onclick = () => {
+    const { out, bad } = parseReports($('#rp').value);
+    out.forEach(r => { R[r.group + '|' + r.name.toLowerCase() + '|' + r.week] = r; });
+    save();
+    if (out.length) { v.__wk = out.filter(r => r.group === g).map(r => r.week).sort().pop() || v.__wk; teacherView(v, g); applyLang(); }
+    $('#rmsg').innerHTML = `<span class="${out.length ? 'good' : 'bad'}">${out.length ? 'Added ' + out.length + (out.length === 1 ? ' report.' : ' reports.') : 'No reports found. Paste the whole message including the Code line.'}${bad ? ' ' + bad + ' could not be read.' : ''}</span>`;
+  };
+  $('#rclr').onclick = () => { if (confirm('Clear all saved reports from this phone?')) { S.teacher.reports = {}; save(); teacherView(v, g); applyLang(); } };
+  $('#agen').onclick = () => {
+    const title = $('#at').value.trim(), due = $('#adu').value;
+    if (!title) { $('#aout').value = 'Please type a title first.'; return; }
+    const o = { id: 'a-' + (due || todayKey()).replace(/-/g, '') + '-' + uid().slice(0, 3), title: title.slice(0, 80), detail: $('#ad').value.trim().slice(0, 300), due: due || '' };
+    $('#aout').value = JSON.stringify(o, null, 2) + ',';
+  };
+}
+
 const VIEWS = {
   'home.today': homeToday, 'home.mv': homeMV, 'home.e4': homeE4,
-  'prayer.signup': prayerSignup, 'prayer.schedule': prayerSchedule, 'prayer.requests': prayerRequests,
-  'kids.verse': v => memorize(v, 'kids'), 'kids.games': kidsGames, 'kids.lesson': shineText('kids', 'lesson', DEFAULT_LESSON.kids),
+  'prayer.chain': prayerEmbed,
+  'kids.verse': v => memorize(v, 'kids'), 'kids.games': kidsGames, 'kids.lesson': shineText('kids', 'lesson', DEFAULT_LESSON.kids), 'kids.hw': v => assignView(v, 'kids'), 'kids.teach': v => teacherView(v, 'kids'),
   'kids.chat': v => chatView(v, 'kids'), 'kids.news': shineText('kids', 'news', 'No announcements right now. Check back soon!'), 'kids.me': v => profilesTab(v, 'kids'),
-  'youth.verse': v => memorize(v, 'youth'), 'youth.lesson': shineText('youth', 'lesson', DEFAULT_LESSON.youth), 'youth.notes': v => notesView(v, 'youth'),
+  'youth.verse': v => memorize(v, 'youth'), 'youth.lesson': shineText('youth', 'lesson', DEFAULT_LESSON.youth), 'youth.hw': v => assignView(v, 'youth'), 'youth.teach': v => teacherView(v, 'youth'), 'youth.notes': v => notesView(v, 'youth'),
   'youth.chat': v => chatView(v, 'youth'), 'youth.news': shineText('youth', 'news', 'No announcements right now. Check back soon!'), 'youth.me': v => profilesTab(v, 'youth'),
   'bible.read': bibleRead, 'bible.find': bibleFind, 'bible.notes': v => notesView(v, 'bible')
 };
 
 /* ---------- header: logo/brand and Back button go Home ---------- */
 $('#brandlink').onclick = goHome; $('#homebtn').onclick = goHome;
+document.querySelectorAll('.langtog').forEach(b => b.onclick = () => setLang(LANG === 'ne' ? 'en' : 'ne'));
 
 /* ---------- start + member password ---------- */
-function startApp() { $('#gate').hidden = true; $('#auth').hidden = true; $('#app').hidden = false; $('#signout').hidden = !(CLOUD && ME); render(); }
+function startApp() { S.lang = LANG; $('#gate').hidden = true; $('#auth').hidden = true; $('#app').hidden = false; $('#signout').hidden = !(CLOUD && ME); render(); }
 
 /* sign-in screen (parents) */
 let authMode = 'in';
@@ -710,6 +834,7 @@ async function afterGate() {
 }
 (async function init() {
   CFG = Object.assign(CFG, (await getJson('data/config.json')) || {});
+  NE = ((await getJson('data/i18n.json')) || {}).ne || {}; S.lang = LANG; applyLang();
   SHINE = (await getJson('data/shine.json')) || SHINE; PRAYER = (await getJson('data/prayer.json')) || PRAYER;
   HOME = (await getJson('data/home.json')) || HOME; VOTD = (await getJson('data/votd.json')) || VOTD; GAMES = (await getJson('data/games.json')) || GAMES;
   const hash = (CFG.passwordSha256 || '').toLowerCase();
