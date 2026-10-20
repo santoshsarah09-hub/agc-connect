@@ -1,0 +1,9 @@
+{
+  "name": "AGC Connect",
+  "short_name": "AGC Connect",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f0f2f5",
+  "theme_color": "#001f3f",
+  "icons": []
+}

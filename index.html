@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#001f3f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="AGC Connect">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="style.css">
+<title>AGC Connect</title>
+</head>
+<body>
+<div id="gate" hidden>
+  <div class="gate-box">
+    <h1>AGC Connect</h1>
+    <p>Awakening Generations Church</p>
+    <label for="pw">Church password</label>
+    <input id="pw" type="password" autocomplete="current-password">
+    <button class="btn" id="pwgo">Enter</button>
+    <div id="pwmsg" class="bad"></div>
+  </div>
+</div>
+
+<div id="app" hidden>
+  <header class="top"><div class="brand">AGC <span>Connect</span></div></header>
+  <nav class="inner" id="inner" aria-label="Section tabs"></nav>
+  <main id="view" aria-live="polite"></main>
+  <nav class="tabs" id="tabs" aria-label="Main sections"></nav>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

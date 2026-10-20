@@ -1,0 +1,16 @@
+{
+  "appName": "AGC Connect",
+  "passwordSha256": "",
+  "defaultVersion": { "en": "NASB1995", "ne": "NNRV" },
+  "versions": [
+    { "id": "NASB1995", "name": "NASB 1995", "lang": "en", "type": "link",
+      "url": "https://biblia.com/books/nasb95/{refNoSpace}",
+      "note": "Opens the NASB 1995 in a new tab. The text is not stored in this app because it is licensed." },
+    { "id": "WEB", "name": "World English Bible (public domain, shown here)", "lang": "en", "type": "api", "api": "web" },
+    { "id": "NNRV", "name": "NNRV", "lang": "ne", "type": "none",
+      "note": "NNRV is not connected yet. It needs a licensed source from its publisher. [Needs manual verification] Until then, pick ERV-NE." },
+    { "id": "ERV-NE", "name": "ERV-NE (Nepali)", "lang": "ne", "type": "link",
+      "url": "https://www.biblegateway.com/passage/?search={ref}&version=ERV-NE",
+      "note": "Opens ERV-NE in a new tab." }
+  ]
+}

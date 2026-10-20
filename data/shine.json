@@ -1,0 +1,14 @@
+{
+  "_note": "Edit this file each week. Verse lists are references only (sample verses, replace with yours). Leave lesson/news empty to show a default message.",
+  "kids": {
+    "verse": "Psalm 118:24",
+    "gameVerses": ["Genesis 1:1", "Psalm 118:24", "John 3:16", "Ephesians 4:32", "Philippians 4:13", "Psalm 56:3"],
+    "lesson": "",
+    "news": ""
+  },
+  "youth": {
+    "verse": "1 Timothy 4:12",
+    "lesson": "",
+    "news": ""
+  }
+}
