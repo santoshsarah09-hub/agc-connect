@@ -105,7 +105,7 @@ if (window.MutationObserver) new MutationObserver(() => { if (xlQueued) return; 
 /* ---------- data ---------- */
 let CFG = { versions: [], defaultVersion: { en: 'NASB1995', ne: 'NNRV' }, youversion: {}, chat: { kids: 'leaders-only', youth: 'open', maxLength: 280 } };
 let SHINE = { kids: {}, youth: {} }, PRAYER = { months: [] }, HOME = {}, VOTD = { refs: [] }, GAMES = { whoAmI: [] };
-const getJson = u => fetch(u).then(r => r.json()).catch(() => null);
+const getJson = u => fetch(u, { cache: 'no-cache' }).then(r => r.json()).catch(() => null);
 
 /* ---------- sections ---------- */
 const SECTIONS = {
