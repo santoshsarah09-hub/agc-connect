@@ -25,14 +25,16 @@ var CONFIG = {
 };
 
 var H = {
-  leaders: ['id', 'name', 'role', 'salt', 'pinHash', 'active', 'created'],
+  leaders: ['id', 'name', 'role', 'areas', 'salt', 'pinHash', 'active', 'created'],
   ann: ['id', 'scope', 'titleEn', 'titleNe', 'bodyEn', 'bodyNe', 'link', 'pinned', 'created', 'by'],
   songs: ['id', 'titleNe', 'titleEn', 'category', 'link', 'audio', 'songKey', 'created', 'by'],
-  events: ['id', 'date', 'time', 'minutes', 'titleEn', 'titleNe', 'place', 'link', 'notes', 'created', 'by'],
+  events: ['id', 'date', 'time', 'minutes', 'titleEn', 'titleNe', 'place', 'link', 'notes', 'area', 'created', 'by'],
   board: ['id', 'name', 'text', 'status', 'created', 'deviceId'],
-  lboard: ['id', 'text', 'by', 'created'],
+  lboard: ['id', 'area', 'text', 'by', 'created'],
   res: ['id', 'title', 'desc', 'category', 'url', 'created', 'by']
 };
+var AREAS = ['kids', 'youth', 'worship'];     // what a leader can be given access to
+var RES_SUBFOLDERS = ['All Leaders', 'Kids', 'Youth', 'Worship'];
 var SHEETS = { leaders: 'Leaders', ann: 'Announcements', songs: 'Songs', events: 'Events', board: 'Fellowship', lboard: 'LeaderBoard', res: 'Resources' };
 
 /* ---------------------------------------------------------------- setup */
@@ -41,7 +43,8 @@ function setup() {
   var props = PropertiesService.getScriptProperties();
   var root = getOrCreateFolder_(DriveApp.getRootFolder(), CONFIG.ROOT_FOLDER);
   var app = getOrCreateFolder_(root, CONFIG.APP_FOLDER);
-  getOrCreateFolder_(app, CONFIG.RES_FOLDER);
+  var resFolder = getOrCreateFolder_(app, CONFIG.RES_FOLDER);
+  RES_SUBFOLDERS.forEach(function (n) { getOrCreateFolder_(resFolder, n); });
   if (!props.getProperty('SHEET_ID')) {
     var ss = SpreadsheetApp.create(CONFIG.DATA_NAME);
     DriveApp.getFileById(ss.getId()).moveTo(app);
@@ -197,10 +200,10 @@ function login_(b) {
   var who = null;
   if (id === 'admin') {
     var real = props.getProperty('ADMIN_PIN');
-    if (real && pin === real) who = { id: 'admin', name: props.getProperty('ADMIN_NAME') || 'Admin', role: 'Admin', admin: true };
+    if (real && pin === real) who = { id: 'admin', name: props.getProperty('ADMIN_NAME') || 'Admin', role: 'Admin', admin: true, areas: AREAS.slice() };
   } else {
     var row = findById_(sheets_().leaders, id);
-    if (row && row.active === 'yes' && hashPin_(row.salt, pin) === row.pinHash) who = { id: row.id, name: row.name, role: row.role, admin: false };
+    if (row && row.active === 'yes' && hashPin_(row.salt, pin) === row.pinHash) who = { id: row.id, name: row.name, role: row.role, admin: false, areas: areasOf_(row) };
   }
   if (!who) {
     cache.put(failKey_(id), String((Number(cache.get(failKey_(id))) || 0) + 1), CONFIG.LOCK_SECONDS);
@@ -209,7 +212,7 @@ function login_(b) {
   cache.put(failKey_(id), '0', CONFIG.LOCK_SECONDS);
   var token = Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, '');
   cache.put('tok:' + token, JSON.stringify(who), CONFIG.TOKEN_SECONDS);
-  return { ok: true, token: token, name: who.name, role: who.role, admin: who.admin };
+  return { ok: true, token: token, name: who.name, role: who.role, admin: who.admin, areas: who.areas };
 }
 function who_(b) {
   var raw = CacheService.getScriptCache().get('tok:' + String(b.token || ''));
@@ -218,9 +221,30 @@ function who_(b) {
   if (w.id !== 'admin') {                       // a removed leader loses access at once
     var row = findById_(sheets_().leaders, w.id);
     if (!row || row.active !== 'yes') throw new Error('Please sign in again.');
-  }
+    w.areas = areasOf_(row);                    // access changes apply at once
+  } else { w.areas = AREAS.slice(); }
   return w;
 }
+function areasOf_(row) { return String(row.areas || '').split(',').map(function (x) { return x.trim(); }).filter(function (x) { return AREAS.indexOf(x) >= 0; }); }
+function cleanAreas_(list) {
+  if (!Array.isArray(list)) list = String(list || '').split(',');
+  var out = [];
+  list.forEach(function (x) { x = String(x).trim().toLowerCase(); if (AREAS.indexOf(x) >= 0 && out.indexOf(x) < 0) out.push(x); });
+  return out;
+}
+// area: 'all' = admin only; 'leaders' = every signed-in leader; kids / youth / worship = leaders given that area (admin has all)
+function can_(w, area) {
+  if (w.admin) return true;
+  if (area === 'all') return false;
+  if (area === 'leaders') return true;
+  return w.areas.indexOf(area) >= 0;
+}
+function need_(w, area) { if (!can_(w, area)) throw new Error('You do not have access to do that. Ask the pastor.'); }
+function catKey_(cat) {
+  var first = String(cat || '').split(' / ')[0].trim().toLowerCase();
+  return (first === '' || first === 'all leaders') ? 'leaders' : (AREAS.indexOf(first) >= 0 ? first : 'private');
+}
+function seesCat_(w, cat) { var k = catKey_(cat); return w.admin || k === 'leaders' || (k !== 'private' && w.areas.indexOf(k) >= 0); }
 function admin_(b) { var w = who_(b); if (!w.admin) throw new Error('Only the admin can do that.'); return w; }
 
 /* ------------------------------------------------------------ public feed */
@@ -235,7 +259,7 @@ function getFeed_() {
   ann.sort(function (a, b) { return (b.pinned - a.pinned) || (a.created < b.created ? 1 : -1); });
   var songs = rows_(S.songs).map(function (r) { return { id: r.id, ne: r.titleNe, en: r.titleEn, cat: r.category, link: r.link, audio: r.audio, key: r.songKey }; });
   var events = rows_(S.events).filter(function (r) { return r.date >= addDays_(today, -1); }).map(function (r) {
-    return { id: r.id, date: r.date, time: r.time, minutes: Number(r.minutes) || 60, en: r.titleEn, ne: r.titleNe, place: r.place, link: r.link, notes: r.notes, created: r.created };
+    return { id: r.id, date: r.date, time: r.time, minutes: Number(r.minutes) || 60, en: r.titleEn, ne: r.titleNe, place: r.place, link: r.link, notes: r.notes, area: r.area || 'all', created: r.created };
   });
   events.sort(function (a, b) { return (a.date + a.time) < (b.date + b.time) ? -1 : 1; });
   var board = rows_(S.board).filter(function (r) { return r.status === 'ok'; }).map(function (r) { return { id: r.id, name: r.name, text: r.text, created: r.created }; });
@@ -277,16 +301,17 @@ function boardReport_(b) {
 
 function leaderData_(b) {
   var w = who_(b), S = sheets_();
-  var ann = rows_(S.ann).map(annOut_); ann.sort(function (a, c) { return a.created < c.created ? 1 : -1; });
-  var lb = rows_(S.lboard).map(function (r) { return { id: r.id, text: r.text, by: r.by, created: r.created }; });
+  var ann = rows_(S.ann).filter(function (r) { return r.scope === 'all' || r.scope === 'leaders' || can_(w, r.scope); }).map(function (r) { var o = annOut_(r); o.canEdit = can_(w, r.scope); return o; });
+  ann.sort(function (a, c) { return a.created < c.created ? 1 : -1; });
+  var lb = rows_(S.lboard).filter(function (r) { return (r.area || 'leaders') === 'leaders' || can_(w, r.area); }).map(function (r) { return { id: r.id, area: r.area || 'leaders', text: r.text, by: r.by, created: r.created }; });
   lb.sort(function (a, c) { return a.created < c.created ? 1 : -1; });
-  var res = rows_(S.res).map(function (r) { return { id: r.id, title: r.title, desc: r.desc, cat: r.category, url: r.url, by: r.by }; });
-  var board = rows_(S.board).filter(function (r) { return r.status !== 'ok'; }).map(function (r) { return { id: r.id, name: r.name, text: r.text, status: r.status, created: r.created }; });
-  var team = w.admin ? rows_(S.leaders).map(function (r) { return { id: r.id, name: r.name, role: r.role, active: r.active === 'yes' }; }) : [];
-  return { ok: true, me: { name: w.name, role: w.role, admin: w.admin }, announcements: ann.slice(0, 80), lboard: lb.slice(0, 80), resources: res, files: driveFiles_(), flagged: board, team: team };
+  var res = rows_(S.res).filter(function (r) { return seesCat_(w, r.category); }).map(function (r) { return { id: r.id, title: r.title, desc: r.desc, cat: r.category, url: r.url, by: r.by }; });
+  var flagged = rows_(S.board).filter(function (r) { return r.status !== 'ok'; }).map(function (r) { return { id: r.id, name: r.name, text: r.text, status: r.status, created: r.created }; });
+  var team = w.admin ? rows_(S.leaders).map(function (r) { return { id: r.id, name: r.name, role: r.role, areas: areasOf_(r), active: r.active === 'yes' }; }) : [];
+  return { ok: true, me: { name: w.name, role: w.role, admin: w.admin, areas: w.areas }, announcements: ann.slice(0, 80), lboard: lb.slice(0, 80), resources: res, files: driveFiles_(w), flagged: flagged, team: team };
 }
 
-function driveFiles_() {
+function driveFiles_(w) {
   try {
     var props = PropertiesService.getScriptProperties(), id = props.getProperty('RES_FOLDER_ID');
     var folder;
@@ -298,6 +323,7 @@ function driveFiles_() {
     }
     var out = [];
     collect_(folder, '', out, 0);
+    out = out.filter(function (f) { return seesCat_(w, f.cat); });
     out.sort(function (a, b) { return a.updated < b.updated ? 1 : -1; });
     return out.slice(0, 200);
   } catch (e) { Logger.log("driveFiles_ failed: " + e); return []; }
@@ -315,23 +341,27 @@ function collect_(folder, cat, out, depth) {
 
 function annSave_(b) {
   var w = who_(b), S = sheets_();
-  var scope = b.scope === 'leaders' ? 'leaders' : b.scope === 'worship' ? 'worship' : 'all';
+  var scope = ['all', 'leaders', 'worship', 'kids', 'youth'].indexOf(b.scope) >= 0 ? b.scope : 'all';
+  need_(w, scope);
   var o = { scope: scope, titleEn: txt_(b.titleEn, 120), titleNe: txt_(b.titleNe, 120), bodyEn: txt_(b.bodyEn, 1000), bodyNe: txt_(b.bodyNe, 1000), link: link_(b.link), pinned: b.pinned ? 'yes' : 'no' };
   if (!o.titleEn && !o.titleNe) throw new Error('Please type a title.');
   var ex = b.id ? findById_(S.ann, b.id) : null;
-  if (ex) { o.id = ex.id; o.created = ex.created; o.by = ex.by; writeObj_(S.ann, H.ann, ex.row, o); return { ok: true, id: ex.id }; }
+  if (ex) { need_(w, ex.scope); o.id = ex.id; o.created = ex.created; o.by = ex.by; writeObj_(S.ann, H.ann, ex.row, o); return { ok: true, id: ex.id }; }
   o.id = newId_(); o.created = nowIso_(); o.by = w.name;
   appendObj_(S.ann, H.ann, o);
   return { ok: true, id: o.id };
 }
 function deleteRow_(key, b) {
-  who_(b);
-  var S = sheets_(), r = findById_(S[key], b.id);
-  if (r) S[key].deleteRow(r.row);
+  var w = who_(b), S = sheets_(), r = findById_(S[key], b.id);
+  if (!r) return { ok: true };
+  var area = key === 'ann' ? r.scope : key === 'songs' ? 'worship' : key === 'events' ? (r.area || 'all') : 'all';
+  need_(w, area);
+  S[key].deleteRow(r.row);
   return { ok: true };
 }
 function songSave_(b) {
   var w = who_(b), S = sheets_();
+  need_(w, 'worship');
   var o = { titleNe: txt_(b.titleNe, 120), titleEn: txt_(b.titleEn, 120), category: txt_(b.category, 40), link: link_(b.link), audio: link_(b.audio), songKey: txt_(b.songKey, 10) };
   if (!o.titleNe && !o.titleEn) throw new Error('Please type the song name.');
   var ex = b.id ? findById_(S.songs, b.id) : null;
@@ -342,12 +372,14 @@ function songSave_(b) {
 }
 function eventSave_(b) {
   var w = who_(b), S = sheets_();
-  var o = { date: String(b.date || ''), time: String(b.time || ''), minutes: Math.max(5, Math.min(1440, Number(b.minutes) || 60)), titleEn: txt_(b.titleEn, 120), titleNe: txt_(b.titleNe, 120), place: txt_(b.place, 120), link: link_(b.link), notes: txt_(b.notes, 500) };
+  var area = ['all', 'kids', 'youth', 'worship'].indexOf(b.area) >= 0 ? b.area : 'all';
+  need_(w, area);
+  var o = { date: String(b.date || ''), time: String(b.time || ''), minutes: Math.max(5, Math.min(1440, Number(b.minutes) || 60)), area: area, titleEn: txt_(b.titleEn, 120), titleNe: txt_(b.titleNe, 120), place: txt_(b.place, 120), link: link_(b.link), notes: txt_(b.notes, 500) };
   if (!dateOk_(o.date)) throw new Error('Please choose a date.');
   if (!timeOk_(o.time)) throw new Error('Time must look like 18:30.');
   if (!o.titleEn && !o.titleNe) throw new Error('Please type a title.');
   var ex = b.id ? findById_(S.events, b.id) : null;
-  if (ex) { o.id = ex.id; o.created = ex.created; o.by = ex.by; writeObj_(S.events, H.events, ex.row, o); return { ok: true, id: ex.id }; }
+  if (ex) { need_(w, ex.area || 'all'); o.id = ex.id; o.created = ex.created; o.by = ex.by; writeObj_(S.events, H.events, ex.row, o); return { ok: true, id: ex.id }; }
   o.id = newId_(); o.created = nowIso_(); o.by = w.name;
   appendObj_(S.events, H.events, o);
   return { ok: true, id: o.id };
@@ -361,18 +393,19 @@ function boardSet_(b) {
   return { ok: true };
 }
 function lboardPost_(b) {
-  var w = who_(b), text = txt_(b.text, 1000);
+  var w = who_(b), text = txt_(b.text, 1000), area = (b.area === 'kids' || b.area === 'youth' || b.area === 'worship') ? b.area : 'leaders';
+  need_(w, area);
   if (!text) throw new Error('Please type a message.');
-  appendObj_(sheets_().lboard, H.lboard, { id: newId_(), text: text, by: w.name, created: nowIso_() });
+  appendObj_(sheets_().lboard, H.lboard, { id: newId_(), area: area, text: text, by: w.name, created: nowIso_() });
   return { ok: true };
 }
 function lboardDelete_(b) {
   var w = who_(b), S = sheets_(), r = findById_(S.lboard, b.id);
-  if (r && (w.admin || r.by === w.name)) S.lboard.deleteRow(r.row);
+  if (r && (w.admin || (r.by === w.name && can_(w, r.area || 'leaders')))) S.lboard.deleteRow(r.row);
   return { ok: true };
 }
 function resSave_(b) {
-  var w = who_(b), S = sheets_();
+  var w = admin_(b), S = sheets_();
   var o = { title: txt_(b.title, 120), desc: txt_(b.desc, 300), category: txt_(b.category, 40), url: link_(b.url) };
   if (!o.title || !o.url) throw new Error('Please type a title and a link.');
   o.id = newId_(); o.created = nowIso_(); o.by = w.name;
@@ -384,10 +417,10 @@ function resSave_(b) {
 
 function leaderAdd_(b) {
   admin_(b);
-  var S = sheets_(), name = firstName_(b.name), role = txt_(b.role, 40) || 'Leader', pin = newPin_(), salt = newId_();
+  var S = sheets_(), name = firstName_(b.name), role = txt_(b.role, 40) || 'Leader', pin = newPin_(), salt = newId_(), areas = cleanAreas_(b.areas);
   var id = newId_();
-  appendObj_(S.leaders, H.leaders, { id: id, name: name, role: role, salt: salt, pinHash: hashPin_(salt, pin), active: 'yes', created: nowIso_() });
-  return { ok: true, id: id, name: name, pin: pin };
+  appendObj_(S.leaders, H.leaders, { id: id, name: name, role: role, areas: areas.join(','), salt: salt, pinHash: hashPin_(salt, pin), active: 'yes', created: nowIso_() });
+  return { ok: true, id: id, name: name, areas: areas, pin: pin };
 }
 function leaderReset_(b) {
   admin_(b);
@@ -397,6 +430,15 @@ function leaderReset_(b) {
   writeObj_(S.leaders, H.leaders, r.row, r);
   CacheService.getScriptCache().put(failKey_(r.id), '0', CONFIG.LOCK_SECONDS);
   return { ok: true, name: r.name, pin: pin };
+}
+function leaderAreas_(b) {
+  admin_(b);
+  var S = sheets_(), r = findById_(S.leaders, b.id);
+  if (!r) throw new Error('Leader not found.');
+  r.areas = cleanAreas_(b.areas).join(',');
+  if (b.role !== undefined) r.role = txt_(b.role, 40) || r.role;
+  writeObj_(S.leaders, H.leaders, r.row, r);
+  return { ok: true };
 }
 function leaderRemove_(b) {
   admin_(b);
@@ -412,6 +454,6 @@ var ACTIONS = {
   songSave: songSave_, songDelete: function (b) { return deleteRow_('songs', b); },
   eventSave: eventSave_, eventDelete: function (b) { return deleteRow_('events', b); },
   boardSet: boardSet_, lboardPost: lboardPost_, lboardDelete: lboardDelete_,
-  resSave: resSave_, resDelete: function (b) { return deleteRow_('res', b); },
-  leaderAdd: leaderAdd_, leaderReset: leaderReset_, leaderRemove: leaderRemove_
+  resSave: resSave_, resDelete: function (b) { admin_(b); var S = sheets_(), r = findById_(S.res, b.id); if (r) S.res.deleteRow(r.row); return { ok: true }; },
+  leaderAdd: leaderAdd_, leaderAreas: leaderAreas_, leaderReset: leaderReset_, leaderRemove: leaderRemove_
 };

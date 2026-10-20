@@ -249,8 +249,8 @@ function showcaseHTML() {
 async function fillNews() {
   const box = $('#newsbox'); if (!box || !hubOn()) return;
   const f = await hubFeed(); const box2 = $('#newsbox'); if (!box2 || !f) return;
-  const top = (f.announcements || []).slice(0, 2);
-  const nxt = (f.events || []).filter(e => e.date >= todayKey()).slice(0, 1);
+  const top = (f.announcements || []).filter(a => !a.scope || a.scope === 'all' || a.scope === 'worship').slice(0, 2);
+  const nxt = (f.events || []).filter(e => e.date >= todayKey() && (!e.area || e.area === 'all' || e.area === 'worship')).slice(0, 1);
   if (!top.length && !nxt.length) return;
   box2.innerHTML = `<div class="card gold"><h2>What's new</h2>${top.map(a => `<p><b>${esc(pickLang(a, 'title') || a.en || a.ne)}</b></p>`).join('')}${nxt.map(e => `<p>📅 ${esc(LANG === 'ne' && e.ne ? e.ne : e.en || e.ne)} · ${esc(fmtLong(e.date))} ${esc(fmtTime(e.time))}</p>`).join('')}<button class="btn small" id="newsgo">See Worship</button></div>`;
   $('#newsgo').onclick = () => { sec = 'worship'; tabOf.worship = 'news'; render(); window.scrollTo(0, 0); };
@@ -665,6 +665,11 @@ function chatView(v, g) {
 
 /* ---------- Shine text tabs ---------- */
 const DEFAULT_LESSON = { kids: "This Sunday's lesson will be posted here.", youth: "This week's teaching will be posted here." };
+async function groupNews(v, g) {
+  const t = (SHINE[g] || {}).news;
+  const f = hubOn() ? await hubFeed() : null, list = f ? (f.announcements || []).filter(a => a.scope === g) : [];
+  v.innerHTML = (t ? `<div class="card red"><p style="margin:0">${esc(t)}</p></div>` : '') + list.map(a => `<div class="card red"><h2>${esc(pickLang(a, 'title') || a.en || a.ne)}</h2>${(LANG === 'ne' && a.bodyNe) || a.bodyEn ? `<p>${esc(LANG === 'ne' && a.bodyNe ? a.bodyNe : a.bodyEn)}</p>` : ''}<p class="muted">${a.created ? esc(fmtDay(a.created.slice(0, 10))) : ''}${a.by ? ' · ' + esc(a.by) : ''}</p>${linkBtn(a.link, 'Open link')}</div>`).join('') || (t ? '' : '<div class="card red"><p style="margin:0">No announcements right now. Check back soon!</p></div>');
+}
 const shineText = (key, field, dflt) => v => { const t = (SHINE[key] || {})[field]; v.innerHTML = `<div class="card ${field === 'news' ? 'red' : ''}"><p style="margin:0">${esc(t || dflt)}</p></div>`; };
 
 /* ---------- Bible ---------- */
@@ -755,6 +760,7 @@ function teacherView(v, g) {
     $('#tl').onclick = async () => { const pin = prompt('Leader PIN'); if (pin == null) return; if ((await sha256(pin)) === h) { S.leader = true; save(); render(); } else alert('That PIN is not right.'); };
     return;
   }
+  if (hubOn() && HUB.me && !myArea(g)) { v.innerHTML = `<div class="card"><h2>Teacher</h2><p>Your leader sign-in does not include ${g === 'kids' ? 'Kids Shine' : 'Youth Shine'}. Ask the pastor to add it.</p></div>`; return; }
   S.teacher = S.teacher && typeof S.teacher === 'object' && S.teacher.reports ? S.teacher : { reports: {} };
   const R = S.teacher.reports, all = Object.values(R).filter(r => r.group === g);
   const weeks = [...new Set([thisWeek(), ...all.map(r => r.week)])].sort().reverse();
@@ -833,7 +839,7 @@ const safeUrl = u => /^https?:\/\//i.test(u || '') ? u : '';
 const linkBtn = (u, label, cls) => safeUrl(u) ? `<a class="btn small ${cls || ''}" href="${esc(safeUrl(u))}" target="_blank" rel="noopener">${label}</a>` : '';
 
 /* what's new dot on the Worship tab */
-function newCount(f) { if (!f) return 0; const seen = lsGet(SEENKEY, ''); return (f.announcements || []).filter(x => (x.created || '') > seen).length + (f.events || []).filter(x => (x.created || '') > seen).length; }
+function newCount(f) { if (!f) return 0; const seen = lsGet(SEENKEY, ''); return (f.announcements || []).filter(x => (!x.scope || x.scope === 'all' || x.scope === 'worship') && (x.created || '') > seen).length + (f.events || []).filter(x => (x.created || '') > seen).length; }
 function markSeen() { lsSet(SEENKEY, new Date().toISOString()); const b = $('#tabs [data-s="worship"]'); if (b) b.classList.remove('has-new'); }
 async function refreshBadge() { const f = await hubFeed(); const b = $('#tabs [data-s="worship"]'); if (b) b.classList.toggle('has-new', newCount(f) > 0 && !(sec === 'worship' && tabOf.worship === 'news')); }
 
@@ -895,7 +901,7 @@ async function worshipSongs(v) {
 }
 async function worshipNews(v) {
   v.innerHTML = '<div class="card">Loading…</div>';
-  const d = await wData(), list = d.announcements || [];
+  const d = await wData(), list = (d.announcements || []).filter(a => !a.scope || a.scope === 'all' || a.scope === 'worship');
   v.innerHTML = `${hubNote()}${offNote()}` + (list.length ? list.map(a => `<div class="card ${a.pinned ? 'gold' : ''}"><h2>${a.pinned ? '📌 ' : ''}${esc(pickLang(a, 'title') || a.en || a.ne)}</h2>${(LANG === 'ne' && a.bodyNe) || a.bodyEn || a.bodyNe ? `<p>${esc(LANG === 'ne' && a.bodyNe ? a.bodyNe : (a.bodyEn || a.bodyNe))}</p>` : ''}
     <p class="muted">${a.created ? esc(fmtDay(a.created.slice(0, 10))) : ''}${a.by ? ' · ' + esc(a.by) : ''}</p>${linkBtn(a.link, 'Open link')}</div>`).join('') : '<div class="card">No announcements right now. Check back soon!</div>');
   markSeen();
@@ -947,12 +953,15 @@ async function leaderGate(v, then) {
     $('#lgo').disabled = true;
     try {
       const r = await hubCall({ action: 'login', leader: $('#ln').value, pin: $('#lp').value });
-      HUB.me = { token: r.token, name: r.name, role: r.role, admin: !!r.admin, exp: Date.now() + 21000 * 1000 }; lsSet(HUBKEY, JSON.stringify(HUB.me)); S.leader = true; save(); render();
+      HUB.me = { token: r.token, name: r.name, role: r.role, admin: !!r.admin, areas: r.areas || [], exp: Date.now() + 21000 * 1000 }; lsSet(HUBKEY, JSON.stringify(HUB.me)); S.leader = true; save(); render();
     } catch (e) { $('#lmsg').innerHTML = `<span class="bad">${esc(e.message)}</span>`; $('#lgo').disabled = false; }
   };
   $('#lgo').onclick = go; $('#lp').onkeydown = e => { if (e.key === 'Enter') go(); };
 }
-const meBar = () => `<div class="pbar"><b>${esc(HUB.me.name)}</b><span class="muted">${esc(HUB.me.role || '')}</span><button class="btn small ghost" id="lout">Sign out</button></div>`;
+const AREA_NAME = { kids: 'Kids', youth: 'Youth', worship: 'Worship' };
+const areaList = m => m.admin ? 'All areas' : ((m.areas || []).map(a => AREA_NAME[a]).join(', ') || 'No area yet');
+const myArea = a => !!(HUB.me && (HUB.me.admin || (HUB.me.areas || []).includes(a)));
+const meBar = () => `<div class="pbar"><b>${esc(HUB.me.name)}</b><span class="muted">${esc(HUB.me.role || '')} · ${esc(areaList(HUB.me))}</span><button class="btn small ghost" id="lout">Sign out</button></div>`;
 function wireOut() { const b = $('#lout'); if (b) b.onclick = async () => { try { await hubCall({ action: 'logout' }); } catch (e) {} hubLocalLogout(); render(); }; }
 async function leaderLoad(v) { try { return await hubCall({ action: 'leaderData' }); } catch (e) { v.innerHTML = `<div class="card"><span class="bad">${esc(e.message)}</span></div>`; return null; } }
 const act = (v, body, again) => async () => { try { await hubCall(body); await hubFeed(true); await again(); } catch (e) { alert(e.message); } };
@@ -963,28 +972,29 @@ function leadersPost(v) {
     const d = await leaderLoad(v); if (!d) return; const f = (await hubFeed(true)) || {};
     v.innerHTML = `${meBar()}
     <details class="card" open><summary><b>New announcement</b></summary>
-      <label for="as">Who sees it</label><select id="as"><option value="all">Everyone</option><option value="worship">Worship tab</option><option value="leaders">Leaders only</option></select>
+      <label for="as">Who sees it</label><select id="as">${HUB.me.admin ? '<option value="all">Everyone</option>' : ''}${['worship', 'kids', 'youth'].filter(myArea).map(a => `<option value="${a}">${AREA_NAME[a]} group</option>`).join('')}<option value="leaders">Leaders only</option></select>
       ${fld('at', 'Title (English)', 'maxlength="120"')}${fld('atn', 'Title (Nepali, optional)', 'maxlength="120" lang="ne"')}
       <label for="ab">Message (English)</label><textarea id="ab" rows="3" maxlength="1000"></textarea><label for="abn">Message (Nepali, optional)</label><textarea id="abn" rows="3" maxlength="1000" lang="ne"></textarea>
       ${fld('al', 'Link (optional)', 'type="url" placeholder="https://"')}<label class="chk"><input type="checkbox" id="ap"> Pin to the top</label><button class="btn" id="asave">Post announcement</button><div id="amsg"></div></details>
     <details class="card"><summary><b>New event (adds to calendars)</b></summary>
+      <label for="ea">Who it is for</label><select id="ea">${HUB.me.admin ? '<option value="all">Everyone</option>' : ''}${['worship', 'kids', 'youth'].filter(myArea).map(a => `<option value="${a}">${AREA_NAME[a]}</option>`).join('')}</select>
       ${fld('ed', 'Date', 'type="date"')}${fld('et', 'Start time (Central)', 'type="time"')}${fld('em', 'Length in minutes', 'type="number" value="60" min="5" max="1440"')}
       ${fld('et1', 'Title (English)', 'maxlength="120"')}${fld('et2', 'Title (Nepali, optional)', 'maxlength="120" lang="ne"')}${fld('ep', 'Place', 'maxlength="120"')}${fld('el', 'Link (optional)', 'type="url" placeholder="https://"')}${fld('en', 'Notes', 'maxlength="500"')}
       <button class="btn" id="esave">Save event</button><div id="emsg"></div></details>
-    <details class="card"><summary><b>New song</b></summary>
+    ${myArea('worship') ? `<details class="card"><summary><b>New song</b></summary>
       <p class="muted">Add the song name and a link to its words or chords (a website, YouTube, or a Drive file). Do not paste copyrighted lyrics here.</p>
       ${fld('sn', 'Song name (Nepali)', 'maxlength="120" lang="ne"')}${fld('se', 'Song name (romanized or English, optional)', 'maxlength="120"')}${fld('sc', 'Type (Worship, Praise, Hymn…)', 'maxlength="40"')}${fld('sk', 'Key (optional)', 'maxlength="10"')}${fld('sl', 'Link to words / chords', 'type="url" placeholder="https://"')}${fld('sa', 'Link to listen (optional)', 'type="url" placeholder="https://"')}
-      <button class="btn" id="ssave">Save song</button><div id="smsg"></div></details>
-    <div class="card"><h2>Posted announcements</h2>${d.announcements.length ? d.announcements.map(a => `<div class="slot"><div class="t">${esc(a.en || a.ne)} <span class="muted">${a.scope === 'leaders' ? 'Leaders only' : a.scope === 'worship' ? 'Worship' : 'Everyone'}</span></div><button class="btn small ghost" data-ad="${esc(a.id)}">Delete</button></div>`).join('') : '<p class="muted">None yet.</p>'}</div>
-    <div class="card"><h2>Events</h2>${(f.events || []).length ? f.events.map(e => `<div class="slot"><div class="t">${esc(e.en || e.ne)} <span class="muted">${esc(e.date)}</span></div><button class="btn small ghost" data-ed="${esc(e.id)}">Delete</button></div>`).join('') : '<p class="muted">None yet.</p>'}</div>
-    <div class="card"><h2>Songs</h2>${(f.songs || []).length ? f.songs.map(s => `<div class="slot"><div class="t">${esc(s.ne || s.en)}</div><button class="btn small ghost" data-sd="${esc(s.id)}">Delete</button></div>`).join('') : '<p class="muted">None yet.</p>'}</div>
+      <button class="btn" id="ssave">Save song</button><div id="smsg"></div></details>` : ''}
+    <div class="card"><h2>Posted announcements</h2>${d.announcements.length ? d.announcements.map(a => `<div class="slot"><div class="t">${esc(a.en || a.ne)} <span class="muted">${a.scope === 'leaders' ? 'Leaders only' : a.scope === 'all' ? 'Everyone' : AREA_NAME[a.scope] || a.scope}</span></div>${a.canEdit ? `<button class="btn small ghost" data-ad="${esc(a.id)}">Delete</button>` : ''}</div>`).join('') : '<p class="muted">None yet.</p>'}</div>
+    <div class="card"><h2>Events</h2>${(f.events || []).length ? f.events.map(e => `<div class="slot"><div class="t">${esc(e.en || e.ne)} <span class="muted">${esc(e.date)}</span></div>${(HUB.me.admin || e.area === 'all' ? HUB.me.admin : myArea(e.area)) ? `<button class="btn small ghost" data-ed="${esc(e.id)}">Delete</button>` : ''}</div>`).join('') : '<p class="muted">None yet.</p>'}</div>
+    <div class="card"><h2>Songs</h2>${(f.songs || []).length ? f.songs.map(s => `<div class="slot"><div class="t">${esc(s.ne || s.en)}</div>${myArea('worship') ? `<button class="btn small ghost" data-sd="${esc(s.id)}">Delete</button>` : ''}</div>`).join('') : '<p class="muted">None yet.</p>'}</div>
     <div class="card"><h2>Fellowship posts waiting for review</h2>${d.flagged.length ? d.flagged.map(p => `<div class="card"><b>${esc(p.name)}</b> <span class="muted">${esc(p.status)}</span><p>${esc(p.text)}</p><button class="btn small" data-bk="${esc(p.id)}">Put back</button> <button class="btn small ghost" data-bd="${esc(p.id)}">Delete</button></div>`).join('') : '<p class="muted">Nothing reported.</p>'}</div>`;
     wireOut();
     const reload = () => render();
     const send = (body, msgEl, ok) => async () => { try { await hubCall(body()); await hubFeed(true); msgEl && (msgEl.innerHTML = `<span class="good">${ok}</span>`); setTimeout(reload, 600); } catch (e) { if (msgEl) msgEl.innerHTML = `<span class="bad">${esc(e.message)}</span>`; else alert(e.message); } };
     $('#asave').onclick = send(() => ({ action: 'annSave', scope: $('#as').value, titleEn: $('#at').value, titleNe: $('#atn').value, bodyEn: $('#ab').value, bodyNe: $('#abn').value, link: $('#al').value, pinned: $('#ap').checked }), $('#amsg'), 'Posted.');
-    $('#esave').onclick = send(() => ({ action: 'eventSave', date: $('#ed').value, time: $('#et').value, minutes: $('#em').value, titleEn: $('#et1').value, titleNe: $('#et2').value, place: $('#ep').value, link: $('#el').value, notes: $('#en').value }), $('#emsg'), 'Saved.');
-    $('#ssave').onclick = send(() => ({ action: 'songSave', titleNe: $('#sn').value, titleEn: $('#se').value, category: $('#sc').value, songKey: $('#sk').value, link: $('#sl').value, audio: $('#sa').value }), $('#smsg'), 'Saved.');
+    $('#esave').onclick = send(() => ({ action: 'eventSave', date: $('#ed').value, time: $('#et').value, minutes: $('#em').value, titleEn: $('#et1').value, titleNe: $('#et2').value, area: $('#ea').value, place: $('#ep').value, link: $('#el').value, notes: $('#en').value }), $('#emsg'), 'Saved.');
+    if ($('#ssave')) $('#ssave').onclick = send(() => ({ action: 'songSave', titleNe: $('#sn').value, titleEn: $('#se').value, category: $('#sc').value, songKey: $('#sk').value, link: $('#sl').value, audio: $('#sa').value }), $('#smsg'), 'Saved.');
     const del = (attr, action, extra) => v.querySelectorAll('[' + attr + ']').forEach(b => b.onclick = async () => { if (!confirm('Delete this?')) return; try { await hubCall(Object.assign({ action, id: b.getAttribute(attr) }, extra || {})); await hubFeed(true); render(); } catch (e) { alert(e.message); } });
     del('data-ad', 'annDelete'); del('data-ed', 'eventDelete'); del('data-sd', 'songDelete'); del('data-bd', 'boardSet', { status: 'delete' }); del('data-bk', 'boardSet', { status: 'ok' });
     applyLang();
@@ -993,14 +1003,18 @@ function leadersPost(v) {
 function leadersRes(v) {
   leaderGate(v, async () => {
     v.innerHTML = '<div class="card">Loading…</div>';
-    const d = await leaderLoad(v); if (!d) return;
-    v.innerHTML = `${meBar()}<div class="card gold"><h2>Ministry resources</h2><p class="muted">Documents live in your Google Drive folder <b>Executive Assistant Workspace › AGC Connect › Leader Resources</b>. Put a file there and it shows here. To let a leader open it, share that folder with their Google account in Drive.</p></div>
-    <div class="card"><h2>Files in Drive</h2>${d.files.length ? d.files.map(f => `<div class="slot"><div class="t">${esc(f.name)}<div class="muted">${esc(f.cat || '')} ${esc(f.type)}</div></div>${linkBtn(f.url, 'Open')}</div>`).join('') : '<p class="muted">No files yet.</p>'}</div>
-    <div class="card"><h2>Shared links</h2>${d.resources.length ? d.resources.map(r => `<div class="slot"><div class="t">${esc(r.title)}<div class="muted">${esc(r.cat || '')} ${esc(r.desc || '')}</div></div>${linkBtn(r.url, 'Open')}<button class="btn small ghost" data-rd="${esc(r.id)}">✕</button></div>`).join('') : '<p class="muted">None yet.</p>'}
-      <h2 style="margin-top:14px">Add a link</h2>${fld('rt', 'Title', 'maxlength="120"')}${fld('rc', 'Group (Youth, Worship, Training…)', 'maxlength="40"')}${fld('rds', 'Short note', 'maxlength="300"')}${fld('ru', 'Link', 'type="url" placeholder="https://"')}<button class="btn" id="rsave">Save link</button><div id="rmsg"></div></div>`;
+    const d = await leaderLoad(v); if (!d) return; const adm = HUB.me.admin;
+    v.innerHTML = `${meBar()}<div class="card gold"><h2>Ministry resources</h2>${adm
+      ? '<p class="muted">Only you can add resources. Put documents in your Drive folder <b>Executive Assistant Workspace › AGC Connect › Leader Resources</b>, inside <b>All Leaders</b>, <b>Kids</b>, <b>Youth</b> or <b>Worship</b>. Leaders see only their own groups and All Leaders. Share the folder with leaders as <b>Viewer</b>, and turn off download, print and copy on each file.</p>'
+      : '<p class="muted">Read-only. These are the resources shared with your group. Ask the pastor if you need something added.</p>'}</div>
+    <div class="card"><h2>Files</h2>${d.files.length ? d.files.map(f => `<div class="slot"><div class="t">${esc(f.name)}<div class="muted">${esc(f.cat || 'All Leaders')} · ${esc(f.type)}</div></div>${linkBtn(f.url, 'View')}</div>`).join('') : '<p class="muted">No files yet.</p>'}</div>
+    <div class="card"><h2>Links</h2>${d.resources.length ? d.resources.map(r => `<div class="slot"><div class="t">${esc(r.title)}<div class="muted">${esc(r.cat || 'All Leaders')} ${esc(r.desc || '')}</div></div>${linkBtn(r.url, 'View')}${adm ? `<button class="btn small ghost" data-rd="${esc(r.id)}">✕</button>` : ''}</div>`).join('') : '<p class="muted">None yet.</p>'}
+      ${adm ? `<h2 style="margin-top:14px">Add a link</h2>${fld('rt', 'Title', 'maxlength="120"')}<label for="rc">Who can see it</label><select id="rc"><option value="">All Leaders</option><option>Kids</option><option>Youth</option><option>Worship</option></select>${fld('rds', 'Short note', 'maxlength="300"')}${fld('ru', 'Link', 'type="url" placeholder="https://"')}<button class="btn" id="rsave">Save link</button><div id="rmsg"></div>` : ''}</div>`;
     wireOut();
-    $('#rsave').onclick = async () => { try { await hubCall({ action: 'resSave', title: $('#rt').value, category: $('#rc').value, desc: $('#rds').value, url: $('#ru').value }); render(); } catch (e) { $('#rmsg').innerHTML = `<span class="bad">${esc(e.message)}</span>`; } };
-    v.querySelectorAll('[data-rd]').forEach(b => b.onclick = async () => { if (!confirm('Remove this link?')) return; try { await hubCall({ action: 'resDelete', id: b.dataset.rd }); render(); } catch (e) { alert(e.message); } });
+    if (adm) {
+      $('#rsave').onclick = async () => { try { await hubCall({ action: 'resSave', title: $('#rt').value, category: $('#rc').value, desc: $('#rds').value, url: $('#ru').value }); render(); } catch (e) { $('#rmsg').innerHTML = `<span class="bad">${esc(e.message)}</span>`; } };
+      v.querySelectorAll('[data-rd]').forEach(b => b.onclick = async () => { if (!confirm('Remove this link?')) return; try { await hubCall({ action: 'resDelete', id: b.dataset.rd }); render(); } catch (e) { alert(e.message); } });
+    }
     applyLang();
   });
 }
@@ -1008,10 +1022,10 @@ function leadersBoard(v) {
   leaderGate(v, async () => {
     v.innerHTML = '<div class="card">Loading…</div>';
     const d = await leaderLoad(v); if (!d) return;
-    v.innerHTML = `${meBar()}<div class="card gold"><h2>Leader Board</h2><p class="muted">Private to signed-in leaders. Share updates, needs and plans.</p><textarea id="lt" rows="3" maxlength="1000" aria-label="Message to leaders"></textarea><button class="btn" id="lpost">Post</button><div id="lmsg"></div></div>
-    ${d.lboard.length ? d.lboard.map(m => `<div class="card"><b>${esc(m.by)}</b> <span class="muted">${esc(fmtDay((m.created || '').slice(0, 10) || todayKey()))}</span><p>${esc(m.text)}</p>${m.by === HUB.me.name || HUB.me.admin ? `<button class="btn small ghost" data-md="${esc(m.id)}">Delete</button>` : ''}</div>`).join('') : '<div class="card">No messages yet.</div>'}`;
+    v.innerHTML = `${meBar()}<div class="card gold"><h2>Leader Board</h2><p class="muted">Private to signed-in leaders. Share updates, needs and plans.</p><label for="la">Who sees it</label><select id="la"><option value="leaders">All leaders</option>${['kids', 'youth', 'worship'].filter(myArea).map(a => `<option value="${a}">${AREA_NAME[a]} leaders</option>`).join('')}</select><textarea id="lt" rows="3" maxlength="1000" aria-label="Message to leaders"></textarea><button class="btn" id="lpost">Post</button><div id="lmsg"></div></div>
+    ${d.lboard.length ? d.lboard.map(m => `<div class="card"><b>${esc(m.by)}</b> <span class="muted">${esc(fmtDay((m.created || '').slice(0, 10) || todayKey()))}${m.area && m.area !== 'leaders' ? ' · ' + esc(AREA_NAME[m.area]) + ' leaders' : ''}</span><p>${esc(m.text)}</p>${m.by === HUB.me.name || HUB.me.admin ? `<button class="btn small ghost" data-md="${esc(m.id)}">Delete</button>` : ''}</div>`).join('') : '<div class="card">No messages yet.</div>'}`;
     wireOut();
-    $('#lpost').onclick = async () => { try { await hubCall({ action: 'lboardPost', text: $('#lt').value }); render(); } catch (e) { $('#lmsg').innerHTML = `<span class="bad">${esc(e.message)}</span>`; } };
+    $('#lpost').onclick = async () => { try { await hubCall({ action: 'lboardPost', area: $('#la').value, text: $('#lt').value }); render(); } catch (e) { $('#lmsg').innerHTML = `<span class="bad">${esc(e.message)}</span>`; } };
     v.querySelectorAll('[data-md]').forEach(b => b.onclick = async () => { if (!confirm('Delete this message?')) return; try { await hubCall({ action: 'lboardDelete', id: b.dataset.md }); render(); } catch (e) { alert(e.message); } });
     applyLang();
   });
@@ -1022,11 +1036,12 @@ function leadersTeam(v) {
     v.innerHTML = '<div class="card">Loading…</div>';
     const d = await leaderLoad(v); if (!d) return;
     const pinHtml = v.__pin ? `<div class="card red"><h2>PIN for ${esc(v.__pin.name)}</h2><div class="bigpin" data-keep>${esc(v.__pin.pin)}</div><p>This is shown only once. Write it down now.</p></div>` : '';
-    v.innerHTML = `${meBar()}${pinHtml}<div class="card gold"><h2>Add a leader</h2><p class="muted">Each leader gets their own 6-digit PIN. It is shown once. Write it down and give it to them in person or by a private message.</p>${fld('tn', 'First name', 'maxlength="20"')}${fld('tr', 'Role (Worship, Youth, Kids…)', 'maxlength="40"')}<button class="btn" id="tadd">Add leader</button><div id="tmsg"></div></div>
-    <div class="card"><h2>Leaders</h2>${d.team.length ? d.team.map(t => `<div class="slot"><div class="t">${esc(t.name)} <span class="muted">${esc(t.role)}${t.active ? '' : ' · removed'}</span></div>${t.active ? `<button class="btn small ghost" data-tr="${esc(t.id)}">New PIN</button><button class="btn small ghost" data-tx="${esc(t.id)}">Remove</button>` : ''}</div>`).join('') : '<p class="muted">No leaders yet. You are signed in as admin.</p>'}</div>`;
+    v.innerHTML = `${meBar()}${pinHtml}<div class="card gold"><h2>Add a leader</h2><p class="muted">Each leader gets their own 6-digit PIN. It is shown once. Write it down and give it to them in person or by a private message.</p>${fld('tn', 'First name', 'maxlength="20"')}${fld('tr', 'Role (Sunday school teacher, Youth leader…)', 'maxlength="40"')}<p class="muted">Give access to:</p><div class="row">${['kids', 'youth', 'worship'].map(a => `<label class="chk"><input type="checkbox" class="tar" value="${a}"> ${AREA_NAME[a]}</label>`).join('')}</div><button class="btn" id="tadd">Add leader</button><div id="tmsg"></div></div>
+    <div class="card"><h2>Leaders</h2>${d.team.length ? d.team.map(t => `<div class="slot"><div class="t">${esc(t.name)} <span class="muted">${esc(t.role)}${t.active ? '' : ' · removed'}</span>${t.active ? `<div class="row">${['kids', 'youth', 'worship'].map(a => `<label class="chk"><input type="checkbox" data-ta="${esc(t.id)}" value="${a}" ${t.areas.includes(a) ? 'checked' : ''}> ${AREA_NAME[a]}</label>`).join('')}</div>` : ''}</div>${t.active ? `<button class="btn small ghost" data-tr="${esc(t.id)}">New PIN</button><button class="btn small ghost" data-tx="${esc(t.id)}">Remove</button>` : ''}</div>`).join('') : '<p class="muted">No leaders yet. You are signed in as admin.</p>'}</div>`;
     wireOut();
     const showPin = (name, pin) => { v.__pin = { name, pin }; leadersTeam(v); window.scrollTo(0, 0); };
-    $('#tadd').onclick = async () => { try { const r = await hubCall({ action: 'leaderAdd', name: $('#tn').value, role: $('#tr').value }); await hubFeed(true); showPin(r.name, r.pin); } catch (e) { $('#tmsg').innerHTML = `<span class="bad">${esc(e.message)}</span>`; } };
+    $('#tadd').onclick = async () => { try { const r = await hubCall({ action: 'leaderAdd', name: $('#tn').value, role: $('#tr').value, areas: [...v.querySelectorAll('.tar:checked')].map(x => x.value) }); await hubFeed(true); showPin(r.name, r.pin); } catch (e) { $('#tmsg').innerHTML = `<span class="bad">${esc(e.message)}</span>`; } };
+    v.querySelectorAll('[data-ta]').forEach(c => c.onchange = async () => { const id = c.dataset.ta; try { await hubCall({ action: 'leaderAreas', id, areas: [...v.querySelectorAll('[data-ta="' + id + '"]:checked')].map(x => x.value) }); } catch (e) { alert(e.message); c.checked = !c.checked; } });
     v.querySelectorAll('[data-tr]').forEach(b => b.onclick = async () => { if (!confirm('Make a new PIN for this leader? Their old PIN stops working.')) return; try { const r = await hubCall({ action: 'leaderReset', id: b.dataset.tr }); showPin(r.name, r.pin); } catch (e) { alert(e.message); } });
     v.querySelectorAll('[data-tx]').forEach(b => b.onclick = async () => { if (!confirm('Remove this leader? They lose access right away.')) return; try { await hubCall({ action: 'leaderRemove', id: b.dataset.tx }); await hubFeed(true); render(); } catch (e) { alert(e.message); } });
     applyLang();
@@ -1046,9 +1061,9 @@ const VIEWS = {
   'prayer.chain': prayerEmbed, 'worship.songs': worshipSongs, 'worship.news': worshipNews, 'worship.cal': worshipCal, 'worship.fellow': worshipFellow,
   'leaders.post': leadersPost, 'leaders.res': leadersRes, 'leaders.lboard': leadersBoard, 'leaders.team': leadersTeam,
   'kids.verse': v => memorize(v, 'kids'), 'kids.games': kidsGames, 'kids.lesson': shineText('kids', 'lesson', DEFAULT_LESSON.kids), 'kids.hw': v => assignView(v, 'kids'), 'kids.teach': v => teacherView(v, 'kids'),
-  'kids.chat': v => chatView(v, 'kids'), 'kids.news': shineText('kids', 'news', 'No announcements right now. Check back soon!'), 'kids.me': v => profilesTab(v, 'kids'),
+  'kids.chat': v => chatView(v, 'kids'), 'kids.news': v => groupNews(v, 'kids'), 'kids.me': v => profilesTab(v, 'kids'),
   'youth.verse': v => memorize(v, 'youth'), 'youth.lesson': shineText('youth', 'lesson', DEFAULT_LESSON.youth), 'youth.hw': v => assignView(v, 'youth'), 'youth.teach': v => teacherView(v, 'youth'), 'youth.notes': v => notesView(v, 'youth'),
-  'youth.chat': v => chatView(v, 'youth'), 'youth.news': shineText('youth', 'news', 'No announcements right now. Check back soon!'), 'youth.me': v => profilesTab(v, 'youth'),
+  'youth.chat': v => chatView(v, 'youth'), 'youth.news': v => groupNews(v, 'youth'), 'youth.me': v => profilesTab(v, 'youth'),
   'bible.read': bibleRead, 'bible.find': bibleFind, 'bible.notes': v => notesView(v, 'bible')
 };
 
