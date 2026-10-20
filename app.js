@@ -73,8 +73,12 @@ const SECTIONS = {
 };
 let sec = 'home';
 const tabOf = { home: 'today', prayer: 'signup', kids: 'verse', youth: 'verse', bible: 'read' };
+let showTimer = null;
+function goHome() { sec = 'home'; tabOf.home = 'today'; render(); window.scrollTo(0, 0); }
 
 function render() {
+  clearTimeout(showTimer);
+  $('#homebtn').hidden = (sec === 'home' && tabOf.home === 'today');
   $('#tabs').innerHTML = Object.entries(SECTIONS).map(([k, s]) => `<button data-s="${k}" class="${k === sec ? 'on' : ''}"><span>${s.icon}</span>${s.label}</button>`).join('');
   $('#inner').innerHTML = SECTIONS[sec].tabs.map(([k, l]) => `<button data-t="${k}" class="${k === tabOf[sec] ? 'on' : ''}">${l}</button>`).join('');
   $('#tabs').querySelectorAll('button').forEach(b => b.onclick = () => { sec = b.dataset.s; render(); window.scrollTo(0, 0); });
@@ -159,12 +163,54 @@ async function votdRef() {
   const list = VOTD.refs || [];
   return list.length ? list[n % list.length] : null;
 }
+function pairSentences(o) {
+  const split = s => String(s || '').trim().split(/(?<=[.!?])\s+/).map(x => x.replace(/^["“]+|["”]+$/g, '').trim()).filter(Boolean);
+  const en = split((o || {}).en), ne = split((o || {}).ne);
+  return en.map((s, i) => ({ en: s, ne: ne.length === en.length ? ne[i] : '' }));
+}
+function slidesData() {
+  const s = [{ k: 'welcome', logo: true, en: HOME.tagline || '' }];
+  pairSentences(HOME.mission).forEach(p => s.push({ k: 'mission', lab: 'Our Mission', en: p.en, ne: p.ne }));
+  pairSentences(HOME.vision).forEach(p => s.push({ k: 'vision', lab: 'Our Vision', en: p.en, ne: p.ne }));
+  if ((HOME.fourE || []).length) s.push({ k: 'e4', lab: 'The 4 E’s', list: HOME.fourE.map(e => e.icon + ' ' + e.name) });
+  return s;
+}
+function showcaseHTML() {
+  const sl = slidesData();
+  return `<div class="showcase" id="showcase" role="region" aria-label="AGC mission and vision" tabindex="0">
+    ${sl.map((s, i) => `<div class="slide ${i === 0 ? 'on' : ''}" aria-hidden="${i !== 0}">
+      ${s.logo ? '<img class="slogo" src="assets/logo-full.png" alt="Awakening Generations Church">' : `<div class="lab">${esc(s.lab)}</div>`}
+      ${s.list ? `<div class="e4list">${s.list.map(x => `<span>${esc(x)}</span>`).join('')}</div>` : `<div class="txt">${esc(s.en)}</div>`}
+      ${s.ne ? `<div class="txt ne" lang="ne">${esc(s.ne)}</div>` : ''}</div>`).join('')}
+    <div class="dots">${sl.map((s, i) => `<button class="dot ${i === 0 ? 'on' : ''}" aria-label="Slide ${i + 1} of ${sl.length}"></button>`).join('')}</div></div>`;
+}
+const tilesHTML = () => `<div class="tiles">${[['prayer', '🙏', 'Prayer Chain', 't1'], ['kids', '🧒', 'Kids Shine', 't2'], ['youth', '🔥', 'Youth Shine', 't3'], ['bible', '📖', 'Bible', 't4']].map(([k, i, n, c]) => `<button class="tile ${c}" data-go="${k}"><span>${i}</span>${n}</button>`).join('')}</div>`;
+function wireShowcase(v) {
+  v.querySelectorAll('[data-go]').forEach(b => b.onclick = () => { sec = b.dataset.go; render(); window.scrollTo(0, 0); });
+  const box = $('#showcase', v); if (!box) return;
+  const slides = [...box.querySelectorAll('.slide')], dots = [...box.querySelectorAll('.dot')];
+  let i = 0;
+  const calm = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const dwell = el => 2800 + 240 * ((el.textContent || '').trim().split(/\s+/).length);
+  const queue = () => { clearTimeout(showTimer); if (calm || slides.length < 2) return; showTimer = setTimeout(() => { if (document.hidden) queue(); else show(i + 1); }, dwell(slides[i])); };
+  const show = n => {
+    i = (n + slides.length) % slides.length;
+    slides.forEach((s, k) => { s.classList.toggle('on', k === i); s.setAttribute('aria-hidden', String(k !== i)); });
+    dots.forEach((d, k) => d.classList.toggle('on', k === i));
+    queue();
+  };
+  dots.forEach((d, k) => d.onclick = e => { e.stopPropagation(); show(k); });
+  box.onclick = () => show(i + 1);
+  box.onkeydown = e => { if (e.key === 'ArrowRight') show(i + 1); else if (e.key === 'ArrowLeft') show(i - 1); };
+  queue();
+}
 async function homeToday(v) {
-  v.innerHTML = `<div class="hero"><img src="assets/logo-full.png" alt="Awakening Generations Church. ${esc(HOME.tagline || '')}"></div>
+  v.innerHTML = `${showcaseHTML()}${tilesHTML()}
     <div class="card votd"><div class="muted">Verse of the Day</div><div class="ref" id="vref" style="font-size:22px">Loading…</div>
       <div class="votd-lang">English</div><div id="ven"></div>
       <div class="votd-lang">नेपाली</div><div id="vne"></div>
       <p class="muted" id="vsrc"></p></div>`;
+  wireShowcase(v);
   const ref = await votdRef();
   if (!ref) { $('#vref').textContent = '—'; return; }
   $('#vref').textContent = ref;
@@ -596,6 +642,9 @@ const VIEWS = {
   'youth.chat': v => chatView(v, 'youth'), 'youth.news': shineText('youth', 'news', 'No announcements right now. Check back soon!'), 'youth.me': v => profilesTab(v, 'youth'),
   'bible.read': bibleRead, 'bible.find': bibleFind, 'bible.notes': v => notesView(v, 'bible')
 };
+
+/* ---------- header: logo/brand and Back button go Home ---------- */
+$('#brandlink').onclick = goHome; $('#homebtn').onclick = goHome;
 
 /* ---------- start + member password ---------- */
 function startApp() { $('#gate').hidden = true; $('#auth').hidden = true; $('#app').hidden = false; $('#signout').hidden = !(CLOUD && ME); render(); }

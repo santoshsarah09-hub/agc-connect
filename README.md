@@ -3,7 +3,8 @@
 One web app for Awakening Generations Church. Works in any phone browser (iPhone and Android). iPhone: Share > Add to Home Screen. Android: menu > Install app.
 
 ## Sections and inside tabs
-- **Home:** Today (logo + Verse of the Day in English and Nepali), Mission & Vision, 4E with scriptures
+- **Home:** Today (a bright slideshow that fades through the welcome, Mission, Vision and 4E, then four quick buttons and the Verse of the Day in English and Nepali), Mission & Vision, 4E with scriptures
+- **Getting around:** the logo / "AGC Connect" in the middle of the top bar always returns to Home. A "← Home" button appears on every other screen. The slideshow pauses on tap, can be moved with the dots or arrow keys, and stays still for people who have reduced motion turned on.
 - **Prayer:** Sign Up, Schedule, Prayer Requests
 - **Kids Shine:** Memory Verse (6 steps), Games (7), Lesson, Chat, Announcements, My Kids
 - **Youth Shine:** Memory Verse (same 6 steps), Teaching, Notes, Chat, Announcements, My Profile

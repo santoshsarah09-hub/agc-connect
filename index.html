@@ -42,7 +42,11 @@
 </div>
 
 <div id="app" hidden>
-  <header class="top"><img src="assets/emblem.png" alt="" class="top-logo"><div class="brand">AGC <span>Connect</span></div><button class="btn small ghost so" id="signout" hidden>Sign out</button></header>
+  <header class="top">
+    <div class="top-l"><button class="btn small ghost hb" id="homebtn" hidden>← Home</button></div>
+    <button class="brandlink" id="brandlink" aria-label="AGC Connect. Go to the Home screen"><img src="assets/emblem.png" alt="" class="top-logo"><span class="brand">AGC <span>Connect</span></span></button>
+    <div class="top-r"><button class="btn small ghost so" id="signout" hidden>Sign out</button></div>
+  </header>
   <nav class="inner" id="inner" aria-label="Section tabs"></nav>
   <main id="view" aria-live="polite"></main>
   <nav class="tabs" id="tabs" aria-label="Main sections"></nav>
