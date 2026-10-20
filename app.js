@@ -115,7 +115,7 @@ const SECTIONS = {
   kids:   { label: 'Kids Shine',  icon: '🧒', tabs: [['verse', 'Memory Verse'], ['games', 'Games'], ['fun', 'Fun Zone'], ['lesson', 'Lesson'], ['hw', 'Assignments'], ['chat', 'Chat'], ['news', 'Announcements'], ['me', 'My Kids'], ['teach', 'Teacher']] },
   youth:  { label: 'Youth Shine', icon: '🔥', tabs: [['verse', 'Memory Verse'], ['fun', 'Fun Zone'], ['lesson', 'Teaching'], ['hw', 'Assignments'], ['notes', 'Notes'], ['chat', 'Chat'], ['news', 'Announcements'], ['me', 'My Profile'], ['teach', 'Teacher']] },
   bible:  { label: 'Bible',       icon: '📖', tabs: [['read', 'Read'], ['find', 'Find a Verse'], ['notes', 'My Notes']] },
-  leaders: { label: 'Leaders',    icon: '🛡️', tabs: [['post', 'Post'], ['res', 'Resources'], ['lboard', 'Leader Board'], ['team', 'Team']] }
+  leaders: { label: 'Leaders',    icon: '🛡️', tabs: [['post', 'Post'], ['res', 'Resources'], ['lboard', 'Leader Board'], ['team', 'Team'], ['fam', 'Families']] }
 };
 let sec = 'home';
 const tabOf = { home: 'today', prayer: 'chain', worship: 'songs', kids: 'verse', youth: 'verse', bible: 'read', leaders: 'post' };
@@ -389,9 +389,10 @@ function profilesTab(v, g) {
       <button class="btn small ${p.id === (curProfile(g) || {}).id ? '' : 'ghost'}" data-s="${p.id}">${p.id === (curProfile(g) || {}).id ? 'Active' : 'Switch'}</button>
       <button class="btn small ghost" data-x="${p.id}" aria-label="Remove ${esc(p.name)}">✕</button></div>`).join('')}</div>` : ''}
     ${list.length ? weekCard(list) : ''}
+    ${list.length && hubOn() ? famCard(list) : ''}
     ${list.length && hubOn() ? syncCard(list) : ''}
     ${addForm(g)}`;
-  wireAdd(g); wireWeek(v); wireSync(v, g);
+  wireAdd(g); wireWeek(v); wireSync(v, g); wireFam(v, g);
   v.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { S.cur[g] = b.dataset.s; save(); render(); });
   v.querySelectorAll('[data-x]').forEach(b => b.onclick = () => {
     if (!confirm('Remove this profile and its progress from this phone?')) return;
@@ -1121,6 +1122,62 @@ function leadersTeam(v) {
 }
 
 
+/* ---------- Family registration (parent leaves a contact; only the admin can read it) ---------- */
+const firstWord = n => String(n || '').trim().split(/\s+/)[0] || '';
+function famCard(list) {
+  const todo = list.filter(p => !p.fam), done = list.filter(p => p.fam), last = JSON.parse(lsGet('agc.fam.contact', '{}') || '{}');
+  return `<div class="card gold"><h2>Register your family with the church</h2>
+    <p class="muted">So the church knows who has joined and can reach you about your child's classes and events.</p>
+    ${done.map(p => `<div class="slot"><div class="t">✅ ${esc(firstWord(p.name))} ${esc(p.fam.li)}. <span class="muted">is registered</span></div><button class="btn small ghost" data-fx="${p.id}">Remove</button></div>`).join('')}
+    ${todo.length ? `<label for="fc">Child</label><select id="fc">${todo.map(p => `<option value="${p.id}">${esc(firstWord(p.name))}</option>`).join('')}</select>
+      <label for="fl">Last name starts with (one letter)</label><input id="fl" maxlength="1" autocomplete="off" style="max-width:80px;text-transform:uppercase">
+      <label for="fe">Parent or guardian email</label><input id="fe" type="email" autocomplete="email" maxlength="100" value="${esc(last.e || '')}">
+      <label for="fp">Parent or guardian phone</label><input id="fp" type="tel" autocomplete="tel" maxlength="20" value="${esc(last.p || '')}">
+      <label class="chk"><input type="checkbox" id="fk"> I am this child's parent or guardian. I agree to share my email and phone number with Awakening Generations Church leaders so they can contact me. Only the church admin can see them, and I can remove them here at any time.</label>
+      <button class="btn" id="fgo">Register</button>` : ''}
+    <div id="fmsg" aria-live="polite"></div></div>`;
+}
+function wireFam(v, g) {
+  const go = $('#fgo', v);
+  if (go) go.onclick = async () => {
+    const p = S.profiles.find(x => x.id === $('#fc', v).value), m = $('#fmsg', v); if (!p) return;
+    const e = $('#fe', v).value.trim(), ph = $('#fp', v).value.trim(), li = $('#fl', v).value.trim();
+    if (!li) { m.innerHTML = '<span class="bad">Please enter the first letter of the last name.</span>'; return; }
+    if (!$('#fk', v).checked) { m.innerHTML = '<span class="bad">Please tick the box to agree.</span>'; return; }
+    go.disabled = true;
+    try {
+      await hubCall({ action: 'famRegister', childId: p.id, deviceId: deviceId(), group: p.group, childFirst: firstWord(p.name), lastInitial: li, email: e, phone: ph, consent: true });
+      p.fam = { at: new Date().toISOString(), li: li.slice(0, 1).toUpperCase() }; lsSet('agc.fam.contact', JSON.stringify({ e, p: ph })); save(); render();
+    } catch (err) { go.disabled = false; m.innerHTML = `<span class="bad">${esc(err.message)}</span>`; }
+  };
+  v.querySelectorAll('[data-fx]').forEach(b => b.onclick = async () => {
+    if (!confirm('Remove your email and phone number from the church list for this child?')) return;
+    const p = S.profiles.find(x => x.id === b.dataset.fx); if (!p) return;
+    try { await hubCall({ action: 'famForget', childId: p.id, deviceId: deviceId() }); delete p.fam; save(); render(); }
+    catch (err) { $('#fmsg', v).innerHTML = `<span class="bad">Could not remove it right now: ${esc(err.message)} Try again with a connection.</span>`; }
+  });
+}
+const csvCell = x => { let s = String(x == null ? '' : x); if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; return '"' + s.replace(/"/g, '""') + '"'; };
+function leadersFam(v) {
+  leaderGate(v, async () => {
+    if (!HUB.me.admin) { v.innerHTML = meBar() + '<div class="card"><h2>Families</h2><p>Only the pastor (admin) can see family contacts.</p></div>'; wireOut(); return; }
+    v.innerHTML = '<div class="card">Loading…</div>';
+    let d; try { d = await hubCall({ action: 'famList' }); } catch (e) { v.innerHTML = `<div class="card"><span class="bad">${esc(e.message)}</span></div>`; return; }
+    const rows = d.rows || [], by = k => rows.filter(r => r.grp === k), mails = list => [...new Set(list.map(r => r.parentEmail))].join(', ');
+    v.innerHTML = `${meBar()}<div class="card gold"><h2>Families</h2><p>Kids: <b>${by('kids').length}</b> · Youth: <b>${by('youth').length}</b> registered. Only you can see this page. Please keep these contacts private.</p>
+      <div class="row"><button class="btn small" data-cp="kids">Copy Kids emails</button> <button class="btn small" data-cp="youth">Copy Youth emails</button> <button class="btn small ghost" data-cp="all">Copy all emails</button> <button class="btn small ghost" id="fcsv">Download list (CSV)</button></div><div id="fmsg" aria-live="polite"></div></div>
+      <div class="card">${rows.length ? rows.map(r => `<div class="slot"><div class="t">${esc(r.childFirst)} ${esc(r.lastInitial)}. <span class="muted">${r.grp === 'youth' ? 'Youth' : 'Kids'} · ${esc((r.created || '').slice(0, 10))}</span><div><a href="mailto:${esc(r.parentEmail)}">${esc(r.parentEmail)}</a> · <a href="tel:${esc(String(r.parentPhone).replace(/[^\d]/g, ''))}">${esc(r.parentPhone)}</a></div></div><button class="btn small ghost" data-fr="${esc(r.id)}">Remove</button></div>`).join('') : '<p class="muted">No families have registered yet.</p>'}</div>`;
+    wireOut();
+    v.querySelectorAll('[data-cp]').forEach(b => b.onclick = async () => { const k = b.dataset.cp, txt = mails(k === 'all' ? rows : by(k)); try { await navigator.clipboard.writeText(txt); $('#fmsg', v).innerHTML = '<span class="good">Copied. Paste them into the BCC line of an email.</span>'; } catch (e) { prompt('Copy these emails:', txt); } });
+    $('#fcsv', v).onclick = () => {
+      const csv = ['Child,Last initial,Group,Parent email,Parent phone,Registered', ...rows.map(r => [r.childFirst, r.lastInitial, r.grp, r.parentEmail, r.parentPhone, (r.created || '').slice(0, 10)].map(csvCell).join(','))].join('\r\n');
+      const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = 'agc-families.csv'; document.body.appendChild(a); a.click(); a.remove();
+    };
+    v.querySelectorAll('[data-fr]').forEach(b => b.onclick = async () => { if (!confirm('Remove this family from the list?')) return; try { await hubCall({ action: 'famRemove', id: b.dataset.fr }); leadersFam(v); } catch (e) { alert(e.message); } });
+    applyLang();
+  });
+}
+
 /* calendar buttons work anywhere in the page */
 $('#view').addEventListener('click', e => {
   const btn = e.target.closest('[data-cal]'); if (!btn) return;
@@ -1131,7 +1188,7 @@ $('#view').addEventListener('click', e => {
 const VIEWS = {
   'home.today': homeToday, 'home.mv': homeMV, 'home.e4': homeE4,
   'prayer.chain': prayerEmbed, 'worship.songs': worshipSongs, 'worship.news': worshipNews, 'worship.cal': worshipCal, 'worship.fellow': worshipFellow,
-  'leaders.post': leadersPost, 'leaders.res': leadersRes, 'leaders.lboard': leadersBoard, 'leaders.team': leadersTeam,
+  'leaders.post': leadersPost, 'leaders.res': leadersRes, 'leaders.lboard': leadersBoard, 'leaders.team': leadersTeam, 'leaders.fam': leadersFam,
   'kids.verse': v => memorize(v, 'kids'), 'kids.games': kidsGames, 'kids.fun': v => funView(v, 'kids'), 'youth.fun': v => funView(v, 'youth'), 'kids.lesson': shineText('kids', 'lesson', DEFAULT_LESSON.kids), 'kids.hw': v => assignView(v, 'kids'), 'kids.teach': v => teacherView(v, 'kids'),
   'kids.chat': v => chatView(v, 'kids'), 'kids.news': v => groupNews(v, 'kids'), 'kids.me': v => profilesTab(v, 'kids'),
   'youth.verse': v => memorize(v, 'youth'), 'youth.lesson': shineText('youth', 'lesson', DEFAULT_LESSON.youth), 'youth.hw': v => assignView(v, 'youth'), 'youth.teach': v => teacherView(v, 'youth'), 'youth.notes': v => notesView(v, 'youth'),

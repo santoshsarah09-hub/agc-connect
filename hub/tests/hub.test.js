@@ -7,9 +7,9 @@ env.call('setup');
 const PIN = () => env.props.ADMIN_PIN;
 const admin = () => post({ action: 'login', leader: 'admin', pin: PIN() });
 console.log('Hub backend tests');
-t('setup creates folders, sheet with 10 tabs, admin PIN; safe to run twice', () => {
+t('setup creates folders, sheet with 11 tabs, admin PIN; safe to run twice', () => {
   assert.strictEqual(env.root.kids[0].name, 'Executive Assistant Workspace'); assert.strictEqual(env.root.kids[0].kids[0].name, 'AGC Connect'); assert.strictEqual(env.root.kids[0].kids[0].kids[0].name, 'Leader Resources');
-  assert(/^\d{6}$/.test(PIN())); assert.strictEqual(Object.values(env.sheetsById)[0].sheets.length, 10);
+  assert(/^\d{6}$/.test(PIN())); assert.strictEqual(Object.values(env.sheetsById)[0].sheets.length, 11);
   env.call('setup'); assert.strictEqual(Object.keys(env.sheetsById).length, 1); assert.strictEqual(env.root.kids.length, 1);
 });
 t('public feed starts empty and lists the admin as a sign-in name', () => { const f = env.feed(); assert.deepStrictEqual(f.songs, []); assert.strictEqual(f.leaders[0].id, 'admin'); assert(!JSON.stringify(f).includes(PIN())); });
@@ -55,6 +55,34 @@ t('progress: parent can forget their child; leader with area can remove; wrong p
   assert(post({ action: 'progForget', childId: 'c2xyz', deviceId: 'dev-9' }).removed === 1);
   assert(post(b).ok); assert(post({ action: 'progRemove', token: A.token, group: 'youth', cid: 'c2xyz' }).ok);
   assert(post({ action: 'progList', token: A.token, group: 'youth' }).rows.length === 0);
+});
+t('families: parent registers a child contact; bad input and no consent are refused', () => {
+  const b = { action: 'famRegister', childId: 'f1abc', deviceId: 'dev-f1', group: 'kids', childFirst: 'Anan Rai', lastInitial: 'r', email: 'Mom@Example.com', phone: '605-555-0142', consent: true };
+  assert(/agree/i.test(post(Object.assign({}, b, { consent: false })).error)); assert(/agree/i.test(post(Object.assign({}, b, { consent: 'true' })).error));
+  assert(/email/i.test(post(Object.assign({}, b, { email: 'nope' })).error)); assert(/email/i.test(post(Object.assign({}, b, { email: 'a@b.c,d@e.fg' })).error));
+  assert(/phone/i.test(post(Object.assign({}, b, { phone: '12' })).error)); assert(/last name/i.test(post(Object.assign({}, b, { lastInitial: '9' })).error));
+  assert(post(b).ok); assert(post(Object.assign({}, b, { phone: '+1 (605) 555-0199' })).ok);
+  const r = post({ action: 'famList', token: A.token }).rows; assert(r.length === 1 && r[0].childFirst === 'Anan' && r[0].lastInitial === 'R' && r[0].parentEmail === 'mom@example.com' && r[0].parentPhone === '(605) 555-0199');
+  assert(!JSON.stringify(r).includes('dev-f1'), 'device id must not leave the server');
+});
+t('families: only the admin can read or remove; nothing leaks to the public feed; another phone cannot overwrite', () => {
+  assert(/sign in again/i.test(post({ action: 'famList' }).error)); assert(/only the admin/i.test(post({ action: 'famList', token: T1.token }).error)); assert(/only the admin/i.test(post({ action: 'famRemove', token: T1.token, id: 'f1abc' }).error));
+  assert(!/mom@example|555-0199|Anan/.test(JSON.stringify(env.feed())), 'public feed must not carry family data');
+  assert(/not allowed/i.test(post({ action: 'famRegister', childId: 'f1abc', deviceId: 'dev-evil', group: 'kids', childFirst: 'X', lastInitial: 'Z', email: 'x@y.org', phone: '6055550100', consent: true }).error));
+});
+t('families: spreadsheet-formula tricks are neutralised; parent can delete; admin can remove', () => {
+  const b = { action: 'famRegister', childId: 'f2xyz', deviceId: 'dev-f2', group: 'youth', childFirst: '=HYPERLINK("http://evil")', lastInitial: 'S', email: '=cmd@x.org', phone: '+1 605 555 0111', consent: true };
+  const e = post(b); assert(e.ok || /./.test(e.error));
+  const row = post({ action: 'famList', token: A.token }).rows.find(x => x.id === 'f2xyz'); if (row) assert(!/^[=+\-@]/.test(row.childFirst + '') && !/^[=+\-@]/.test(row.parentEmail));
+  assert(post({ action: 'famForget', childId: 'f1abc', deviceId: 'other' }).removed === 0); assert(post({ action: 'famForget', childId: 'f1abc', deviceId: 'dev-f1' }).removed === 1);
+  assert(post(Object.assign({ }, { action: 'famRegister', childId: 'f3', deviceId: 'dev-f3', group: 'kids', childFirst: 'Mia', lastInitial: 'K', email: 'k@k.org', phone: '6055550123', consent: true })).ok);
+  assert(post({ action: 'famRemove', token: A.token, id: 'f3' }).ok); assert(post({ action: 'famList', token: A.token }).rows.every(x => x.id !== 'f3'));
+});
+t('families: one phone cannot flood the list', () => {
+  let err = ''; for (let i = 0; i < 12; i++) { const r = post({ action: 'famRegister', childId: 'fl' + i, deviceId: 'dev-flood', group: 'kids', childFirst: 'K' + i, lastInitial: 'A', email: 'a@b.org', phone: '6055550100', consent: true }); if (r.error) err = r.error; }
+  assert(/too many/i.test(err));
+  Object.keys(env.cache).filter(k => k.startsWith('fm:')).forEach(k => delete env.cache[k]);
+  post({ action: 'famList', token: A.token }).rows.filter(r => /^fl\d/.test(r.id)).forEach(r => post({ action: 'famRemove', token: A.token, id: r.id }));
 });
 t('weekly verse and lesson: only the matching area posts; newest shows in the public feed', () => {
   assert(/access/i.test(post({ action: 'weeklySave', token: T1.token, group: 'kids', verse: 'John 3:16' }).error));

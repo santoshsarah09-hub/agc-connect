@@ -22,6 +22,8 @@ var CONFIG = {
   BOARD_PER_HOUR: 5,           // fellowship posts one phone may make per hour
   BOARD_ALL_PER_HOUR: 40,      // fellowship posts from everyone together per hour (stops fake-phone spam)
   PROG_PER_DEVICE_HOUR: 120,   // progress updates one phone may send per hour
+  FAM_PER_DEVICE_HOUR: 10,     // family registrations one phone may send per hour
+  FAM_ALL_PER_HOUR: 100,       // family registrations from everyone together per hour
   PROG_ALL_PER_HOUR: 1500,     // progress updates from everyone together per hour
   BOARD_KEEP: 60,              // newest posts shown
   FEED_CACHE_SECONDS: 20,
@@ -44,11 +46,12 @@ var H = {
   res: ['id', 'title', 'desc', 'category', 'url', 'created', 'by'],
   asg: ['id', 'grp', 'title', 'titleNe', 'detail', 'detailNe', 'due', 'ref', 'created', 'by'],
   prog: ['id', 'grp', 'name', 'week', 'stars', 'learned', 'steps', 'games', 'hwDone', 'hwTotal', 'updated', 'deviceId'],
-  weekly: ['id', 'grp', 'verse', 'verseEn', 'verseNe', 'lessonEn', 'lessonNe', 'created', 'by']
+  weekly: ['id', 'grp', 'verse', 'verseEn', 'verseNe', 'lessonEn', 'lessonNe', 'created', 'by'],
+  fam: ['id', 'grp', 'childFirst', 'lastInitial', 'parentEmail', 'parentPhone', 'consent', 'created', 'updated', 'deviceId']
 };
 var AREAS = ['kids', 'youth', 'worship'];     // what a leader can be given access to
 var RES_SUBFOLDERS = ['All Leaders', 'Kids', 'Youth', 'Worship'];
-var SHEETS = { leaders: 'Leaders', ann: 'Announcements', songs: 'Songs', events: 'Events', board: 'Fellowship', lboard: 'LeaderBoard', res: 'Resources', asg: 'Assignments', prog: 'Progress', weekly: 'Weekly' };
+var SHEETS = { leaders: 'Leaders', ann: 'Announcements', songs: 'Songs', events: 'Events', board: 'Fellowship', lboard: 'LeaderBoard', res: 'Resources', asg: 'Assignments', prog: 'Progress', weekly: 'Weekly', fam: 'Families' };
 
 /* ---------------------------------------------------------------- setup */
 
@@ -119,7 +122,7 @@ function doPost(e) {
     if (!fn) throw new Error('Unknown action');
     lock.waitLock(15000);
     var res = fn(body);
-    if (body.action !== 'progSend' && body.action !== 'progForget') dropFeedCache_();
+    if (['progSend', 'progForget', 'famRegister', 'famForget'].indexOf(body.action) < 0) dropFeedCache_();
     return json_(res);
   } catch (err) {
     var msg = String(err.message || err);
@@ -531,6 +534,55 @@ function leaderRemove_(b) {
   if (r) { r.active = 'no'; writeObj_(S.leaders, H.leaders, r.row, r); }
   return { ok: true };
 }
+/* Family registration: a parent leaves a contact for one child. Only the admin can read it. */
+function famEmail_(raw) {
+  var e = txt_(raw, 100).toLowerCase();
+  if (!/^[^\s@<>"',;()\\]+@[^\s@<>"',;()\\]+\.[^\s@<>"',;()\\]{2,}$/.test(e)) throw new Error('Please check the email address.');
+  return e;
+}
+function famPhone_(raw) {
+  var d = String(raw == null ? '' : raw).replace(/\D/g, '');
+  if (d.length === 11 && d.charAt(0) === '1') d = d.slice(1);
+  if (d.length === 10) return '(' + d.slice(0, 3) + ') ' + d.slice(3, 6) + '-' + d.slice(6);
+  if (d.length >= 7 && d.length <= 15) return 'Intl ' + d;
+  throw new Error('Please enter a phone number with the area code.');
+}
+function famRegister_(b) {
+  var grp = b.group === 'youth' ? 'youth' : 'kids', cid = txt_(b.childId, 40).replace(/[^A-Za-z0-9_-]/g, ''), device = txt_(b.deviceId, 40);
+  if (!cid || !device) throw new Error('Missing details.');
+  if (b.consent !== true) throw new Error('Please tick the box to agree.');
+  var first = firstName_(b.childFirst);
+  var li = (String(b.lastInitial || '').match(/[A-Za-zÀ-ɏऀ-ॿ]/) || [''])[0].toUpperCase();
+  if (!li) throw new Error("Please enter the first letter of your child's last name.");
+  var email = famEmail_(b.email), phone = famPhone_(b.phone);
+  var cache = CacheService.getScriptCache(), dk = 'fm:' + device, n = Number(cache.get(dk)) || 0;
+  var ak = 'fm:all:' + Utilities.formatDate(new Date(), CONFIG.TZ, 'yyyyMMddHH'), a = Number(cache.get(ak)) || 0;
+  if (n >= CONFIG.FAM_PER_DEVICE_HOUR || a >= CONFIG.FAM_ALL_PER_HOUR) throw new Error('Too many tries. Please try again later.');
+  cache.put(dk, String(n + 1), 3600); cache.put(ak, String(a + 1), 3600);
+  var S = sheets_(), ex = findById_(S.fam, cid), now = nowIso_();
+  var o = { id: cid, grp: grp, childFirst: first, lastInitial: li, parentEmail: email, parentPhone: phone, consent: 'yes ' + now, created: ex ? ex.created : now, updated: now, deviceId: device };
+  if (ex) { if (ex.deviceId !== device) throw new Error('Not allowed.'); writeObj_(S.fam, H.fam, ex.row, o); } else appendObj_(S.fam, H.fam, o);
+  return { ok: true };
+}
+function famForget_(b) {
+  var cid = txt_(b.childId, 40).replace(/[^A-Za-z0-9_-]/g, ''), device = txt_(b.deviceId, 40);
+  if (!cid || !device) throw new Error('Missing details.');
+  var S = sheets_(), all = rows_(S.fam), del = 0;
+  for (var i = all.length - 1; i >= 0; i--) if (all[i].id === cid && all[i].deviceId === device) { S.fam.deleteRow(all[i].row); del++; }
+  return { ok: true, removed: del };
+}
+function famList_(b) {
+  admin_(b);
+  var out = rows_(sheets_().fam).map(function (r) { return { id: r.id, grp: r.grp, childFirst: r.childFirst, lastInitial: r.lastInitial, parentEmail: r.parentEmail, parentPhone: r.parentPhone, created: r.created }; });
+  out.sort(function (x, y) { return x.created < y.created ? 1 : -1; });
+  return { ok: true, rows: out };
+}
+function famRemove_(b) {
+  admin_(b);
+  var S = sheets_(), r = findById_(S.fam, b.id);
+  if (r) S.fam.deleteRow(r.row);
+  return { ok: true };
+}
 function logout_(b) { try { CacheService.getScriptCache().remove('tok:' + String(b.token || '')); } catch (e) { /* gone */ } return { ok: true }; }
 
 var ACTIONS = {
@@ -538,6 +590,7 @@ var ACTIONS = {
   leaderData: leaderData_, annSave: annSave_, annDelete: function (b) { return deleteRow_('ann', b); },
   asgSave: asgSave_, asgDelete: asgDelete_,
   progSend: progSend_, progForget: progForget_, progList: progList_, progRemove: progRemove_, weeklySave: weeklySave_,
+  famRegister: famRegister_, famForget: famForget_, famList: famList_, famRemove: famRemove_,
   songSave: songSave_, songDelete: function (b) { return deleteRow_('songs', b); },
   eventSave: eventSave_, eventDelete: function (b) { return deleteRow_('events', b); },
   boardSet: boardSet_, lboardPost: lboardPost_, lboardDelete: lboardDelete_,
@@ -611,6 +664,8 @@ function monthlyMaintenance() {
     });
     var flagged = rows_(S.board).filter(function (r) { return r.status !== 'ok'; }).length;
     if (flagged) flags.push('Fellowship: ' + flagged + ' reported post(s) are waiting for you in Leaders > Post.');
+    var fams = rows_(S.fam), fk = fams.filter(function (r) { return r.grp === 'kids'; }).length, fy = fams.length - fk;
+    lines.push('Families registered with a parent contact: Kids ' + fk + ', Youth ' + fy + '. (See Leaders > Families.)');
     lines.push('Children sharing progress in the last 2 weeks: Kids ' + nKids + ', Youth ' + nYouth + '.');
     if (!nKids && !nYouth) lines.push('(No parents have turned on automatic sharing yet.)');
     lines.push('Active leaders: ' + (feed.leaders.length - 1) + '. Songs saved: ' + feed.songs.length + '. Upcoming events: ' + feed.events.length + '.');

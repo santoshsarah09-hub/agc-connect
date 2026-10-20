@@ -10,7 +10,7 @@ One web app for Awakening Generations Church. Works in any phone browser (iPhone
 - **Youth Shine:** Memory Verse (same 6 steps), Teaching, Assignments, Notes, Chat, Announcements, My Profile, Teacher
 - **Worship:** Songs (search the church list or YouTube), Announcements, Calendar (add to phone calendar), Fellowship (a place to encourage each other)
 - **Bible:** Read, Find a Verse, My Notes (all open in YouVersion)
-- **AGC Leaders:** Post (announcements, events, songs), Resources (Drive folder and links), Leader Board (private), Team (admin adds leaders, picks their areas Kids / Youth / Worship, and gives each a personal PIN). Leaders see only their areas; only the admin adds resources. Needs the Hub (see `hub/SETUP.md`).
+- **AGC Leaders:** Post (announcements, events, songs), Resources (Drive folder and links), Leader Board (private), Team (admin adds leaders, picks their areas Kids / Youth / Worship, and gives each a personal PIN), Families (admin only: parent email and phone for each registered child; copy emails, download CSV). Leaders see only their areas; only the admin adds resources. Needs the Hub (see `hub/SETUP.md`).
 
 ## English and Nepali
 The button at the top right switches the whole app between English and नेपाली, and remembers the choice on that phone (a phone set to Nepali starts in Nepali). Tap it again any time to go back. Button and label words are translated from `data/i18n.json`; add or fix any line there. Mission, Vision, 4E, assignments and verses show in Nepali only where you have supplied Nepali (`ne` fields, `title_ne`, `detail_ne`); otherwise they show in English. Nothing is machine-translated at run time. The labels in `i18n.json` were drafted by Claude and should be checked by a Nepali speaker. The Prayer Chain app was already side by side English and Nepali.
@@ -89,3 +89,7 @@ With the Hub connected, teachers post assignments in Kids/Youth > Teacher. No fi
 - The phone sends an update a few seconds after progress changes. Data goes to the **Progress** tab of the Hub sheet in your Drive. Only leaders of that group (and the admin) can read it, in Kids/Youth > Teacher. The pasted-report method still works.
 - **Teachers post the weekly verse and lesson** in Teacher > "This week's verse and lesson". Data goes to the **Weekly** tab and replaces the defaults from data/shine.json on every phone.
 - Limits: 120 updates per phone per hour, 1500 per hour overall.
+
+## Family registration
+
+On Kids and Youth > Me, a parent can register a child: the child's first name (from the profile), last initial, parent email and phone, with a consent box. It is stored in the Hub sheet tab **Families** and shown only to the admin (Leaders > Families). Teachers cannot see it, and it never appears in the public feed. A parent can remove it any time; the admin can remove any row. Limits: 10 registrations per phone per hour. Contacts stay until removed (they are not part of the monthly cleanup). Backup copies of the sheet also contain them, so keep the AGC Connect Drive folder private.
