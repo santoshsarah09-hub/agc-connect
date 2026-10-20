@@ -28,6 +28,8 @@ var SLOT_HEADERS = ['key', 'month', 'date', 'hour', 'name', 'deviceId', 'claimed
 var REQ_HEADERS = ['id', 'month', 'en', 'ne', 'status', 'order'];
 var SES_HEADERS = ['id', 'month', 'date', 'time', 'duration', 'titleEn', 'titleNe', 'link'];
 var JOIN_HEADERS = ['sessionId', 'name', 'country', 'deviceId', 'joinedAt'];
+var SUB_HEADERS = ['id', 'month', 'name', 'text', 'anon', 'status', 'created', 'deviceId'];   // prayer requests people send in; the admin decides what goes on the list
+var SUB_PER_DEVICE = 3, SUB_ALL = 30, SUB_KEEP_DAYS = 120;   // per phone and overall, per 6 hours; old rows are removed monthly
 
 /* ---------------------------------------------------------------- setup */
 
@@ -47,6 +49,7 @@ function setup() {
     prepSheet_(reqs, REQ_HEADERS);
     ensureSheet_(ss, 'Sessions', SES_HEADERS);
     ensureSheet_(ss, 'Joins', JOIN_HEADERS);
+    ensureSheet_(ss, 'Submitted', SUB_HEADERS);
     props.setProperty('SHEET_ID', ss.getId());
   }
   if (!props.getProperty('ADMIN_PIN')) {
@@ -112,13 +115,16 @@ function doPost(e) {
       case 'checkPin': requireAdmin_(body.pin); res = { ok: true }; break;
       case 'saveRequests': requireAdmin_(body.pin); res = saveRequests_(body); break;
       case 'saveSessions': requireAdmin_(body.pin); res = saveSessions_(body); break;
+      case 'submit': res = submit_(body); break;
+      case 'pending': requireAdmin_(body.pin); res = pending_(); break;
+      case 'dismiss': requireAdmin_(body.pin); res = dismiss_(body); break;
       case 'join': res = join_(body); break;
       case 'leave': res = leave_(body); break;
       case 'archive': requireAdmin_(body.pin); res = archiveMonth_(body.month); break;
       case 'removeName': requireAdmin_(body.pin); res = removeName_(body); break;
       default: throw new Error('Unknown action');
     }
-    dropStateCache_();                       // every write makes the cached copy of the month out of date
+    if (body.action !== 'submit' && body.action !== 'pending') dropStateCache_();   // every write makes the cached copy of the month out of date
     return json_(res);
   } catch (err) {
     var msg = String(err.message || err);
@@ -200,7 +206,7 @@ function liveSheets_() {
   var ss = SpreadsheetApp.openById(id);
   return {
     ss: ss, slots: ss.getSheetByName('Slots'), reqs: ss.getSheetByName('Requests'),
-    sessions: ensureSheet_(ss, 'Sessions', SES_HEADERS), joins: ensureSheet_(ss, 'Joins', JOIN_HEADERS)
+    sessions: ensureSheet_(ss, 'Sessions', SES_HEADERS), joins: ensureSheet_(ss, 'Joins', JOIN_HEADERS), subs: ensureSheet_(ss, 'Submitted', SUB_HEADERS)
   };
 }
 
@@ -408,7 +414,53 @@ function saveRequests_(body) {
     appendText_(L.reqs, [Utilities.getUuid(), month, en, ne, q.status === 'answered' ? 'answered' : 'active', String(idx + 1)]);
     n++;
   });
+  markSubmitted_(body.approved, 'approved');
   return { ok: true, saved: n };
+}
+
+/* ------------------------------------------------ requests from the church */
+// Anyone can send a request. It goes into a waiting list that only the admin can read.
+// Nothing appears on the prayer list until the admin adds it and saves.
+
+function plainRequest_(t) {
+  return cleanText_(t).replace(/<[^>]*>/g, ' ').replace(/(https?:\/\/|www\.)\S+/gi, '[link removed]').replace(/\s+/g, ' ').trim().slice(0, 300);
+}
+function submit_(body) {
+  var text = plainRequest_(body.text);
+  if (!text) throw new Error('Please type your request.');
+  var device = String(body.deviceId || '').replace(/[^A-Za-z0-9-]/g, '').slice(0, 64);
+  if (!device) throw new Error('Missing device.');
+  var anon = body.anon ? 'yes' : 'no', name = '';
+  if (anon === 'no' && String(body.name || '').trim()) name = cleanName_(body.name);
+  var cache = CacheService.getScriptCache(), dk = 'sub:' + device, ak = 'sub:all', d = Number(cache.get(dk)) || 0, a = Number(cache.get(ak)) || 0;
+  if (d >= SUB_PER_DEVICE) throw new Error('You have sent several requests already. Please try again later.');
+  if (a >= SUB_ALL) throw new Error('Many requests were sent today. Please try again later.');
+  cache.put(dk, String(d + 1), 21600); cache.put(ak, String(a + 1), 21600);
+  appendText_(liveSheets_().subs, [Utilities.getUuid(), nowParts_().month, name, text, anon, 'pending', new Date().toISOString(), device]);
+  return { ok: true };
+}
+function pending_() {
+  var out = [];
+  rows_(liveSheets_().subs).forEach(function (r) {
+    if (r.v[5] === 'pending') out.push({ id: r.v[0], name: r.v[2], text: r.v[3], anon: r.v[4] === 'yes', created: r.v[6] });
+  });
+  out.sort(function (x, y) { return x.created < y.created ? -1 : 1; });
+  return { ok: true, pending: out };
+}
+function markSubmitted_(ids, status) {
+  if (!Array.isArray(ids) || !ids.length) return 0;
+  var set = {}, n = 0;
+  ids.slice(0, 100).forEach(function (id) { set[String(id)] = 1; });
+  var sheet = liveSheets_().subs;
+  rows_(sheet).forEach(function (r) {
+    if (set[r.v[0]] && r.v[5] === 'pending') { sheet.getRange(r.row, 6).setValue(status); n++; }
+  });
+  return n;
+}
+function dismiss_(body) { return { ok: true, dismissed: markSubmitted_([body.id], 'dismissed') }; }
+function purgeSubmitted_() {
+  var sheet = liveSheets_().subs, cut = new Date(Date.now() - SUB_KEEP_DAYS * 86400000).toISOString(), all = rows_(sheet);
+  for (var i = all.length - 1; i >= 0; i--) if (all[i].v[6] < cut) sheet.deleteRow(all[i].row);
 }
 
 /* ------------------------------------------------------- group sessions */
@@ -546,6 +598,7 @@ function monthlyArchive() {
   try {
     lock.waitLock(30000);
     var r = archiveMonth_(prev);
+    try { purgeSubmitted_(); } catch (pe) { /* housekeeping only */ }
     dropStateCache_();
     subject = 'AGC Prayer Chain: ' + prev + (r.archived ? ' saved to your Drive' : ' - nothing to save');
     body = r.archived ? ('The month ' + prev + ' was saved (' + r.hours + ' hours covered).\n' + r.url) : (r.note || 'Nothing to archive.');

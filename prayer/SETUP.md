@@ -57,3 +57,9 @@ Tell people to **install first, then sign up for hours.** If they open the link 
 - On the 1st the monthly save emails you at your Gmail either way ("saved" or "FAILED, here is what to do"). If you never get the email, check Apps Script → Triggers.
 - A free Google script handles roughly 30 requests at once. A big burst right after an announcement may feel slow for a few seconds; nothing is lost.
 - The PIN is not bank-level security.
+
+## Prayer requests from the church (added Oct 2026)
+- On the **Requests** tab anyone can tap **Ask for prayer** (first name optional, or tick "Do not show my name"). The request goes to a waiting list that only the admin can read (sheet tab **Submitted**). Nothing shows on the prayer list until the admin approves it. Each phone can send 3 requests per 6 hours; links are removed.
+- Admin (the gear): **Requests from the church** lists what is waiting. **Add to list** copies it into the month's editable list, then press **Save**. **Dismiss** removes it. Tick **Answered** and Save to move a request to "Answered prayers".
+- Only the admin (PIN) can change the list. Waiting requests older than 120 days are deleted by the monthly job.
+- To update an existing install: replace Code.gs in the **Prayer Chain** Apps Script with backend/Code.gs, Save, then Deploy > Manage deployments > pencil > New version > Deploy. The Submitted tab appears by itself.

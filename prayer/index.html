@@ -184,6 +184,19 @@ const I = {
   coverage:   ['Hours covered', 'भरिएका घण्टा'],
   nextOpen:   ['Find the next open hour', 'अर्को उपलब्ध घण्टा खोज्नुहोस्'],
   allCovered: ['Every remaining hour is covered. Thank you!', 'बाँकी सबै घण्टा भरिएका छन्। धन्यवाद!'],
+  askT:       ['Ask for prayer', 'प्रार्थनाको लागि अनुरोध गर्नुहोस्'],
+  askD:       ['A church leader reads every request before it is added to the prayer list. Please do not write phone numbers or private details about other people.', 'प्रार्थना सूचीमा थपिनु अघि चर्चका एक अगुवाले हरेक अनुरोध पढ्नुहुन्छ। कृपया फोन नम्बर वा अरू मानिसहरूबारे निजी विवरण नलेख्नुहोस्।'],
+  askName:    ['First name (optional)', 'पहिलो नाम (ऐच्छिक)'],
+  askAnon:    ['Do not show my name', 'मेरो नाम नदेखाउनुहोस्'],
+  askText:    ['Your prayer request', 'तपाईंको प्रार्थना अनुरोध'],
+  askSend:    ['Send request', 'अनुरोध पठाउनुहोस्'],
+  askThanks:  ['Thank you. Your request was sent to the church leaders.', 'धन्यवाद। तपाईंको अनुरोध चर्चका अगुवाहरूलाई पठाइएको छ।'],
+  askEmpty:   ['Please type your request.', 'कृपया आफ्नो अनुरोध लेख्नुहोस्।'],
+  inbT:       ['Requests from the church', 'चर्चबाट आएका अनुरोधहरू'],
+  inbNone:    ['No new requests are waiting.', 'कुनै नयाँ अनुरोध पर्खिरहेको छैन।'],
+  inbAdd:     ['Add to list', 'सूचीमा थप्नुहोस्'],
+  inbDismiss: ['Dismiss', 'हटाउनुहोस्'],
+  inbHint:    ['Tap Add to list, check the wording, then press Save below. Nothing is shown to others until you save.', 'सूचीमा थप्नुहोस् थिच्नुहोस्, शब्दहरू जाँच्नुहोस्, अनि तल सेभ गर्नुहोस्। तपाईंले सेभ नगरेसम्म अरूलाई केही देखिँदैन।'],
   noReq:      ['No prayer requests have been posted for this month yet.', 'यस महिनाका लागि अहिलेसम्म प्रार्थनाका विषयहरू राखिएको छैन।'],
   answered:   ['Answered prayers', 'उत्तर पाएका प्रार्थनाहरू'],
   reqFor:     ['Prayer requests', 'प्रार्थनाका विषयहरू'],
@@ -255,8 +268,6 @@ const I = {
   copied:     ['Copied', 'कपी भयो'],
   refresh:    ['Refresh', 'रिफ्रेस गर्नुहोस्'],
   lastUpd:    ['Updated', 'अपडेट'],
-  bibleT:     ['Read the Bible', 'बाइबल पढ्नुहोस्'],
-  bibleD:     ['Opens in the YouVersion Bible app or website.', 'YouVersion बाइबल एप वा वेबसाइटमा खुल्छ।'],
   chainDay:   ['Prayer chain day', 'प्रार्थना शृङ्खलाको दिन'],
   chainRule:  ['The first Saturday of every month · all 24 hours', 'हरेक महिनाको पहिलो शनिबार · सबै २४ घण्टा'],
   chainDone:  ['This month’s prayer chain is finished. See the next month above.', 'यस महिनाको प्रार्थना शृङ्खला सकिएको छ। माथि अर्को महिना हेर्नुहोस्।'],
@@ -463,8 +474,16 @@ const Demo = {
       const i = find(); if (i < 0 || d.slots[i].dev !== deviceId) throw new Error('You can only check in on your own hour.');
       d.slots[i].p = !d.slots[i].p;
     } else if (b.action === 'checkPin') { pinOk();
+    } else if (b.action === 'submit') {
+      if (!String(b.text || '').trim()) throw new Error('Please type your request.');
+      d.subs = d.subs || []; d.subs.push({ id: 's' + Date.now(), name: b.anon ? '' : String(b.name || '').split(/\s+/)[0], text: String(b.text).slice(0, 300), anon: !!b.anon, status: 'pending' });
+    } else if (b.action === 'pending') {
+      pinOk(); return { ok: true, pending: (d.subs || []).filter((x) => x.status === 'pending') };
+    } else if (b.action === 'dismiss') {
+      pinOk(); (d.subs || []).forEach((x) => { if (x.id === b.id) x.status = 'dismissed'; });
     } else if (b.action === 'saveRequests') {
       pinOk();
+      (d.subs || []).forEach((x) => { if ((b.approved || []).includes(x.id)) x.status = 'approved'; });
       d.requests[b.month] = (b.requests || []).filter((q) => q.en || q.ne).map((q, i) => ({ id: 'r' + Date.now() + i, en: q.en || '', ne: q.ne || '', status: q.status === 'answered' ? 'answered' : 'active', order: i + 1 }));
     } else if (b.action === 'saveSessions') {
       pinOk();
@@ -574,6 +593,11 @@ async function load(quiet) {
   const typing = document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName);
   if (quiet && (typing || $('#sheet').classList.contains('open'))) return;
   render();
+}
+async function loadPending() {
+  if (S.pendingBusy) return; S.pendingBusy = true;
+  try { const r = await post({ action: 'pending', pin: S.pin }); S.pending = r.pending || []; } catch (e) { S.pending = []; }
+  S.pendingBusy = false; if (S.view === 'admin') render();
 }
 function startReqDraft() {
   S.draft = (S.data ? S.data.requests : []).map((q) => ({ en: q.en, ne: q.ne, status: q.status }));
@@ -692,19 +716,22 @@ function requestsHtml() {
   const [en, ne] = monthLabel(S.month);
   const list = S.data.requests, act = list.filter((q) => q.status !== 'answered'), ans = list.filter((q) => q.status === 'answered');
   let html = cols(`<span class="h2">${esc(I.reqFor[0])}</span><div class="muted">${esc(en)}</div>`, `<span class="h2">${esc(I.reqFor[1])}</span><div class="muted">${esc(ne)}</div>`);
-  // Bible links (YouVersion): NNRV = version 1483, NASB 1995 = version 100. The text itself is licensed, so the app links to it.
-  const bible = `<div class="card"><div class="h2">📖 ${esc(I.bibleT[0])} · <span lang="ne">${esc(I.bibleT[1])}</span></div>
-    <p class="muted" style="margin:4px 0 10px">${esc(I.bibleD[0])}<br><span lang="ne">${esc(I.bibleD[1])}</span></p>
-    <div class="two"><a class="btn gold" href="https://www.bible.com/bible/1483/PSA.1.NNRV" target="_blank" rel="noopener noreferrer"><span lang="ne">नेपाली</span> (NNRV)</a>
-    <a class="btn" href="https://www.bible.com/bible/100/PSA.1.NASB1995" target="_blank" rel="noopener noreferrer">English (NASB 1995)</a></div></div>`;
-  if (!list.length) return html + `<div class="empty">${esc(I.noReq[0])}<br><span lang="ne">${esc(I.noReq[1])}</span></div>` + bible;
+  const ask = `<div class="card"><div class="h2">🙏 ${esc(I.askT[0])} · <span lang="ne">${esc(I.askT[1])}</span></div>
+    <p class="muted" style="margin:4px 0 10px">${esc(I.askD[0])}<br><span lang="ne">${esc(I.askD[1])}</span></p>
+    <label class="f" for="askName">${esc(I.askName[0])} · <span lang="ne">${esc(I.askName[1])}</span></label>
+    <input id="askName" type="text" maxlength="40" autocomplete="given-name" value="${esc(LS.get('agc_name', ''))}">
+    <label class="chk" style="margin:8px 0"><input type="checkbox" id="askAnon"> ${esc(I.askAnon[0])} · <span lang="ne">${esc(I.askAnon[1])}</span></label>
+    <label class="f" for="askText">${esc(I.askText[0])} · <span lang="ne">${esc(I.askText[1])}</span></label>
+    <textarea id="askText" maxlength="300" rows="3"></textarea>
+    <button class="btn gold block" style="margin-top:10px" data-act="askSend">${bi('askSend')}</button></div>`;
+  if (!list.length) return html + `<div class="empty">${esc(I.noReq[0])}<br><span lang="ne">${esc(I.noReq[1])}</span></div>` + ask;
   const card = (q, i, cls) => `<div class="req ${cls}"><div><span class="n">${i}</span>${esc(q.en)}</div><div lang="ne">${esc(q.ne)}</div></div>`;
   act.forEach((q, i) => { html += card(q, i + 1, ''); });
   if (ans.length) {
     html += cols(`<span class="h2">🙌 ${esc(I.answered[0])}</span>`, `<span class="h2">${esc(I.answered[1])}</span>`);
     ans.forEach((q, i) => { html += card(q, i + 1, 'ans'); });
   }
-  return html + bible;
+  return html + ask;
 }
 
 function mineHtml() {
@@ -799,6 +826,15 @@ function adminHtml() {
   if (!S.sdraft || S.sdraftMonth !== S.month) startSesDraft();
   const [en, ne] = monthLabel(S.month);
   let html = cols(`<span class="h2">${esc(I.reqFor[0])}</span><div class="muted">${esc(en)}</div>`, `<span class="h2">${esc(I.reqFor[1])}</span><div class="muted">${esc(ne)}</div>`);
+  html += `<div class="card"><div class="h2">📥 ${esc(I.inbT[0])} · <span lang="ne">${esc(I.inbT[1])}</span></div>`;
+  if (S.pending === undefined) { html += '<p class="muted">…</p>'; loadPending(); }
+  else if (!S.pending.length) html += `<p class="muted">${esc(I.inbNone[0])} · <span lang="ne">${esc(I.inbNone[1])}</span></p>`;
+  else {
+    html += `<p class="muted">${esc(I.inbHint[0])}<br><span lang="ne">${esc(I.inbHint[1])}</span></p>`;
+    S.pending.forEach((q) => { html += `<div class="item"><div>${esc(q.text)}</div><div class="muted">${q.anon || !q.name ? '' : esc(q.name)}</div>
+      <div class="acts" style="margin-top:8px"><button class="btn gold sm" data-act="inbAdd" data-sid="${esc(q.id)}">${bi('inbAdd')}</button><button class="btn ghost sm" data-act="inbDismiss" data-sid="${esc(q.id)}">${bi('inbDismiss')}</button></div></div>`; });
+  }
+  html += '</div>';
   html += `<p class="muted">${esc(I.adminHint[0])}<br><span lang="ne">${esc(I.adminHint[1])}</span></p>`;
   S.draft.forEach((q, i) => {
     html += `<div class="item"><div class="two">
@@ -935,12 +971,29 @@ async function onAct(act, el, ev) {
       await run(async () => { await post({ action: 'checkPin', pin }); S.pin = pin; try { sessionStorage.setItem('agc_pin', pin); } catch (x) {} startDraft(); render(); });
       break;
     }
-    case 'lock': S.pin = ''; try { sessionStorage.removeItem('agc_pin'); } catch (x) {} S.draft = null; S.draftMonth = null; S.sdraft = null; S.sdraftMonth = null; render(); break;
+    case 'lock': S.pin = ''; try { sessionStorage.removeItem('agc_pin'); } catch (x) {} S.draft = null; S.draftMonth = null; S.sdraft = null; S.sdraftMonth = null; S.pending = undefined; render(); break;
+    case 'askSend': {
+      const text = (($('#askText') || {}).value || '').trim(), name = (($('#askName') || {}).value || '').trim(), anon = !!($('#askAnon') || {}).checked;
+      if (!text) { toast(null, I.askEmpty[0] + ' · ' + I.askEmpty[1]); return; }
+      await run(async () => { await post({ action: 'submit', text, name, anon, deviceId }); if (name) LS.set('agc_name', name.split(/\s+/)[0]); toast(null, I.askThanks[0] + ' · ' + I.askThanks[1]); const t = $('#askText'); if (t) t.value = ''; });
+      break;
+    }
+    case 'inbAdd': {
+      const q = (S.pending || []).find((x) => x.id === el.dataset.sid); if (!q) return;
+      const label = q.anon || !q.name ? q.text : q.text + ' (' + q.name + ')', ne = /[\u0900-\u097F]/.test(q.text);
+      S.draft.push({ en: ne ? '' : label, ne: ne ? label : '', status: 'active', _sub: q.id });
+      S.pending = S.pending.filter((x) => x.id !== q.id); render(); break;
+    }
+    case 'inbDismiss': {
+      const id = el.dataset.sid;
+      await run(async () => { await post({ action: 'dismiss', pin: S.pin, id }); S.pending = (S.pending || []).filter((x) => x.id !== id); render(); });
+      break;
+    }
     case 'addReq': S.draft.push({ en: '', ne: '', status: 'active' }); render(); break;
     case 'del': S.draft.splice(i, 1); render(); break;
     case 'up': if (i > 0) { [S.draft[i - 1], S.draft[i]] = [S.draft[i], S.draft[i - 1]]; render(); } break;
     case 'down': if (i < S.draft.length - 1) { [S.draft[i + 1], S.draft[i]] = [S.draft[i], S.draft[i + 1]]; render(); } break;
-    case 'saveReq': await run(async () => { await post({ action: 'saveRequests', pin: S.pin, requests: S.draft }); toast('saved'); S.draftMonth = null; await load(true); startReqDraft(); }); break;
+    case 'saveReq': await run(async () => { await post({ action: 'saveRequests', pin: S.pin, requests: S.draft, approved: S.draft.filter((q) => q._sub).map((q) => q._sub) }); toast('saved'); S.draftMonth = null; S.pending = undefined; await load(true); startReqDraft(); }); break;
     case 'joinPick': {
       const q = S.data.sessions.find((x) => x.id === el.dataset.sid); if (!q) return;
       const t = sessionTimes(q);
