@@ -1237,11 +1237,11 @@ function funView(v, g) {
   const p = needProfile(v, g); if (!p) return;
   const C = FUNCFG(g), now = Date.now(), left = (p.funUntil || 0) - now, bal = starBal(p);
   if (left > 0) {
-    v.innerHTML = profileBar(g) + `<div class="card gold"><h2>🎮 Fun Zone</h2><p>Time left: <b id="funclock">${fmtClock(left)}</b></p><p class="muted">⭐ ${C.cost} stars were used to unlock this ${C.minutes}-minute session. Stars left this week: ${bal}</p></div>
+    v.innerHTML = profileBar(g) + `<div class="card gold"><h2>🎮 Fun Zone</h2><p>Time left: <b id="funclock">${fmtClock(left)}</b></p><p class="muted">⭐ ${C.cost} stars were used to unlock this ${C.minutes}-minute session. Stars left this week: ${bal}</p><button class="btn small ghost" id="funmute">${FUNMUTE() ? '🔇 Sound off' : '🔊 Sound on'}</button></div>
       <div class="card"><div class="tabs2">${FUNGAMES.map(([k, n]) => `<button class="btn small ${k === 'race' ? '' : 'ghost'}" data-fg="${k}">${n}</button>`).join(' ')}</div><div id="funarea"></div></div>`;
-    wireBar(g);
+    wireBar(g); $('#funmute').onclick = e => { lsSet('agc.mute', FUNMUTE() ? '' : '1'); e.target.textContent = FUNMUTE() ? '🔇 Sound off' : '🔊 Sound on'; funSnd('ok'); };
     const area = $('#funarea'); let cur = 'race';
-    const open = k => { cur = k; v.querySelectorAll('[data-fg]').forEach(b => b.classList.toggle('ghost', b.dataset.fg !== k)); window.__funRaf && cancelAnimationFrame(window.__funRaf); window.__funRaf = 0; ({ race: funRace, catch: funCatch, ttt: funTtt, scramble: funScramble, simon: funSimon, puzzle: funPuzzle, memory: funMemory })[k](area, g); applyLang(); };
+    const open = k => { window.__funGen = (window.__funGen || 0) + 1; cur = k; v.querySelectorAll('[data-fg]').forEach(b => b.classList.toggle('ghost', b.dataset.fg !== k)); window.__funRaf && cancelAnimationFrame(window.__funRaf); window.__funRaf = 0; ({ race: funRace, catch: funCatch, ttt: funTtt, scramble: funScramble, simon: funSimon, puzzle: funPuzzle, memory: funMemory })[k](area, g); applyLang(); if (k === 'race' || k === 'catch') setTimeout(() => { const c = area.querySelector('canvas'); if (c && c.scrollIntoView) c.scrollIntoView({ block: 'center', behavior: 'smooth' }); }, 60); };
     v.querySelectorAll('[data-fg]').forEach(b => b.onclick = () => open(b.dataset.fg));
     open(cur);
     FUNT = setInterval(() => {
@@ -1261,26 +1261,6 @@ function funView(v, g) {
   wireBar(g);
   $('#funstart').onclick = () => { if (starBal(p) < C.cost) return; p.spentWk = { wk: thisWeek(), n: spentNow(p) + C.cost }; p.funUntil = Date.now() + C.minutes * 60000; p.funCost = C.cost; save(); funView(v, g); applyLang(); };
 }
-function funRace(area, g) {
-  const hard = g === 'youth', lanes = hard ? 4 : 3, W = 280, H = 360, lw = W / lanes;
-  area.innerHTML = `<canvas id="rc" width="${W}" height="${H}" style="max-width:100%;background:#2b2b2b;border-radius:10px;touch-action:none" aria-label="Car race"></canvas><p class="muted">Tap the left or right side (or use arrow keys) to steer. Dodge the blocks!</p><div id="rs"></div>`;
-  const cv = $('#rc'), cx = cv.getContext('2d'); let lane = Math.floor(lanes / 2), obs = [], score = 0, over = false, speed = hard ? 4.2 : 2.4, t = 0;
-  const move = d => { if (!over) lane = Math.max(0, Math.min(lanes - 1, lane + d)); };
-  cv.onpointerdown = e => { const r = cv.getBoundingClientRect(); move(e.clientX < r.left + r.width / 2 ? -1 : 1); };
-  const key = e => { if (!cv.isConnected) return document.removeEventListener('keydown', key); if (e.key === 'ArrowLeft') move(-1); if (e.key === 'ArrowRight') move(1); };
-  document.addEventListener('keydown', key);
-  const loop = () => {
-    if (!cv.isConnected) return;
-    t++; if (!over) { if (t % (hard ? 28 : 55) === 0) obs.push({ l: Math.floor(Math.random() * lanes), y: -30 }); obs.forEach(o => o.y += speed); if (obs.length && obs[0].y > H) { obs.shift(); score++; speed += hard ? 0.12 : 0.05; } if (obs.some(o => o.l === lane && o.y > H - 126 && o.y < H - 36)) { over = true; $('#rs').innerHTML = `<b>Crash! Score ${score}</b> <button class="btn small" id="rr">Race again</button>`; $('#rr').onclick = () => funRace(area, g); } }
-    cx.fillStyle = '#2b2b2b'; cx.fillRect(0, 0, W, H); cx.strokeStyle = '#fff'; cx.setLineDash([14, 14]); cx.lineDashOffset = -t * 2;
-    for (let i = 1; i < lanes; i++) { cx.beginPath(); cx.moveTo(i * lw, 0); cx.lineTo(i * lw, H); cx.stroke(); }
-    cx.setLineDash([]); cx.fillStyle = '#e53935'; obs.forEach(o => cx.fillRect(o.l * lw + 10, o.y, lw - 20, 30));
-    funTruck(cx, lane * lw + 12, H - 96, lw - 24, 64);
-    cx.fillStyle = '#fff'; cx.font = 'bold 16px sans-serif'; cx.fillText('Score ' + score, 8, 20);
-    window.__funRaf = requestAnimationFrame(loop);
-  };
-  window.__funRaf = requestAnimationFrame(loop);
-}
 function funPuzzle(area, g) {
   const n = g === 'youth' ? 4 : 3; let tiles = [...Array(n * n).keys()].map(i => (i + 1) % (n * n)), moves = 0;
   const nb = i => [i - n, i + n, i % n ? i - 1 : -1, (i + 1) % n ? i + 1 : -1].filter(j => j >= 0 && j < n * n);
@@ -1290,20 +1270,20 @@ function funPuzzle(area, g) {
     const done = tiles.every((x, i) => x === (i + 1) % (n * n));
     area.innerHTML = `<p>Slide the numbers into order 1, 2, 3… Moves: <b>${moves}</b></p><div style="display:grid;grid-template-columns:repeat(${n},1fr);gap:6px;max-width:${n * 72}px">${tiles.map((x, i) => `<button class="btn ${x ? '' : 'ghost'}" data-i="${i}" style="min-height:64px;font-size:22px;padding:0" ${x ? '' : 'disabled aria-label="empty"'}>${x || ''}</button>`).join('')}</div>${done ? `<p class="good"><b>Solved in ${moves} moves! 🎉</b></p>` : ''}<button class="btn ghost small" id="pz" style="margin-top:10px">New puzzle</button>`;
     $('#pz').onclick = () => funPuzzle(area, g);
-    if (done) return;
-    area.querySelectorAll('[data-i]').forEach(b => b.onclick = () => { const i = +b.dataset.i, e = tiles.indexOf(0); if (nb(i).includes(e)) { [tiles[i], tiles[e]] = [tiles[e], tiles[i]]; moves++; draw(); } });
+    if (done) { funWin(area); return; }
+    area.querySelectorAll('[data-i]').forEach(b => b.onclick = () => { const i = +b.dataset.i, e = tiles.indexOf(0); if (nb(i).includes(e)) { [tiles[i], tiles[e]] = [tiles[e], tiles[i]]; moves++; funSnd('tick'); draw(); } });
   };
   draw();
 }
 function funMemory(area, g) {
   const pairs = g === 'youth' ? 10 : 6, em = ['🐑', '🕊️', '⭐', '✝️', '📖', '🌈', '🙏', '👑', '🔥', '⛵', '🍞', '🦁'].slice(0, pairs);
-  const deck = [...em, ...em].map((e, i) => ({ e, id: i })).sort(() => Math.random() - .5); let open = [], found = 0, tries = 0, lock = false;
+  const deck = [...em, ...em].map((e, i) => ({ e, id: i })).sort(() => Math.random() - .5); let open = [], found = 0, tries = 0, lock = false; const G = window.__funGen;
   const draw = () => {
     area.innerHTML = `<p>Find the matching pairs. Tries: <b>${tries}</b></p><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;max-width:320px">${deck.map((c, i) => `<button class="btn ${c.up || open.includes(i) ? '' : 'ghost'}" data-i="${i}" style="min-height:56px;font-size:24px;padding:0" aria-label="card">${c.up || open.includes(i) ? c.e : '?'}</button>`).join('')}</div>${found === pairs ? `<p class="good"><b>All pairs found in ${tries} tries! 🎉</b></p>` : ''}<button class="btn ghost small" id="mm" style="margin-top:10px">New game</button>`;
-    $('#mm').onclick = () => funMemory(area, g);
+    $('#mm').onclick = () => funMemory(area, g); if (found === pairs) funWin(area);
     area.querySelectorAll('[data-i]').forEach(b => b.onclick = () => {
       const i = +b.dataset.i; if (lock || deck[i].up || open.includes(i)) return; open.push(i);
-      if (open.length === 2) { tries++; const [a, c] = open; if (deck[a].e === deck[c].e) { deck[a].up = deck[c].up = true; found++; open = []; } else { lock = true; draw(); return void setTimeout(() => { open = []; lock = false; if (area.isConnected) draw(); }, 800); } }
+      if (open.length === 2) { tries++; const [a, c] = open; if (deck[a].e === deck[c].e) { deck[a].up = deck[c].up = true; found++; funSnd('ok'); open = []; } else { lock = true; funSnd('bad'); draw(); return void setTimeout(() => { open = []; lock = false; if (area.isConnected && G === window.__funGen) draw(); }, 800); } }
       draw();
     });
   };
@@ -1323,41 +1303,148 @@ function funTruck(cx, x, y, w, h) { // top-down blue pickup truck, front at the 
   cx.strokeStyle = '#0d47a1'; cx.lineWidth = 1; for (let k = 1; k < 4; k++) { cx.beginPath(); cx.moveTo(x + 4, y + 43 + k * (h - 49) / 4); cx.lineTo(x + w - 4, y + 43 + k * (h - 49) / 4); cx.stroke(); }
   cx.fillStyle = '#cfd8dc'; cx.fillRect(x + 2, y + h - 4, w - 4, 4);
 }
-function funCatch(area, g) {
-  const hard = g === 'youth', W = 280, H = 360;
-  area.innerHTML = `<canvas id="cc" width="${W}" height="${H}" style="max-width:100%;background:#12355b;border-radius:10px;touch-action:none" aria-label="Star catch"></canvas><p class="muted">Slide your finger (or arrow keys) to catch ⭐. Avoid the ${hard ? 'dark clouds' : 'rocks'}!</p><div id="cs2"></div>`;
-  const cv = $('#cc'), cx = cv.getContext('2d'); let bx = W / 2, items = [], score = 0, lives = 3, t = 0, over = false;
-  const setX = cx2 => { const r = cv.getBoundingClientRect(); bx = Math.max(25, Math.min(W - 25, (cx2 - r.left) / r.width * W)); };
-  cv.onpointermove = e => setX(e.clientX); cv.onpointerdown = e => setX(e.clientX);
-  const key = e => { if (!cv.isConnected) return document.removeEventListener('keydown', key); if (e.key === 'ArrowLeft') bx = Math.max(25, bx - 24); if (e.key === 'ArrowRight') bx = Math.min(W - 25, bx + 24); };
+
+/* ---------- sound, confetti, helpers ---------- */
+let FUNAC = null;
+const FUNMUTE = () => lsGet('agc.mute', '') === '1';
+function funSnd(k) {
+  if (FUNMUTE()) return;
+  try {
+    FUNAC = FUNAC || new (window.AudioContext || window.webkitAudioContext)(); if (FUNAC.state === 'suspended') FUNAC.resume();
+    const M = { coin: [[880, .07], [1320, .1]], ok: [[660, .09], [990, .12]], win: [[523, .12], [659, .12], [784, .12], [1047, .35]], crash: [[200, .25, 'sawtooth'], [90, .45, 'sawtooth']], level: [[600, .09], [800, .09], [1000, .16]], nitro: [[400, .07], [700, .07], [1100, .22]], tick: [[520, .05]], bad: [[220, .2, 'square']], c: [[262, .25]], d: [[330, .25]], e: [[392, .25]], f: [[523, .25]] };
+    let at = FUNAC.currentTime; (M[k] || []).forEach(([f, d, ty]) => { const o = FUNAC.createOscillator(), v = FUNAC.createGain(); o.type = ty || 'sine'; o.frequency.value = f; v.gain.setValueAtTime(.12, at); v.gain.exponentialRampToValueAtTime(.001, at + d); o.connect(v); v.connect(FUNAC.destination); o.start(at); o.stop(at + d + .02); at += d * .8; });
+  } catch (e) {}
+}
+function funBuzz(n) { try { if (navigator.vibrate && !FUNMUTE()) navigator.vibrate(n || 30); } catch (e) {} }
+function funWin(area) {
+  funSnd('win'); funBuzz([40, 40, 80]);
+  if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const em = ['🎉', '⭐', '🎊', '✨', '🌟', '💙'];
+  for (let i = 0; i < 28; i++) { const e = document.createElement('span'); e.className = 'cf'; e.textContent = em[i % em.length]; e.style.left = Math.random() * 96 + '%'; e.style.animationDelay = Math.random() * .6 + 's'; e.style.fontSize = 18 + Math.random() * 16 + 'px'; document.body.appendChild(e); setTimeout(() => e.remove(), 3200); }
+}
+const funBest = (k, g) => +lsGet('agc.best.' + k + '.' + g, 0) || 0;
+function funSetBest(k, g, n) { if (n > funBest(k, g)) { lsSet('agc.best.' + k + '.' + g, String(n)); return true; } return false; }
+function funBurst(parts, x, y, col, n) { for (let i = 0; i < (n || 14); i++) { const a = Math.random() * 6.28, v = 1 + Math.random() * 3.5; parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, l: 24 + Math.random() * 16, c: col }); } }
+function funParts(cx, parts) { for (let i = parts.length - 1; i >= 0; i--) { const q = parts[i]; q.x += q.vx; q.y += q.vy; q.vy += .08; q.l--; if (q.l <= 0) { parts.splice(i, 1); continue; } cx.globalAlpha = Math.min(1, q.l / 16); cx.fillStyle = q.c; cx.fillRect(q.x, q.y, 4, 4); } cx.globalAlpha = 1; }
+function funTruck(cx, x, y, w, h) { // top-down blue pickup truck, front at the top (no brand badge)
+  cx.fillStyle = '#111'; [[-3, 8], [-3, h - 24], [w - 4, 8], [w - 4, h - 24]].forEach(([dx, dy]) => cx.fillRect(x + dx, y + dy, 7, 15));
+  cx.fillStyle = '#0d47a1'; cx.fillRect(x, y, w, h);
+  cx.fillStyle = '#5b9bff'; cx.fillRect(x + 4, y + 4, w - 8, 8);
+  cx.fillStyle = '#ffeb3b'; cx.fillRect(x + 3, y, 9, 4); cx.fillRect(x + w - 12, y, 9, 4);
+  cx.fillStyle = '#0a1d3a'; cx.fillRect(x + 5, y + 14, w - 10, 7);
+  cx.fillStyle = '#1565c0'; cx.fillRect(x + 4, y + 21, w - 8, 15);
+  cx.fillStyle = '#0a1d3a'; cx.fillRect(x + 5, y + 36, w - 10, 4);
+  cx.fillStyle = '#08306b'; cx.fillRect(x + 4, y + 43, w - 8, h - 49);
+  cx.strokeStyle = '#0d47a1'; cx.lineWidth = 1; for (let k = 1; k < 4; k++) { cx.beginPath(); cx.moveTo(x + 4, y + 43 + k * (h - 49) / 4); cx.lineTo(x + w - 4, y + 43 + k * (h - 49) / 4); cx.stroke(); }
+  cx.fillStyle = '#cfd8dc'; cx.fillRect(x + 2, y + h - 4, w - 4, 4);
+}
+function funOther(cx, x, y, w, col) { cx.fillStyle = col; cx.fillRect(x, y, w, 34); cx.fillStyle = '#111'; cx.fillRect(x + 4, y + 8, w - 8, 8); cx.fillRect(x + 4, y + 24, w - 8, 5); cx.fillStyle = '#fff'; cx.fillRect(x + 2, y + 31, 6, 3); cx.fillRect(x + w - 8, y + 31, 6, 3); }
+function funBanner(cx, W, txt, a) { if (a <= 0) return; cx.globalAlpha = Math.min(1, a / 20); cx.fillStyle = '#ffc107'; cx.font = 'bold 30px sans-serif'; cx.textAlign = 'center'; cx.fillText(txt, W / 2, 150 - (60 - a) * .3); cx.textAlign = 'left'; cx.globalAlpha = 1; }
+
+/* ---------- Truck Race: collect stars, grab nitro, dodge traffic, level up ---------- */
+function funRace(area, g) {
+  const hard = g === 'youth', lanes = hard ? 4 : 3, W = 280, H = 360, lw = W / lanes, ty = H - 96, th = 64, tw = lw - 24;
+  area.innerHTML = `<canvas id="rc" width="${W}" height="${H}" style="max-width:100%;background:#2b2b2b;border-radius:10px;touch-action:none" aria-label="Truck race"></canvas><p class="muted">Tap left or right (or use arrow keys) to steer. Grab ⭐ for points, ⚡ for NITRO (smash through traffic!). Don't crash!</p><div id="rs"></div>`;
+  const cv = $('#rc'), cx = cv.getContext('2d'); let lane = Math.floor(lanes / 2), px = lane * lw + 12;
+  let obs = [], coins = [], parts = [], score = 0, passed = 0, combo = 1, level = 1, speed = hard ? 4 : 2.6, t = 0, over = false, shake = 0, nitro = 0, ban = 0, banT = '', spawns = 0, best = funBest('race', g);
+  const say = (s) => { banT = s; ban = 60; };
+  const move = d => { if (!over) lane = Math.max(0, Math.min(lanes - 1, lane + d)); };
+  cv.onpointerdown = e => { const r = cv.getBoundingClientRect(); move(e.clientX < r.left + r.width / 2 ? -1 : 1); };
+  const key = e => { if (!cv.isConnected) return document.removeEventListener('keydown', key); if (e.key === 'ArrowLeft') move(-1); if (e.key === 'ArrowRight') move(1); };
   document.addEventListener('keydown', key);
+  const spawn = () => {
+    spawns++; const l = Math.floor(Math.random() * lanes);
+    obs.push({ l, y: -40, k: Math.random() < .35 ? 'cone' : ['#e53935', '#ef6c00', '#eceff1', '#8e24aa'][Math.floor(Math.random() * 4)] });
+    const o = (l + 1 + Math.floor(Math.random() * (lanes - 1))) % lanes;
+    if (spawns % 9 === 0) coins.push({ l: o, y: -120, nitro: true }); else if (Math.random() < .7) coins.push({ l: o, y: -80 });
+  };
+  const hit = (l, y, h) => Math.abs(l * lw + 12 - px) < lw - 28 && y + h > ty + 4 && y < ty + th - 4;
+  const end = () => {
+    over = true; shake = 20; funSnd('crash'); funBuzz(200); funBurst(parts, px + tw / 2, ty + 20, '#ffc107', 30); funBurst(parts, px + tw / 2, ty + 20, '#e53935', 20);
+    const nb = funSetBest('race', g, score);
+    $('#rs').innerHTML = `<p><b>💥 Crash! Score ${score}</b> · Level ${level}${nb ? ' · 🏆 <b>NEW BEST!</b>' : ' · Best ' + Math.max(best, score)}</p><button class="btn" id="rr">🛻 Race again</button>`;
+    $('#rr').onclick = () => funRace(area, g); if (nb && score > 0) funWin(area);
+  };
   const loop = () => {
     if (!cv.isConnected) return;
-    t++;
+    t++; const sp = speed * (nitro > 0 ? 1.7 : 1); px += (lane * lw + 12 - px) * .35;
     if (!over) {
-      if (t % (hard ? 22 : 34) === 0) items.push({ x: 15 + Math.random() * (W - 30), y: -10, bad: Math.random() < (hard ? .4 : .25), v: (hard ? 3.2 : 2.2) + score * .03 });
-      items.forEach(o => o.y += o.v);
-      items = items.filter(o => {
-        if (o.y > H - 40 && o.y < H - 10 && Math.abs(o.x - bx) < 32) { if (o.bad) lives--; else score++; return false; }
-        if (o.y > H) { if (!o.bad) lives--; return false; }
+      if (t % Math.max(hard ? 20 : 32, Math.round((hard ? 44 : 70) - level * 4 - speed * 2)) === 0) spawn();
+      obs.forEach(o => o.y += sp); coins.forEach(c => c.y += sp); if (nitro > 0) { nitro--; if (nitro === 0) say('Nitro over'); }
+      obs = obs.filter(o => {
+        if (hit(o.l, o.y, 32)) { if (nitro > 0) { score += 3; funBurst(parts, o.l * lw + lw / 2, o.y + 10, '#ff9800', 12); funSnd('tick'); funBuzz(15); return false; } end(); return true; }
+        if (o.y > H) { passed++; score++; if (passed % 8 === 0) { level++; speed += hard ? .5 : .35; say('LEVEL ' + level + '!'); funSnd('level'); } return false; }
         return true;
       });
-      if (lives <= 0) { over = true; $('#cs2').innerHTML = `<b>Game over! You caught ${score} ⭐</b> <button class="btn small" id="cr">Play again</button>`; $('#cr').onclick = () => funCatch(area, g); }
+      coins = coins.filter(c => {
+        if (hit(c.l, c.y, 24)) { if (c.nitro) { nitro = 220; say('⚡ NITRO!'); funSnd('nitro'); funBuzz(40); } else { score += 5 * combo; combo = Math.min(5, combo + 1); funSnd('coin'); if (combo > 1) say('x' + combo + ' COMBO'); } funBurst(parts, c.l * lw + lw / 2, c.y + 10, c.nitro ? '#40c4ff' : '#ffd54f', 12); return false; }
+        if (c.y > H) { if (!c.nitro) combo = 1; return false; }
+        return true;
+      });
     }
-    cx.fillStyle = '#12355b'; cx.fillRect(0, 0, W, H);
-    items.forEach(o => { cx.font = '24px sans-serif'; cx.fillText(o.bad ? (hard ? '☁️' : '🪨') : '⭐', o.x - 12, o.y + 8); });
-    cx.fillStyle = '#ffc107'; cx.fillRect(bx - 28, H - 30, 56, 14); cx.fillRect(bx - 28, H - 40, 6, 10); cx.fillRect(bx + 22, H - 40, 6, 10);
-    cx.fillStyle = '#fff'; cx.font = 'bold 16px sans-serif'; cx.fillText('⭐ ' + score + '   ❤️ ' + Math.max(0, lives), 8, 20);
+    cx.save(); if (shake > 0) { cx.translate((Math.random() - .5) * shake, (Math.random() - .5) * shake); shake--; }
+    cx.fillStyle = '#2b2b2b'; cx.fillRect(-10, -10, W + 20, H + 20);
+    const off = (t * sp) % 40; for (let y = -40; y < H; y += 40) { cx.fillStyle = (Math.floor((y + off) / 40) % 2) ? '#e53935' : '#fff'; cx.fillRect(0, y + off, 6, 40); cx.fillRect(W - 6, y + off, 6, 40); }
+    cx.strokeStyle = '#fff'; cx.lineWidth = 2; cx.setLineDash([16, 16]); cx.lineDashOffset = -(t * sp);
+    for (let i = 1; i < lanes; i++) { cx.beginPath(); cx.moveTo(i * lw, 0); cx.lineTo(i * lw, H); cx.stroke(); }
+    cx.setLineDash([]);
+    if (nitro > 0) { cx.strokeStyle = 'rgba(64,196,255,.55)'; for (let i = 0; i < 10; i++) { const x = (i * 53 + t * 7) % W; cx.beginPath(); cx.moveTo(x, 0); cx.lineTo(x, H); cx.stroke(); } }
+    obs.forEach(o => { const x = o.l * lw + 10, w = lw - 20; if (o.k === 'cone') { cx.fillStyle = '#ff6d00'; cx.beginPath(); cx.moveTo(x + w / 2, o.y); cx.lineTo(x + w / 2 + 14, o.y + 30); cx.lineTo(x + w / 2 - 14, o.y + 30); cx.fill(); cx.fillStyle = '#fff'; cx.fillRect(x + w / 2 - 8, o.y + 14, 16, 5); } else funOther(cx, x, o.y, w, o.k); });
+    cx.font = '24px sans-serif'; coins.forEach(c => cx.fillText(c.nitro ? '⚡' : '⭐', c.l * lw + lw / 2 - 12, c.y + 20));
+    if (!over) { if (nitro > 0) { cx.fillStyle = (t % 4 < 2) ? '#ffab00' : '#ff3d00'; cx.beginPath(); cx.moveTo(px + 8, ty + th); cx.lineTo(px + tw - 8, ty + th); cx.lineTo(px + tw / 2, ty + th + 30 + Math.random() * 14); cx.fill(); } else if (t % 3 === 0) { parts.push({ x: px + tw / 2, y: ty + th, vx: (Math.random() - .5) * .8, vy: 1.2, l: 14, c: '#9e9e9e' }); }
+      if (nitro > 0 && t % 4 < 2) { cx.globalAlpha = .35; cx.fillStyle = '#40c4ff'; cx.fillRect(px - 6, ty - 6, tw + 12, th + 12); cx.globalAlpha = 1; } funTruck(cx, px, ty, tw, th); }
+    funParts(cx, parts); funBanner(cx, W, banT, ban); if (ban > 0) ban--;
+    cx.fillStyle = 'rgba(0,0,0,.5)'; cx.fillRect(0, 0, W, 28); cx.fillStyle = '#fff'; cx.font = 'bold 14px sans-serif'; cx.fillText('Score ' + score + (combo > 1 ? '  x' + combo : '') + '   Lv ' + level, 8, 19); cx.textAlign = 'right'; cx.fillText('🏆 ' + Math.max(best, score), W - 8, 19); cx.textAlign = 'left';
+    cx.restore(); window.__funRaf = requestAnimationFrame(loop);
+  };
+  window.__funRaf = requestAnimationFrame(loop);
+}
+/* ---------- Star Catch: combos, golden stars ---------- */
+function funCatch(area, g) {
+  const hard = g === 'youth', W = 280, H = 360;
+  area.innerHTML = `<canvas id="cc" width="${W}" height="${H}" style="max-width:100%;background:#12355b;border-radius:10px;touch-action:none" aria-label="Star catch"></canvas><p class="muted">Slide your finger (or arrow keys) to catch ⭐. 🌟 gold is worth 5! Chain catches for a bigger combo. Avoid the ${hard ? 'dark clouds' : 'rocks'}!</p><div id="cs2"></div>`;
+  const cv = $('#cc'), cx = cv.getContext('2d'); let bx = W / 2, tx = W / 2, items = [], parts = [], stars = [], score = 0, lives = 3, t = 0, over = false, streak = 0, ban = 0, banT = '', best = funBest('catch', g);
+  for (let i = 0; i < 30; i++) stars.push({ x: Math.random() * W, y: Math.random() * H, s: Math.random() * 1.2 + .3 });
+  const setX = c => { const r = cv.getBoundingClientRect(); tx = Math.max(28, Math.min(W - 28, (c - r.left) / r.width * W)); };
+  cv.onpointermove = e => setX(e.clientX); cv.onpointerdown = e => setX(e.clientX);
+  const key = e => { if (!cv.isConnected) return document.removeEventListener('keydown', key); if (e.key === 'ArrowLeft') tx = Math.max(28, tx - 30); if (e.key === 'ArrowRight') tx = Math.min(W - 28, tx + 30); };
+  document.addEventListener('keydown', key);
+  const mult = () => Math.min(5, 1 + Math.floor(streak / 5));
+  const say = s => { banT = s; ban = 50; };
+  const loop = () => {
+    if (!cv.isConnected) return;
+    t++; bx += (tx - bx) * .4;
+    if (!over) {
+      if (t % (hard ? 20 : 32) === 0) { const r = Math.random(); items.push({ x: 15 + Math.random() * (W - 30), y: -10, k: r < (hard ? .35 : .22) ? 'bad' : r > .93 ? 'gold' : 'star', v: (hard ? 3 : 2.1) + score * .004 }); }
+      items.forEach(o => o.y += o.v);
+      items = items.filter(o => {
+        if (o.y > H - 44 && o.y < H - 8 && Math.abs(o.x - bx) < 34) {
+          if (o.k === 'bad') { lives--; streak = 0; funSnd('bad'); funBuzz(80); funBurst(parts, o.x, o.y, '#90a4ae', 10); }
+          else { streak++; const v = (o.k === 'gold' ? 5 : 1) * mult(); score += v; funSnd(o.k === 'gold' ? 'nitro' : 'coin'); funBurst(parts, o.x, o.y, o.k === 'gold' ? '#ffd54f' : '#fff59d', 12); if (streak % 5 === 0) say('x' + mult() + ' COMBO!'); }
+          return false;
+        }
+        if (o.y > H) { if (o.k === 'star') { lives--; streak = 0; funSnd('bad'); } return false; }
+        return true;
+      });
+      if (lives <= 0) { over = true; funSnd('crash'); const nb = funSetBest('catch', g, score); $('#cs2').innerHTML = `<p><b>Game over! ${score} points</b>${nb ? ' · 🏆 <b>NEW BEST!</b>' : ' · Best ' + Math.max(best, score)}</p><button class="btn" id="cr">⭐ Play again</button>`; $('#cr').onclick = () => funCatch(area, g); if (nb && score > 0) funWin(area); }
+    }
+    cx.fillStyle = '#12355b'; cx.fillRect(0, 0, W, H); cx.fillStyle = '#fff'; stars.forEach(s => { s.y += s.s; if (s.y > H) s.y = 0; cx.globalAlpha = .5; cx.fillRect(s.x, s.y, 2, 2); }); cx.globalAlpha = 1;
+    cx.font = '26px sans-serif'; items.forEach(o => cx.fillText(o.k === 'bad' ? (hard ? '☁️' : '🪨') : o.k === 'gold' ? '🌟' : '⭐', o.x - 13, o.y + 8));
+    cx.fillStyle = '#ffc107'; cx.fillRect(bx - 28, H - 30, 56, 14); cx.fillRect(bx - 28, H - 42, 6, 12); cx.fillRect(bx + 22, H - 42, 6, 12); cx.fillStyle = '#fff'; cx.fillRect(bx - 20, H - 26, 40, 3);
+    funParts(cx, parts); funBanner(cx, W, banT, ban); if (ban > 0) ban--;
+    cx.fillStyle = 'rgba(0,0,0,.4)'; cx.fillRect(0, 0, W, 28); cx.fillStyle = '#fff'; cx.font = 'bold 14px sans-serif'; cx.fillText('⭐ ' + score + (mult() > 1 ? ' x' + mult() : '') + '   ' + '❤️'.repeat(Math.max(0, lives)), 8, 19); cx.textAlign = 'right'; cx.fillText('🏆 ' + Math.max(best, score), W - 8, 19); cx.textAlign = 'left';
     window.__funRaf = requestAnimationFrame(loop);
   };
   window.__funRaf = requestAnimationFrame(loop);
 }
+/* ---------- Tic-Tac-Toe with a running scoreboard ---------- */
+const FUNTT = { kids: [0, 0, 0], youth: [0, 0, 0] };
 function funTtt(area, g) {
   const hard = g === 'youth', L = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
-  let b = Array(9).fill(''), end = '';
+  let b = Array(9).fill(''), end = '', counted = false;
   const win = (bd, m) => L.some(l => l.every(i => bd[i] === m));
   const full = bd => bd.every(x => x);
-  const mm = (bd, m) => { // minimax: O (computer) maximises
+  const mm = (bd, m) => {
     if (win(bd, 'O')) return 1; if (win(bd, 'X')) return -1; if (full(bd)) return 0;
     const sc = bd.map((x, i) => x ? null : (() => { const c = bd.slice(); c[i] = m; return mm(c, m === 'O' ? 'X' : 'O'); })()).filter(x => x !== null);
     return m === 'O' ? Math.max(...sc) : Math.min(...sc);
@@ -1371,33 +1458,40 @@ function funTtt(area, g) {
   };
   const draw = () => {
     if (!end) { if (win(b, 'X')) end = 'You win! 🎉'; else if (win(b, 'O')) end = 'The computer wins. Try again!'; else if (full(b)) end = "It's a tie."; }
-    area.innerHTML = `<p>You are ❌. ${hard ? 'This computer is tough!' : 'Get three in a row.'}</p><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;max-width:216px">${b.map((x, i) => `<button class="btn ${x ? '' : 'ghost'}" data-i="${i}" style="min-height:64px;font-size:28px;padding:0" aria-label="square" ${x || end ? 'disabled' : ''}>${x === 'X' ? '❌' : x === 'O' ? '⭕' : ''}</button>`).join('')}</div>${end ? `<p><b>${end}</b> <button class="btn small" id="tt">Play again</button></p>` : ''}`;
+    if (end && !counted) { counted = true; const T = FUNTT[g]; if (win(b, 'X')) { T[0]++; funWin(area); } else if (win(b, 'O')) { T[1]++; funSnd('bad'); } else { T[2]++; funSnd('ok'); } }
+    const T = FUNTT[g];
+    area.innerHTML = `<p>You are ❌. ${hard ? 'This computer is tough, can you tie or win?' : 'Get three in a row.'}</p><p class="muted">🏆 Wins ${T[0]} · Computer ${T[1]} · Ties ${T[2]}</p><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;max-width:216px">${b.map((x, i) => `<button class="btn ${x ? '' : 'ghost'}" data-i="${i}" style="min-height:64px;font-size:28px;padding:0" aria-label="square" ${x || end ? 'disabled' : ''}>${x === 'X' ? '❌' : x === 'O' ? '⭕' : ''}</button>`).join('')}</div>${end ? `<p><b>${end}</b> <button class="btn small" id="tt">Play again</button></p>` : ''}`;
     if ($('#tt')) $('#tt').onclick = () => funTtt(area, g);
-    area.querySelectorAll('[data-i]').forEach(bt => bt.onclick = () => { const i = +bt.dataset.i; if (b[i] || end) return; b[i] = 'X'; if (!win(b, 'X') && !full(b)) cpu(); draw(); });
+    area.querySelectorAll('[data-i]').forEach(bt => bt.onclick = () => { const i = +bt.dataset.i; if (b[i] || end) return; b[i] = 'X'; funSnd('tick'); if (!win(b, 'X') && !full(b)) cpu(); draw(); });
   };
   draw();
 }
+/* ---------- Word Scramble: race the clock, build a streak ---------- */
 function funScramble(area, g) {
-  const W = g === 'youth' ? ['COVENANT', 'REDEEMER', 'SALVATION', 'SCRIPTURE', 'DISCIPLE', 'FORGIVEN', 'RIGHTEOUS', 'FELLOWSHIP', 'RESURRECTION', 'PROPHECY', 'MERCIFUL', 'SANCTIFIED'] : ['GRACE', 'FAITH', 'PRAYER', 'JESUS', 'DAVID', 'MOSES', 'NOAH', 'LOVE', 'HOPE', 'ANGEL', 'PSALM', 'SHEEP', 'SAVIOR', 'BIBLE', 'CHURCH', 'PEACE'];
-  let score = 0, w, sc, hint = 0, msg = '';
-  const next = () => { w = W[Math.floor(Math.random() * W.length)]; do { sc = w.split('').sort(() => Math.random() - .5).join(''); } while (sc === w); hint = 0; msg = ''; };
+  const W = g === 'youth' ? ['COVENANT', 'REDEEMER', 'SALVATION', 'SCRIPTURE', 'DISCIPLE', 'FORGIVEN', 'RIGHTEOUS', 'FELLOWSHIP', 'RESURRECTION', 'PROPHECY', 'MERCIFUL', 'SANCTIFIED'] : ['GRACE', 'FAITH', 'PRAYER', 'JESUS', 'DAVID', 'MOSES', 'NOAH', 'LOVE', 'HOPE', 'ANGEL', 'PSALM', 'SHEEP', 'SAVIOR', 'BIBLE', 'CHURCH', 'PEACE'], LIM = g === 'youth' ? 25 : 40;
+  let score = 0, streak = 0, w, sc, hint = 0, msg = '', tm = 0, timer = null, best = funBest('scramble', g);
+  const stop = () => { if (timer) { clearInterval(timer); timer = null; } };
+  const next = () => { w = W[Math.floor(Math.random() * W.length)]; do { sc = w.split('').sort(() => Math.random() - .5).join(''); } while (sc === w); hint = 0; tm = LIM; };
   const draw = () => {
-    area.innerHTML = `<p>Unscramble the Bible word. Words solved: <b>${score}</b></p><p style="font-size:28px;letter-spacing:6px;font-weight:700">${sc}</p>${hint ? `<p class="muted">Hint: starts with <b>${w[0]}</b></p>` : ''}<input id="sw" maxlength="20" autocomplete="off" autocapitalize="characters" aria-label="Your answer" style="text-transform:uppercase"> <button class="btn small" id="sg">Check</button> <button class="btn small ghost" id="sh">Hint</button> <button class="btn small ghost" id="sk">Skip</button><p id="sm">${msg}</p>`;
-    const chk = () => { const a = $('#sw').value.trim().toUpperCase(); if (!a) return; if (a === w) { score++; next(); msg = '<span class="good">Correct! 🎉</span>'; } else msg = '<span class="bad">Not yet. Try again!</span>'; draw(); };
+    stop();
+    area.innerHTML = `<p>Unscramble the Bible word! Points: <b>${score}</b> · 🔥 Streak: <b>${streak}</b> · 🏆 Best ${Math.max(best, score)}</p><div style="background:#e3e8ef;border-radius:8px;height:10px;overflow:hidden"><div id="sb" style="background:var(--gold);height:100%;width:${tm / LIM * 100}%"></div></div><p style="font-size:30px;letter-spacing:6px;font-weight:700">${sc}</p>${hint ? `<p class="muted">Hint: starts with <b>${w[0]}</b> (−3 points)</p>` : ''}<input id="sw" maxlength="20" autocomplete="off" autocapitalize="characters" aria-label="Your answer" style="text-transform:uppercase"> <button class="btn small" id="sg">Check</button> <button class="btn small ghost" id="sh">Hint</button> <button class="btn small ghost" id="sk">Skip</button><p id="sm">${msg}</p>`;
+    const chk = () => { const a = $('#sw').value.trim().toUpperCase(); if (!a) return; if (a === w) { streak++; score += Math.max(1, 10 + Math.ceil(tm / 3) + streak * 2 - (hint ? 3 : 0)); funSnd('coin'); if (streak % 3 === 0) { funSnd('level'); msg = `<span class="good">🔥 ${streak} in a row! Amazing!</span>`; } else msg = '<span class="good">Correct! 🎉</span>'; if (funSetBest('scramble', g, score)) best = score; next(); draw(); } else { streak = 0; funSnd('bad'); msg = '<span class="bad">Not yet. Try again!</span>'; draw(); } };
     $('#sg').onclick = chk; $('#sw').onkeydown = e => { if (e.key === 'Enter') chk(); };
-    $('#sh').onclick = () => { hint = 1; draw(); }; $('#sk').onclick = () => { next(); draw(); };
+    $('#sh').onclick = () => { hint = 1; draw(); }; $('#sk').onclick = () => { streak = 0; msg = `<span class="muted">It was ${w}.</span>`; next(); draw(); };
+    timer = setInterval(() => { if (!area.isConnected || !$('#sb')) return stop(); tm -= 1; if ($('#sb')) $('#sb').style.width = Math.max(0, tm / LIM * 100) + '%'; if (tm <= 5 && tm > 0) funSnd('tick'); if (tm <= 0) { streak = 0; funSnd('crash'); msg = `<span class="bad">⏰ Time's up! It was ${w}.</span>`; next(); draw(); } }, 1000);
   };
   next(); draw();
 }
+/* ---------- Simon Pattern: each colour plays a note ---------- */
 function funSimon(area, g) {
-  const hard = g === 'youth', cols = ['#e53935', '#43a047', '#1e88e5', '#fdd835'], seq = []; let pos = 0, busy = true, best = 0;
-  const flash = (i, ms) => { const b = area.querySelector(`[data-p="${i}"]`); if (!b) return; b.style.opacity = '1'; b.style.outline = '4px solid #fff'; setTimeout(() => { if (b.isConnected) { b.style.opacity = '.55'; b.style.outline = ''; } }, ms); };
-  const draw = (m) => { area.innerHTML = `<p>Watch the pattern, then repeat it. Round: <b>${seq.length}</b> &nbsp; Best: <b>${best}</b></p><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:240px">${cols.map((c, i) => `<button data-p="${i}" aria-label="colour ${i + 1}" style="height:90px;border:0;border-radius:12px;background:${c};opacity:.55"></button>`).join('')}</div><p>${m || ''}</p>`; area.querySelectorAll('[data-p]').forEach(b => b.onclick = () => press(+b.dataset.p)); };
-  const play = () => { busy = true; pos = 0; seq.push(Math.floor(Math.random() * 4)); draw('Watch…'); const gap = hard ? 450 : 750; seq.forEach((c, k) => setTimeout(() => { if (area.isConnected) flash(c, gap - 150); }, 700 + k * gap)); setTimeout(() => { if (area.isConnected) { busy = false; draw('Your turn!'); } }, 700 + seq.length * gap); };
+  const hard = g === 'youth', cols = ['#e53935', '#43a047', '#1e88e5', '#fdd835'], snd = ['c', 'd', 'e', 'f'], seq = [], G = window.__funGen, alive = () => area.isConnected && G === window.__funGen; let pos = 0, busy = true, best = funBest('simon', g);
+  const flash = (i, ms) => { const b = area.querySelector(`[data-p="${i}"]`); if (!b) return; funSnd(snd[i]); b.style.opacity = '1'; b.style.transform = 'scale(1.06)'; b.style.outline = '4px solid #fff'; setTimeout(() => { if (b.isConnected) { b.style.opacity = '.55'; b.style.transform = ''; b.style.outline = ''; } }, ms); };
+  const draw = m => { area.innerHTML = `<p>Watch, listen, then repeat the pattern. Round: <b>${seq.length}</b> · 🏆 Best <b>${best}</b></p><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:240px">${cols.map((c, i) => `<button data-p="${i}" aria-label="colour ${i + 1}" style="height:90px;border:0;border-radius:12px;background:${c};opacity:.55;transition:transform .1s"></button>`).join('')}</div><p>${m || ''}</p>`; area.querySelectorAll('[data-p]').forEach(b => b.onclick = () => press(+b.dataset.p)); };
+  const play = () => { busy = true; pos = 0; seq.push(Math.floor(Math.random() * 4)); draw('Watch…'); const gap = hard ? 450 : 750; seq.forEach((c, k) => setTimeout(() => { if (alive()) flash(c, gap - 150); }, 700 + k * gap)); setTimeout(() => { if (alive()) { busy = false; draw('Your turn! 👆'); } }, 700 + seq.length * gap); };
   const press = i => {
     if (busy) return; flash(i, 200);
-    if (i !== seq[pos]) { busy = true; best = Math.max(best, seq.length - 1); const n = seq.length - 1; seq.length = 0; draw(`<b>Oops! You got ${n} round${n === 1 ? '' : 's'}.</b> <button class="btn small" id="sa">Play again</button>`); $('#sa').onclick = play; return; }
-    if (++pos === seq.length) { busy = true; best = Math.max(best, seq.length); setTimeout(() => { if (area.isConnected) play(); }, 600); }
+    if (i !== seq[pos]) { busy = true; funSnd('crash'); funBuzz(120); const n = seq.length - 1; if (funSetBest('simon', g, n)) { best = n; funWin(area); } seq.length = 0; draw(`<b>Oops! You got ${n} round${n === 1 ? '' : 's'}.</b> <button class="btn small" id="sa">Play again</button>`); $('#sa').onclick = play; return; }
+    if (++pos === seq.length) { busy = true; best = Math.max(best, seq.length); funSetBest('simon', g, seq.length); setTimeout(() => { if (alive()) { funSnd('ok'); play(); } }, 700); }
   };
-  draw('<button class="btn small" id="sa">Start</button>'); $('#sa').onclick = play;
+  draw('<button class="btn" id="sa">▶ Start</button>'); $('#sa').onclick = play;
 }
