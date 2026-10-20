@@ -122,3 +122,8 @@ main.flush{padding:0;max-width:none}
 details.card summary{cursor:pointer;font-size:17px;padding:4px 0}
 @media (prefers-reduced-motion:reduce){.tabs button.has-new::after{animation:none}}
 .nenote{font-size:14px;margin-top:12px;color:#ffe9a8;opacity:.95}
+/* narrow / zoomed phones: never let the page be wider than the screen */
+html,body{max-width:100%;overflow-x:hidden}
+main,.card,.msg,.notice,.nenote{overflow-wrap:anywhere;min-width:0}
+img,iframe,video,table{max-width:100%}
+@media (max-width:480px){.top:has(#homebtn:not([hidden])) .brand{display:none}.top .langtog{padding:6px 10px;font-size:14px}}
