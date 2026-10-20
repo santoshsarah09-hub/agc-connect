@@ -34,7 +34,7 @@ const localSave = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } 
 let CLOUD = null, ME = null, syncErr = false, syncTimer = null;
 const pack = () => ({ profiles: S.profiles, cur: S.cur, notes: S.notes });
 function save() {
-  localSave();
+  localSave(); queueSync();
   if (CLOUD && ME) { clearTimeout(syncTimer); syncTimer = setTimeout(flushCloud, 800); }
 }
 async function flushCloud() {
@@ -389,11 +389,13 @@ function profilesTab(v, g) {
       <button class="btn small ${p.id === (curProfile(g) || {}).id ? '' : 'ghost'}" data-s="${p.id}">${p.id === (curProfile(g) || {}).id ? 'Active' : 'Switch'}</button>
       <button class="btn small ghost" data-x="${p.id}" aria-label="Remove ${esc(p.name)}">✕</button></div>`).join('')}</div>` : ''}
     ${list.length ? weekCard(list) : ''}
+    ${list.length && hubOn() ? syncCard(list) : ''}
     ${addForm(g)}`;
-  wireAdd(g); wireWeek(v);
+  wireAdd(g); wireWeek(v); wireSync(v, g);
   v.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { S.cur[g] = b.dataset.s; save(); render(); });
   v.querySelectorAll('[data-x]').forEach(b => b.onclick = () => {
     if (!confirm('Remove this profile and its progress from this phone?')) return;
+    const gone = S.profiles.find(p => p.id === b.dataset.x); if (gone && gone.sync && hubOn()) hubCall({ action: 'progForget', childId: gone.id, deviceId: deviceId() }).catch(() => {});
     S.profiles = S.profiles.filter(p => p.id !== b.dataset.x); if (S.cur[g] === b.dataset.x) delete S.cur[g]; save(); render();
   });
 }
@@ -670,7 +672,7 @@ async function groupNews(v, g) {
   const f = hubOn() ? await hubFeed() : null, list = f ? (f.announcements || []).filter(a => a.scope === g) : [];
   v.innerHTML = (t ? `<div class="card red"><p style="margin:0">${esc(t)}</p></div>` : '') + list.map(a => `<div class="card red"><h2>${esc(pickLang(a, 'title') || a.en || a.ne)}</h2>${(LANG === 'ne' && a.bodyNe) || a.bodyEn ? `<p>${esc(LANG === 'ne' && a.bodyNe ? a.bodyNe : a.bodyEn)}</p>` : ''}<p class="muted">${a.created ? esc(fmtDay(a.created.slice(0, 10))) : ''}${a.by ? ' · ' + esc(a.by) : ''}</p>${linkBtn(a.link, 'Open link')}</div>`).join('') || (t ? '' : '<div class="card red"><p style="margin:0">No announcements right now. Check back soon!</p></div>');
 }
-const shineText = (key, field, dflt) => v => { const t = (SHINE[key] || {})[field]; v.innerHTML = `<div class="card ${field === 'news' ? 'red' : ''}"><p style="margin:0">${esc(t || dflt)}</p></div>`; };
+const shineText = (key, field, dflt) => v => { const t = pickLang(SHINE[key] || {}, field); v.innerHTML = `<div class="card ${field === 'news' ? 'red' : ''}"><p style="margin:0;white-space:pre-wrap">${esc(t || dflt)}</p></div>`; };
 
 /* ---------- Bible ---------- */
 let bib = { book: 'John', chap: 1 };
@@ -694,7 +696,7 @@ const parseKey = k => { const [y, m, d] = String(k).split('-').map(Number); retu
 const fmtDay = d => (typeof d === 'string' ? parseKey(d) : d).toLocaleDateString(LANG === 'ne' ? 'ne-NP' : 'en-US', { month: 'short', day: 'numeric' });
 const weekLabel = k => { const ws = parseKey(k); return 'Sun ' + fmtDay(ws) + ' – Sat ' + fmtDay(addDays(ws, 6)); };
 function logAct(p, k, t, n) { p.log = Array.isArray(p.log) ? p.log : []; p.log.push({ d: todayKey(), k, t: String(t || '').slice(0, 40), n: n || 0 }); if (p.log.length > 400) p.log = p.log.slice(-400); }
-function hwForWeek(g, wk) { const s = wk, e = dateKey(addDays(parseKey(wk), 6)); return (((SHINE[g] || {}).assignments) || []).filter(x => x && x.id && x.due && x.due >= s && x.due <= e); }
+function hwForWeek(g, wk) { const s = wk, e = dateKey(addDays(parseKey(wk), 6)); return asgList(g).filter(x => x.due && x.due >= s && x.due <= e); }
 function weekStats(p, wk) {
   const e = dateKey(addDays(parseKey(wk), 6)), L = (Array.isArray(p.log) ? p.log : []).filter(x => x.d >= wk && x.d <= e), hw = hwForWeek(p.group, wk);
   return { name: p.name, group: p.group, week: wk, stars: L.reduce((a, x) => a + (x.n || 0), 0), learned: L.filter(x => x.k === 'learned').length, steps: L.filter(x => x.k === 'step').length, games: L.filter(x => x.k === 'game').length, hwDone: hw.filter(x => (p.hw || {})[x.id]).length, hwTotal: hw.length };
@@ -718,6 +720,34 @@ function parseReports(text) {
 async function shareText(text) {
   if (navigator.share) { try { await navigator.share({ text }); return 'shared'; } catch (e) { if (e && e.name === 'AbortError') return 'cancel'; } }
   try { await navigator.clipboard.writeText(text); return 'copied'; } catch (e) { return 'fail'; }
+}
+let syncT = null;
+function queueSync() { if (!hubOn() || !S || !S.profiles || !S.profiles.some(p => p.sync)) return; clearTimeout(syncT); syncT = setTimeout(syncNow, 4000); }
+async function syncNow() {
+  for (const p of (S.profiles || [])) {
+    if (!p.sync) continue;
+    const wk = thisWeek(), st = weekStats(p, wk), sig = [wk, st.stars, st.learned, st.steps, st.games, st.hwDone, st.hwTotal, p.name].join();
+    if (p.syncSig === sig) continue;
+    try { await hubCall({ action: 'progSend', childId: p.id, deviceId: deviceId(), group: p.group, name: p.name, week: wk, stars: st.stars, learned: st.learned, steps: st.steps, games: st.games, hwDone: st.hwDone, hwTotal: st.hwTotal }); p.syncSig = sig; localSave(); } catch (e) { /* tries again at the next change or next visit */ }
+  }
+}
+function syncCard(list) {
+  return `<div class="card"><h2>Share progress with the teacher automatically</h2>
+    <p>If you are the parent or guardian, you can let the church teachers see your child's weekly progress without sending a message each week. What is shared: first name, and this week's stars, verses learned, steps, game rounds and assignments done. Nothing else leaves this phone. Only leaders of that group can see it, and you can stop at any time.</p>
+    ${list.map(p => `<label class="chk"><input type="checkbox" data-sync="${p.id}" ${p.sync ? 'checked' : ''}> Share ${esc(p.name)}'s progress</label>`).join('')}
+    <p class="muted">Turning it off also deletes what was already sent for that child.</p><div id="smsg" aria-live="polite"></div></div>`;
+}
+function wireSync(v, g) {
+  v.querySelectorAll('[data-sync]').forEach(c => c.onchange = async () => {
+    const p = S.profiles.find(x => x.id === c.dataset.sync); if (!p) return;
+    if (c.checked) {
+      if (!confirm('I am ' + p.name + '\'s parent or guardian. I agree to share ' + p.name + '\'s first name and weekly progress with the church teachers. I can stop at any time.')) { c.checked = false; return; }
+      p.sync = true; p.syncSig = ''; save(); await syncNow(); $('#smsg', v).innerHTML = '<span class="good">Sharing is on.</span>';
+    } else {
+      try { await hubCall({ action: 'progForget', childId: p.id, deviceId: deviceId() }); p.sync = false; p.syncSig = ''; save(); $('#smsg', v).innerHTML = '<span class="good">Sharing is off and the shared copy was deleted.</span>'; }
+      catch (e) { c.checked = true; $('#smsg', v).innerHTML = `<span class="bad">Could not turn it off right now: ${esc(e.message)} Try again with a connection.</span>`; }
+    }
+  });
 }
 function weekCard(list) {
   const wk = thisWeek();
@@ -750,6 +780,7 @@ function assignView(v, g) {
   wireBar(g);
   v.querySelectorAll('[data-hw]').forEach(b => b.onclick = () => { const id = b.dataset.hw; if (p.hw[id]) delete p.hw[id]; else p.hw[id] = todayKey(); save(); render(); });
 }
+let HPROG = {};
 function teacherView(v, g) {
   const h = (CFG.leaderPinSha256 || '').toLowerCase();
   if (hubOn() && !S.leader) {
@@ -764,21 +795,38 @@ function teacherView(v, g) {
   }
   if (hubOn() && HUB.me && !myArea(g)) { v.innerHTML = `<div class="card"><h2>Teacher</h2><p>Your leader sign-in does not include ${g === 'kids' ? 'Kids Shine' : 'Youth Shine'}. Ask the pastor to add it.</p></div>`; return; }
   S.teacher = S.teacher && typeof S.teacher === 'object' && S.teacher.reports ? S.teacher : { reports: {} };
-  const R = S.teacher.reports, all = Object.values(R).filter(r => r.group === g);
+  const live0 = hubOn() && !!HUB.me;
+  const R = S.teacher.reports, hubRows = ((HPROG[g] && live0) ? HPROG[g].rows : []).map(x => Object.assign({ group: g }, x)), hk = new Set(hubRows.map(r => r.name.toLowerCase() + '|' + r.week));
+  const all = hubRows.concat(Object.values(R).filter(r => r.group === g && !hk.has(r.name.toLowerCase() + '|' + r.week)));
   const weeks = [...new Set([thisWeek(), ...all.map(r => r.week)])].sort().reverse();
   const sel = weeks.includes(v.__wk) ? v.__wk : weeks[0];
   const rows = all.filter(r => r.week === sel).sort((a, b) => a.name.localeCompare(b.name));
   const posted = asgList(g), live = hubOn() && !!HUB.me;
   if (hubOn() && !v.__f) { v.__f = 1; hubFeed(true).then(f => { if (f && v.isConnected) { teacherView(v, g); applyLang(); } }); }
+  if (live && !v.__hl && !(HPROG[g] && Date.now() - HPROG[g].at < 15000)) { v.__hl = 1; hubCall({ action: 'progList', group: g }).then(r => { HPROG[g] = { rows: r.rows || [], at: Date.now() }; v.__hl = 0; if (v.isConnected && sec === g && tabOf[g] === 'teach') { teacherView(v, g); applyLang(); } }).catch(() => { v.__hl = 0; }); }
   v.innerHTML = `<div class="card gold"><h2>Weekly progress</h2>
     <label for="wk">Week</label><select id="wk">${weeks.map(w => `<option value="${w}" ${w === sel ? 'selected' : ''}>${esc(weekLabel(w))}</option>`).join('')}</select>
-    ${rows.length ? `<div class="scrollx"><table class="tbl"><tr><th>Name</th><th>⭐</th><th>Verses</th><th>Steps</th><th>Rounds</th><th>Assignments</th></tr>${rows.map(r => `<tr><td>${esc(r.name)}</td><td>${r.stars}</td><td>${r.learned}</td><td>${r.steps}</td><td>${r.games}</td><td>${r.hwDone}/${r.hwTotal}</td></tr>`).join('')}</table></div><p class="muted">${rows.length} reported this week.</p>` : '<p class="muted">No reports for this week yet. Parents send them from My Kids. Paste them below.</p>'}</div>
+    ${rows.length ? `<div class="scrollx"><table class="tbl"><tr><th>Name</th><th>⭐</th><th>Verses</th><th>Steps</th><th>Rounds</th><th>Assignments</th>${live ? '<th></th>' : ''}</tr>${rows.map(r => `<tr><td>${esc(r.name)}</td><td>${r.stars}</td><td>${r.learned}</td><td>${r.steps}</td><td>${r.games}</td><td>${r.hwDone}/${r.hwTotal}</td>${live ? `<td>${r.cid ? `<button class="btn ghost small" data-prm="${esc(r.cid)}">Remove</button>` : ''}</td>` : ''}</tr>`).join('')}</table></div><p class="muted">${rows.length} reported this week.</p>${live ? '<p class="muted">Parents who turn on automatic sending appear here by themselves.</p>' : ''}` : '<p class="muted">No reports for this week yet. Parents send them from My Kids. Paste them below.</p>'}</div>
+    ${live ? `<div class="card"><button class="btn ghost small" id="prf">Refresh progress</button></div>
+    <div class="card"><h2>This week's verse and lesson</h2><p class="muted">Now: ${esc((SHINE[g] || {}).verse || 'none')}. Post a new one and every phone shows it within about 20 seconds.</p>
+    <label for="wv">Verse reference (for example John 3:16)</label><input id="wv" maxlength="60">
+    <label for="wve">Verse text in English (optional, NASB 1995)</label><textarea id="wve" rows="2" maxlength="800"></textarea>
+    <label for="wvn">Verse text in Nepali (optional, NNRV)</label><textarea id="wvn" rows="2" maxlength="800"></textarea>
+    <label for="wle">Lesson in English</label><textarea id="wle" rows="4" maxlength="3000"></textarea>
+    <label for="wln">Lesson in Nepali (optional)</label><textarea id="wln" rows="4" maxlength="3000"></textarea>
+    <button class="btn" id="wsave">Post verse and lesson</button><div id="wmsg" aria-live="polite"></div></div>` : ''}
     <div class="card"><h2>Add reports</h2><p class="muted">Paste the messages parents send you. You can paste many at once.</p><textarea id="rp" rows="4" aria-label="Paste reports"></textarea>
     <button class="btn" id="radd">Add reports</button> <button class="btn ghost small" id="rclr">Clear all reports</button><div id="rmsg" aria-live="polite"></div></div>
     <div class="card"><h2>Assignments posted</h2>${posted.length ? posted.map(a => `<div class="slot"><div class="t">${esc(a.title)} <span class="muted">${a.due ? esc(fmtDay(a.due)) : ''}</span>${a.group ? ` <button class="btn ghost small" data-adel="${esc(a.id)}">Delete</button>` : ''}</div></div>`).join('') : '<p class="muted">None yet.</p>'}
     <h2 style="margin-top:14px">New assignment</h2><label for="at">Title</label><input id="at" maxlength="80"><label for="ad">Details (optional)</label><textarea id="ad" rows="2" maxlength="300"></textarea>
     <label for="adu">Due date</label><input id="adu" type="date"><button class="btn" id="agen">${live ? 'Post assignment' : 'Make assignment text'}</button><div id="amsg" aria-live="polite"></div>
     ${live ? '<p class="muted">Posts for every phone in about 20 seconds. No files to edit.</p>' : ''}<p class="muted" ${live ? 'hidden' : ''}>Copy the text this makes into <b>data/shine.json</b> under "${g}" then "assignments" (or send it to Claude to add). It shows for everyone after the next update.</p><textarea id="aout" rows="5" readonly aria-label="Assignment text"></textarea></div>`;
+  if ($('#prf')) $('#prf').onclick = () => { HPROG[g] = null; teacherView(v, g); applyLang(); };
+  v.querySelectorAll('[data-prm]').forEach(b => b.onclick = async () => { if (!confirm('Remove this child\'s progress from the church server?')) return; try { await hubCall({ action: 'progRemove', group: g, cid: b.dataset.prm }); HPROG[g] = null; teacherView(v, g); applyLang(); } catch (e) { alert(e.message); } });
+  if ($('#wsave')) $('#wsave').onclick = async () => {
+    try { await hubCall({ action: 'weeklySave', group: g, verse: $('#wv').value, verseEn: $('#wve').value, verseNe: $('#wvn').value, lessonEn: $('#wle').value, lessonNe: $('#wln').value }); await hubFeed(true); teacherView(v, g); applyLang(); }
+    catch (e) { $('#wmsg').innerHTML = `<span class="bad">${esc(e.message)}</span>`; }
+  };
   $('#wk').onchange = e => { v.__wk = e.target.value; teacherView(v, g); applyLang(); };
   $('#radd').onclick = () => {
     const { out, bad } = parseReports($('#rp').value);
@@ -812,7 +860,7 @@ const hubOn = () => !!(CFG.hubUrl && /^https:\/\//.test(CFG.hubUrl));
 const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch (e) { return d; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
 function deviceId() { let d = lsGet('agc.dev', ''); if (!d) { d = 'd' + uid() + uid() + uid(); lsSet('agc.dev', d); } return d; }
-function hubLocalLogout() { HUB.me = null; try { localStorage.removeItem(HUBKEY); } catch (e) {} S.leader = false; save(); }
+function hubLocalLogout() { HPROG = {}; HUB.me = null; try { localStorage.removeItem(HUBKEY); } catch (e) {} S.leader = false; save(); }
 async function hubCall(body) {
   if (!hubOn()) throw new Error('The shared server is not connected yet.');
   const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 25000);
@@ -827,16 +875,30 @@ async function hubCall(body) {
     throw e;
   } finally { clearTimeout(to); }
 }
+/* The weekly verse and lesson that teachers post in the app replace the file defaults. */
+function applyWeekly(f) {
+  if (!f || !f.weekly) return;
+  ['kids', 'youth'].forEach(g => {
+    const w = f.weekly[g]; if (!w) return;
+    const o = SHINE[g] = SHINE[g] || {};
+    if (w.verse) o.verse = w.verse;
+    if (w.lessonEn) o.lesson = w.lessonEn;
+    if (w.lessonNe) o.lesson_ne = w.lessonNe;
+    const dv = CFG.defaultVersion || {}; o.verseText = Object.assign({}, o.verseText);
+    if (w.verseEn && dv.en) o.verseText[dv.en] = w.verseEn;
+    if (w.verseNe && dv.ne) o.verseText[dv.ne] = w.verseNe;
+  });
+}
 async function hubFeed(force) {
   if (!hubOn()) return null;
   if (!force && HUB.feed && Date.now() - HUB.at < 20000) return HUB.feed;
   try {
     const r = await fetch(CFG.hubUrl + '?action=hub'), j = await r.json();
     if (!j || j.error || !Array.isArray(j.songs)) throw new Error('bad feed');
-    HUB.feed = j; HUB.at = Date.now(); HUB.offline = false; lsSet(FEEDKEY, JSON.stringify(j));
+    HUB.feed = j; HUB.at = Date.now(); HUB.offline = false; lsSet(FEEDKEY, JSON.stringify(j)); applyWeekly(j);
   } catch (e) {
     HUB.offline = true;
-    if (!HUB.feed) { try { HUB.feed = JSON.parse(lsGet(FEEDKEY, 'null')); } catch (x) {} }
+    if (!HUB.feed) { try { HUB.feed = JSON.parse(lsGet(FEEDKEY, 'null')); applyWeekly(HUB.feed); } catch (x) {} }
   }
   return HUB.feed;
 }
@@ -1149,6 +1211,7 @@ async function afterGate() {
   SHINE = (await getJson('data/shine.json')) || SHINE; PRAYER = (await getJson('data/prayer.json')) || PRAYER;
   WORSHIP = Object.assign({ announcements: [], songs: [], events: [], board: [] }, (await getJson('data/worship.json')) || {});
   HOME = (await getJson('data/home.json')) || HOME; VOTD = (await getJson('data/votd.json')) || VOTD; GAMES = (await getJson('data/games.json')) || GAMES;
+  if (hubOn()) { await Promise.race([hubFeed(), new Promise(r => setTimeout(r, 2500))]); }
   const hash = (CFG.passwordSha256 || '').toLowerCase();
   let ok = !hash;
   try { ok = ok || sessionStorage.getItem('agc.ok') === hash; } catch (e) {}

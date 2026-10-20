@@ -21,6 +21,8 @@ var CONFIG = {
   LOCK_SECONDS: 900,           // ... before that leader is locked for 15 minutes
   BOARD_PER_HOUR: 5,           // fellowship posts one phone may make per hour
   BOARD_ALL_PER_HOUR: 40,      // fellowship posts from everyone together per hour (stops fake-phone spam)
+  PROG_PER_DEVICE_HOUR: 120,   // progress updates one phone may send per hour
+  PROG_ALL_PER_HOUR: 1500,     // progress updates from everyone together per hour
   BOARD_KEEP: 60,              // newest posts shown
   FEED_CACHE_SECONDS: 20
 };
@@ -33,11 +35,13 @@ var H = {
   board: ['id', 'name', 'text', 'status', 'created', 'deviceId'],
   lboard: ['id', 'area', 'text', 'by', 'created'],
   res: ['id', 'title', 'desc', 'category', 'url', 'created', 'by'],
-  asg: ['id', 'grp', 'title', 'titleNe', 'detail', 'detailNe', 'due', 'ref', 'created', 'by']
+  asg: ['id', 'grp', 'title', 'titleNe', 'detail', 'detailNe', 'due', 'ref', 'created', 'by'],
+  prog: ['id', 'grp', 'name', 'week', 'stars', 'learned', 'steps', 'games', 'hwDone', 'hwTotal', 'updated', 'deviceId'],
+  weekly: ['id', 'grp', 'verse', 'verseEn', 'verseNe', 'lessonEn', 'lessonNe', 'created', 'by']
 };
 var AREAS = ['kids', 'youth', 'worship'];     // what a leader can be given access to
 var RES_SUBFOLDERS = ['All Leaders', 'Kids', 'Youth', 'Worship'];
-var SHEETS = { leaders: 'Leaders', ann: 'Announcements', songs: 'Songs', events: 'Events', board: 'Fellowship', lboard: 'LeaderBoard', res: 'Resources', asg: 'Assignments' };
+var SHEETS = { leaders: 'Leaders', ann: 'Announcements', songs: 'Songs', events: 'Events', board: 'Fellowship', lboard: 'LeaderBoard', res: 'Resources', asg: 'Assignments', prog: 'Progress', weekly: 'Weekly' };
 
 /* ---------------------------------------------------------------- setup */
 
@@ -108,7 +112,7 @@ function doPost(e) {
     if (!fn) throw new Error('Unknown action');
     lock.waitLock(15000);
     var res = fn(body);
-    dropFeedCache_();
+    if (body.action !== 'progSend' && body.action !== 'progForget') dropFeedCache_();
     return json_(res);
   } catch (err) {
     var msg = String(err.message || err);
@@ -269,7 +273,9 @@ function getFeed_() {
   var leaders = rows_(S.leaders).filter(function (r) { return r.active === 'yes'; }).map(function (r) { return { id: r.id, name: r.name, role: r.role }; });
   leaders.unshift({ id: 'admin', name: PropertiesService.getScriptProperties().getProperty('ADMIN_NAME') || 'Admin', role: 'Admin' });
   var asg = rows_(S.asg).filter(function (r) { return r.due === '' || String(r.due) >= addDays_(today, -30); }).map(function (r) { return { id: r.id, group: r.grp, title: r.title, title_ne: r.titleNe, detail: r.detail, detail_ne: r.detailNe, due: r.due, ref: r.ref }; });
-  var out = { ok: true, assignments: asg, announcements: ann, songs: songs, events: events, board: board.slice(0, CONFIG.BOARD_KEEP), leaders: leaders, now: nowIso_() };
+  var weekly = {};
+  rows_(S.weekly).sort(function (a, c) { return a.created < c.created ? -1 : 1; }).forEach(function (r) { weekly[r.grp] = { id: r.id, verse: r.verse, verseEn: r.verseEn, verseNe: r.verseNe, lessonEn: r.lessonEn, lessonNe: r.lessonNe, created: r.created, by: r.by }; });
+  var out = { ok: true, weekly: weekly, assignments: asg, announcements: ann, songs: songs, events: events, board: board.slice(0, CONFIG.BOARD_KEEP), leaders: leaders, now: nowIso_() };
   try { cache.put('feed', JSON.stringify(out), CONFIG.FEED_CACHE_SECONDS); } catch (e) { /* too big to cache */ }
   return out;
 }
@@ -383,6 +389,54 @@ function asgDelete_(b) {
   S.asg.deleteRow(r.row);
   return { ok: true };
 }
+function numIn_(x, max) { x = Math.floor(Number(x)); return isFinite(x) && x > 0 ? Math.min(x, max) : 0; }
+function progSend_(b) {
+  var grp = b.group === 'youth' ? 'youth' : 'kids', cid = txt_(b.childId, 40).replace(/[^A-Za-z0-9_-]/g, ''), device = txt_(b.deviceId, 40);
+  var name = firstName_(b.name), week = String(b.week || '');
+  if (!cid || !device || !name) throw new Error('Missing details.');
+  if (!dateOk_(week)) throw new Error('Bad week.');
+  var cache = CacheService.getScriptCache(), dk = 'pg:' + device, n = Number(cache.get(dk)) || 0;
+  var ak = 'pg:all:' + Utilities.formatDate(new Date(), CONFIG.TZ, 'yyyyMMddHH'), a = Number(cache.get(ak)) || 0;
+  if (n >= CONFIG.PROG_PER_DEVICE_HOUR || a >= CONFIG.PROG_ALL_PER_HOUR) throw new Error('Too many updates. Try again later.');
+  cache.put(dk, String(n + 1), 3600); cache.put(ak, String(a + 1), 3600);
+  var S = sheets_(), id = cid + '|' + week, ex = findById_(S.prog, id);
+  var o = { id: id, grp: grp, name: name, week: week, stars: numIn_(b.stars, 9999), learned: numIn_(b.learned, 999), steps: numIn_(b.steps, 999), games: numIn_(b.games, 999), hwDone: numIn_(b.hwDone, 999), hwTotal: numIn_(b.hwTotal, 999), updated: nowIso_(), deviceId: device };
+  if (ex) { if (ex.deviceId !== device) throw new Error('Not allowed.'); writeObj_(S.prog, H.prog, ex.row, o); } else appendObj_(S.prog, H.prog, o);
+  return { ok: true };
+}
+function progForget_(b) {
+  var cid = txt_(b.childId, 40).replace(/[^A-Za-z0-9_-]/g, ''), device = txt_(b.deviceId, 40);
+  if (!cid || !device) throw new Error('Missing details.');
+  var S = sheets_(), all = rows_(S.prog), del = 0;
+  for (var i = all.length - 1; i >= 0; i--) if (all[i].deviceId === device && all[i].id.indexOf(cid + '|') === 0) { S.prog.deleteRow(all[i].row); del++; }
+  return { ok: true, removed: del };
+}
+function progList_(b) {
+  var w = who_(b), S = sheets_(), grp = b.group === 'youth' ? 'youth' : 'kids';
+  need_(w, grp);
+  var today = Utilities.formatDate(new Date(), CONFIG.TZ, 'yyyy-MM-dd'), min = addDays_(today, -63);
+  var out = rows_(S.prog).filter(function (r) { return r.grp === grp && r.week >= min; }).map(function (r) {
+    return { cid: r.id.split('|')[0], name: r.name, week: r.week, stars: Number(r.stars) || 0, learned: Number(r.learned) || 0, steps: Number(r.steps) || 0, games: Number(r.games) || 0, hwDone: Number(r.hwDone) || 0, hwTotal: Number(r.hwTotal) || 0, updated: r.updated };
+  });
+  return { ok: true, rows: out };
+}
+function progRemove_(b) {
+  var w = who_(b), S = sheets_(), grp = b.group === 'youth' ? 'youth' : 'kids', cid = String(b.cid || '').replace(/[^A-Za-z0-9_-]/g, '');
+  need_(w, grp);
+  if (!cid) throw new Error('Missing child.');
+  var all = rows_(S.prog);
+  for (var i = all.length - 1; i >= 0; i--) if (all[i].grp === grp && all[i].id.indexOf(cid + '|') === 0) S.prog.deleteRow(all[i].row);
+  return { ok: true };
+}
+function weeklySave_(b) {
+  var w = who_(b), S = sheets_(), grp = b.group === 'youth' ? 'youth' : 'kids';
+  need_(w, grp);
+  var o = { grp: grp, verse: txt_(b.verse, 60), verseEn: txt_(b.verseEn, 800), verseNe: txt_(b.verseNe, 800), lessonEn: txt_(b.lessonEn, 3000), lessonNe: txt_(b.lessonNe, 3000) };
+  if (!o.verse && !o.lessonEn && !o.lessonNe) throw new Error('Please type a verse or a lesson.');
+  o.id = newId_(); o.created = nowIso_(); o.by = w.name;
+  appendObj_(S.weekly, H.weekly, o);
+  return { ok: true, id: o.id };
+}
 function songSave_(b) {
   var w = who_(b), S = sheets_();
   need_(w, 'worship');
@@ -476,6 +530,7 @@ var ACTIONS = {
   post: boardPost_, report: boardReport_, login: login_, logout: logout_,
   leaderData: leaderData_, annSave: annSave_, annDelete: function (b) { return deleteRow_('ann', b); },
   asgSave: asgSave_, asgDelete: asgDelete_,
+  progSend: progSend_, progForget: progForget_, progList: progList_, progRemove: progRemove_, weeklySave: weeklySave_,
   songSave: songSave_, songDelete: function (b) { return deleteRow_('songs', b); },
   eventSave: eventSave_, eventDelete: function (b) { return deleteRow_('events', b); },
   boardSet: boardSet_, lboardPost: lboardPost_, lboardDelete: lboardDelete_,

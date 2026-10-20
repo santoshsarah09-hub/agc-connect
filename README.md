@@ -83,3 +83,9 @@ Stars earned from memory verses and games are this week's points and start again
 
 ## Assignments
 With the Hub connected, teachers post assignments in Kids/Youth > Teacher. No file editing.
+
+## Automatic progress and weekly verse/lesson (needs the Hub)
+- **Parents opt in** per child in My Kids / My Profile ("Share progress with the teacher automatically"). A consent box explains what is shared: first name, and this week's stars, verses learned, steps, game rounds and assignments done. Turning it off (or removing the profile) deletes the shared copy.
+- The phone sends an update a few seconds after progress changes. Data goes to the **Progress** tab of the Hub sheet in your Drive. Only leaders of that group (and the admin) can read it, in Kids/Youth > Teacher. The pasted-report method still works.
+- **Teachers post the weekly verse and lesson** in Teacher > "This week's verse and lesson". Data goes to the **Weekly** tab and replaces the defaults from data/shine.json on every phone.
+- Limits: 120 updates per phone per hour, 1500 per hour overall.

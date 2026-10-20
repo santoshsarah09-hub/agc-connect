@@ -7,9 +7,9 @@ env.call('setup');
 const PIN = () => env.props.ADMIN_PIN;
 const admin = () => post({ action: 'login', leader: 'admin', pin: PIN() });
 console.log('Hub backend tests');
-t('setup creates folders, sheet with 8 tabs, admin PIN; safe to run twice', () => {
+t('setup creates folders, sheet with 10 tabs, admin PIN; safe to run twice', () => {
   assert.strictEqual(env.root.kids[0].name, 'Executive Assistant Workspace'); assert.strictEqual(env.root.kids[0].kids[0].name, 'AGC Connect'); assert.strictEqual(env.root.kids[0].kids[0].kids[0].name, 'Leader Resources');
-  assert(/^\d{6}$/.test(PIN())); assert.strictEqual(Object.values(env.sheetsById)[0].sheets.length, 8);
+  assert(/^\d{6}$/.test(PIN())); assert.strictEqual(Object.values(env.sheetsById)[0].sheets.length, 10);
   env.call('setup'); assert.strictEqual(Object.keys(env.sheetsById).length, 1); assert.strictEqual(env.root.kids.length, 1);
 });
 t('public feed starts empty and lists the admin as a sign-in name', () => { const f = env.feed(); assert.deepStrictEqual(f.songs, []); assert.strictEqual(f.leaders[0].id, 'admin'); assert(!JSON.stringify(f).includes(PIN())); });
@@ -38,6 +38,30 @@ t('assignments: only leaders with the matching area can post; admin can; public 
   assert(/title/i.test(post({ action: 'asgSave', token: A.token, group: 'kids' }).error));
   const f = env.feed(); assert(f.assignments.some(a => a.title === 'Learn Psalm 23' && a.group === 'kids'));
   assert(post({ action: 'asgDelete', token: A.token, id: r.id }).ok);
+});
+t('progress: phones send weekly stats without signing in; leaders with the area read them; others cannot', () => {
+  const base = { action: 'progSend', childId: 'c1abc', deviceId: 'dev-1', group: 'kids', name: 'Anan Rai', week: '2026-10-18', stars: 12, learned: 2, steps: 9, games: 3, hwDone: 1, hwTotal: 2 };
+  assert(post(base).ok); assert(post(Object.assign({}, base, { stars: 20 })).ok);
+  assert(/not allowed/i.test(post(Object.assign({}, base, { deviceId: 'dev-2' })).error));
+  assert(/bad week/i.test(post(Object.assign({}, base, { week: 'x' })).error));
+  const a = post({ action: 'progList', token: A.token, group: 'kids' }); assert(a.rows.length === 1 && a.rows[0].stars === 20 && a.rows[0].name === 'Anan' && a.rows[0].cid === 'c1abc');
+  assert(/access/i.test(post({ action: 'progList', token: T1.token, group: 'kids' }).error));
+  assert(!JSON.stringify(env.feed()).includes('Anan'), 'public feed must not carry child data');
+});
+t('progress: parent can forget their child; leader with area can remove; wrong phone cannot', () => {
+  const b = { action: 'progSend', childId: 'c2xyz', deviceId: 'dev-9', group: 'youth', name: 'Sam', week: '2026-10-18', stars: 5 };
+  assert(post(b).ok);
+  assert(post({ action: 'progForget', childId: 'c2xyz', deviceId: 'other' }).removed === 0);
+  assert(post({ action: 'progForget', childId: 'c2xyz', deviceId: 'dev-9' }).removed === 1);
+  assert(post(b).ok); assert(post({ action: 'progRemove', token: A.token, group: 'youth', cid: 'c2xyz' }).ok);
+  assert(post({ action: 'progList', token: A.token, group: 'youth' }).rows.length === 0);
+});
+t('weekly verse and lesson: only the matching area posts; newest shows in the public feed', () => {
+  assert(/access/i.test(post({ action: 'weeklySave', token: T1.token, group: 'kids', verse: 'John 3:16' }).error));
+  assert(post({ action: 'weeklySave', token: A.token, group: 'kids', verse: 'Psalm 23:1', lessonEn: 'The Lord is my shepherd.' }).ok);
+  assert(post({ action: 'weeklySave', token: A.token, group: 'kids', verse: 'John 3:16', verseEn: 'For God so loved the world' }).ok);
+  const f = env.feed(); assert(f.weekly.kids.verse === 'John 3:16' && f.weekly.kids.verseEn.startsWith('For God') && !f.weekly.youth);
+  assert(/type a verse/i.test(post({ action: 'weeklySave', token: A.token, group: 'kids' }).error));
 });
 t('leader posts announcements; "leaders" scope never reaches the public feed; pinned first', () => {
   post({ action: 'annSave', token: A.token, scope: 'all', titleEn: 'Service moved', bodyEn: 'Starts 11am', titleNe: '' });
