@@ -112,8 +112,8 @@ const SECTIONS = {
   home:   { label: 'Home',        icon: '🏠', tabs: [['today', 'Today'], ['mv', 'Mission & Vision'], ['e4', '4E']] },
   prayer: { label: 'Prayer',      icon: '🙏', tabs: [['chain', 'Prayer Chain']] },
   worship: { label: 'Worship',    icon: '🎵', tabs: [['songs', 'Songs'], ['news', 'Announcements'], ['cal', 'Calendar'], ['fellow', 'Fellowship']] },
-  kids:   { label: 'Kids Shine',  icon: '🧒', tabs: [['verse', 'Memory Verse'], ['games', 'Games'], ['lesson', 'Lesson'], ['hw', 'Assignments'], ['chat', 'Chat'], ['news', 'Announcements'], ['me', 'My Kids'], ['teach', 'Teacher']] },
-  youth:  { label: 'Youth Shine', icon: '🔥', tabs: [['verse', 'Memory Verse'], ['lesson', 'Teaching'], ['hw', 'Assignments'], ['notes', 'Notes'], ['chat', 'Chat'], ['news', 'Announcements'], ['me', 'My Profile'], ['teach', 'Teacher']] },
+  kids:   { label: 'Kids Shine',  icon: '🧒', tabs: [['verse', 'Memory Verse'], ['games', 'Games'], ['fun', 'Fun Zone'], ['lesson', 'Lesson'], ['hw', 'Assignments'], ['chat', 'Chat'], ['news', 'Announcements'], ['me', 'My Kids'], ['teach', 'Teacher']] },
+  youth:  { label: 'Youth Shine', icon: '🔥', tabs: [['verse', 'Memory Verse'], ['fun', 'Fun Zone'], ['lesson', 'Teaching'], ['hw', 'Assignments'], ['notes', 'Notes'], ['chat', 'Chat'], ['news', 'Announcements'], ['me', 'My Profile'], ['teach', 'Teacher']] },
   bible:  { label: 'Bible',       icon: '📖', tabs: [['read', 'Read'], ['find', 'Find a Verse'], ['notes', 'My Notes']] },
   leaders: { label: 'Leaders',    icon: '🛡️', tabs: [['post', 'Post'], ['res', 'Resources'], ['lboard', 'Leader Board'], ['team', 'Team']] }
 };
@@ -123,7 +123,7 @@ let showTimer = null;
 function goHome() { sec = 'home'; tabOf.home = 'today'; render(); window.scrollTo(0, 0); }
 
 function render() {
-  clearTimeout(showTimer);
+  clearTimeout(showTimer); if (typeof stopFun === 'function') stopFun();
   $('#homebtn').hidden = (sec === 'home' && tabOf.home === 'today');
   $('#tabs').innerHTML = Object.entries(SECTIONS).map(([k, s]) => `<button data-s="${k}" class="${k === sec ? 'on' : ''}"><span>${s.icon}</span>${s.label}</button>`).join('');
   $('#inner').innerHTML = SECTIONS[sec].tabs.map(([k, l]) => `<button data-t="${k}" class="${k === tabOf[sec] ? 'on' : ''}">${l}</button>`).join('');
@@ -374,7 +374,7 @@ function wireAdd(g) {
 }
 function profileBar(g) {
   const list = profilesOf(g), p = curProfile(g);
-  return `<div class="pbar"><b>${esc(p.name)}</b><span>⭐ ${p.stars}</span><span class="muted">${p.learned.length} verse${p.learned.length === 1 ? '' : 's'} learned</span>
+  return `<div class="pbar"><b>${esc(p.name)}</b><span>⭐ ${starBal(p)}</span><span class="muted">${p.learned.length} verse${p.learned.length === 1 ? '' : 's'} learned</span>
     ${list.length > 1 ? `<select id="pswitch" aria-label="Switch ${g === 'kids' ? 'child' : 'profile'}">${list.map(x => `<option value="${x.id}" ${x.id === p.id ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select>` : ''}</div>`;
 }
 function wireBar(g) { const s = $('#pswitch'); if (s) s.onchange = e => { S.cur[g] = e.target.value; save(); render(); }; }
@@ -1070,7 +1070,7 @@ const VIEWS = {
   'home.today': homeToday, 'home.mv': homeMV, 'home.e4': homeE4,
   'prayer.chain': prayerEmbed, 'worship.songs': worshipSongs, 'worship.news': worshipNews, 'worship.cal': worshipCal, 'worship.fellow': worshipFellow,
   'leaders.post': leadersPost, 'leaders.res': leadersRes, 'leaders.lboard': leadersBoard, 'leaders.team': leadersTeam,
-  'kids.verse': v => memorize(v, 'kids'), 'kids.games': kidsGames, 'kids.lesson': shineText('kids', 'lesson', DEFAULT_LESSON.kids), 'kids.hw': v => assignView(v, 'kids'), 'kids.teach': v => teacherView(v, 'kids'),
+  'kids.verse': v => memorize(v, 'kids'), 'kids.games': kidsGames, 'kids.fun': v => funView(v, 'kids'), 'youth.fun': v => funView(v, 'youth'), 'kids.lesson': shineText('kids', 'lesson', DEFAULT_LESSON.kids), 'kids.hw': v => assignView(v, 'kids'), 'kids.teach': v => teacherView(v, 'kids'),
   'kids.chat': v => chatView(v, 'kids'), 'kids.news': v => groupNews(v, 'kids'), 'kids.me': v => profilesTab(v, 'kids'),
   'youth.verse': v => memorize(v, 'youth'), 'youth.lesson': shineText('youth', 'lesson', DEFAULT_LESSON.youth), 'youth.hw': v => assignView(v, 'youth'), 'youth.teach': v => teacherView(v, 'youth'), 'youth.notes': v => notesView(v, 'youth'),
   'youth.chat': v => chatView(v, 'youth'), 'youth.news': v => groupNews(v, 'youth'), 'youth.me': v => profilesTab(v, 'youth'),
@@ -1160,3 +1160,88 @@ async function afterGate() {
   };
   $('#pwgo').onclick = tryPw; $('#pw').onkeydown = e => { if (e.key === 'Enter') tryPw(); };
 })();
+
+/* ---------- Fun Zone: earn stars by learning verses, spend them on a timed play session ---------- */
+const FUNCFG = g => Object.assign({ cost: g === 'youth' ? 40 : 20, minutes: 30 }, ((CFG.fun || {})[g]) || {});
+let FUNT = null;
+const spentNow = p => (p.spentWk && p.spentWk.wk === thisWeek() ? p.spentWk.n : 0);
+const starBal = p => Math.max(0, weekStats(p, thisWeek()).stars - spentNow(p)); // points reset every Sunday
+const fmtClock = ms => { const s = Math.max(0, Math.ceil(ms / 1000)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+function stopFun() { if (FUNT) { clearInterval(FUNT); FUNT = null; } if (window.__funRaf) { cancelAnimationFrame(window.__funRaf); window.__funRaf = 0; } }
+function funView(v, g) {
+  stopFun();
+  const p = needProfile(v, g); if (!p) return;
+  const C = FUNCFG(g), now = Date.now(), left = (p.funUntil || 0) - now, bal = starBal(p);
+  if (left > 0) {
+    v.innerHTML = profileBar(g) + `<div class="card gold"><h2>🎮 Fun Zone</h2><p>Time left: <b id="funclock">${fmtClock(left)}</b></p></div>
+      <div class="card"><div class="tabs2"><button class="btn small" data-fg="race">🏎️ Car Race</button> <button class="btn small ghost" data-fg="puzzle">🧩 Puzzle</button> <button class="btn small ghost" data-fg="memory">🃏 Memory Match</button></div><div id="funarea"></div></div>`;
+    wireBar(g);
+    const area = $('#funarea'); let cur = 'race';
+    const open = k => { cur = k; v.querySelectorAll('[data-fg]').forEach(b => b.classList.toggle('ghost', b.dataset.fg !== k)); window.__funRaf && cancelAnimationFrame(window.__funRaf); window.__funRaf = 0; ({ race: funRace, puzzle: funPuzzle, memory: funMemory })[k](area, g); applyLang(); };
+    v.querySelectorAll('[data-fg]').forEach(b => b.onclick = () => open(b.dataset.fg));
+    open(cur);
+    FUNT = setInterval(() => {
+      if (!v.isConnected || !$('#funclock')) return stopFun();
+      const l = (p.funUntil || 0) - Date.now();
+      if (l <= 0) { stopFun(); funView(v, g); applyLang(); } else $('#funclock').textContent = fmtClock(l);
+    }, 1000);
+    return;
+  }
+  const ok = bal >= C.cost;
+  v.innerHTML = profileBar(g) + `<div class="card gold"><h2>🎮 Fun Zone</h2>
+    <p>Learn memory verses to earn ⭐ stars. Spend <b>${C.cost} stars</b> to unlock <b>${C.minutes} minutes</b> of fun games: car racing, puzzles and more.</p>
+    <p>Your stars this week: <b>⭐ ${bal}</b> of ${C.cost}</p><p class="muted">Stars start again from zero every Sunday.</p>
+    <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="${C.cost}" aria-valuenow="${Math.min(bal, C.cost)}" style="background:#e3e8ef;border-radius:8px;height:12px;overflow:hidden"><div style="background:var(--gold);height:100%;width:${Math.min(100, Math.round(bal / C.cost * 100))}%"></div></div>
+    ${p.funUntil ? '<p class="muted">Your last play time has ended.</p>' : ''}
+    <button class="btn" id="funstart" ${ok ? '' : 'disabled'} style="margin-top:12px">${ok ? 'Unlock ' + C.minutes + ' minutes' : 'Keep learning verses to unlock'}</button></div>`;
+  wireBar(g);
+  $('#funstart').onclick = () => { if (starBal(p) < C.cost) return; p.spentWk = { wk: thisWeek(), n: spentNow(p) + C.cost }; p.funUntil = Date.now() + C.minutes * 60000; save(); funView(v, g); applyLang(); };
+}
+function funRace(area, g) {
+  const hard = g === 'youth', lanes = hard ? 4 : 3, W = 280, H = 360, lw = W / lanes;
+  area.innerHTML = `<canvas id="rc" width="${W}" height="${H}" style="max-width:100%;background:#2b2b2b;border-radius:10px;touch-action:none" aria-label="Car race"></canvas><p class="muted">Tap the left or right side (or use arrow keys) to steer. Dodge the blocks!</p><div id="rs"></div>`;
+  const cv = $('#rc'), cx = cv.getContext('2d'); let lane = Math.floor(lanes / 2), obs = [], score = 0, over = false, speed = hard ? 4.2 : 2.4, t = 0;
+  const move = d => { if (!over) lane = Math.max(0, Math.min(lanes - 1, lane + d)); };
+  cv.onpointerdown = e => { const r = cv.getBoundingClientRect(); move(e.clientX < r.left + r.width / 2 ? -1 : 1); };
+  const key = e => { if (!cv.isConnected) return document.removeEventListener('keydown', key); if (e.key === 'ArrowLeft') move(-1); if (e.key === 'ArrowRight') move(1); };
+  document.addEventListener('keydown', key);
+  const loop = () => {
+    if (!cv.isConnected) return;
+    t++; if (!over) { if (t % (hard ? 28 : 55) === 0) obs.push({ l: Math.floor(Math.random() * lanes), y: -30 }); obs.forEach(o => o.y += speed); if (obs.length && obs[0].y > H) { obs.shift(); score++; speed += hard ? 0.12 : 0.05; } if (obs.some(o => o.l === lane && o.y > H - 90 && o.y < H - 30)) { over = true; $('#rs').innerHTML = `<b>Crash! Score ${score}</b> <button class="btn small" id="rr">Race again</button>`; $('#rr').onclick = () => funRace(area, g); } }
+    cx.fillStyle = '#2b2b2b'; cx.fillRect(0, 0, W, H); cx.strokeStyle = '#fff'; cx.setLineDash([14, 14]); cx.lineDashOffset = -t * 2;
+    for (let i = 1; i < lanes; i++) { cx.beginPath(); cx.moveTo(i * lw, 0); cx.lineTo(i * lw, H); cx.stroke(); }
+    cx.setLineDash([]); cx.fillStyle = '#e53935'; obs.forEach(o => cx.fillRect(o.l * lw + 10, o.y, lw - 20, 30));
+    cx.fillStyle = '#ffc107'; cx.fillRect(lane * lw + 12, H - 80, lw - 24, 48); cx.fillStyle = '#001f3f'; cx.fillRect(lane * lw + 18, H - 70, lw - 36, 14);
+    cx.fillStyle = '#fff'; cx.font = 'bold 16px sans-serif'; cx.fillText('Score ' + score, 8, 20);
+    window.__funRaf = requestAnimationFrame(loop);
+  };
+  window.__funRaf = requestAnimationFrame(loop);
+}
+function funPuzzle(area, g) {
+  const n = g === 'youth' ? 4 : 3; let tiles = [...Array(n * n).keys()].map(i => (i + 1) % (n * n)), moves = 0;
+  const nb = i => [i - n, i + n, i % n ? i - 1 : -1, (i + 1) % n ? i + 1 : -1].filter(j => j >= 0 && j < n * n);
+  let z = tiles.indexOf(0), prev = -1;
+  for (let k = 0; k < n * n * 25; k++) { const o = nb(z).filter(j => j !== prev), j = o[Math.floor(Math.random() * o.length)]; [tiles[z], tiles[j]] = [tiles[j], tiles[z]]; prev = z; z = j; }
+  const draw = () => {
+    const done = tiles.every((x, i) => x === (i + 1) % (n * n));
+    area.innerHTML = `<p>Slide the numbers into order 1, 2, 3… Moves: <b>${moves}</b></p><div style="display:grid;grid-template-columns:repeat(${n},1fr);gap:6px;max-width:${n * 72}px">${tiles.map((x, i) => `<button class="btn ${x ? '' : 'ghost'}" data-i="${i}" style="min-height:64px;font-size:22px;padding:0" ${x ? '' : 'disabled aria-label="empty"'}>${x || ''}</button>`).join('')}</div>${done ? `<p class="good"><b>Solved in ${moves} moves! 🎉</b></p>` : ''}<button class="btn ghost small" id="pz" style="margin-top:10px">New puzzle</button>`;
+    $('#pz').onclick = () => funPuzzle(area, g);
+    if (done) return;
+    area.querySelectorAll('[data-i]').forEach(b => b.onclick = () => { const i = +b.dataset.i, e = tiles.indexOf(0); if (nb(i).includes(e)) { [tiles[i], tiles[e]] = [tiles[e], tiles[i]]; moves++; draw(); } });
+  };
+  draw();
+}
+function funMemory(area, g) {
+  const pairs = g === 'youth' ? 10 : 6, em = ['🐑', '🕊️', '⭐', '✝️', '📖', '🌈', '🙏', '👑', '🔥', '⛵', '🍞', '🦁'].slice(0, pairs);
+  const deck = [...em, ...em].map((e, i) => ({ e, id: i })).sort(() => Math.random() - .5); let open = [], found = 0, tries = 0, lock = false;
+  const draw = () => {
+    area.innerHTML = `<p>Find the matching pairs. Tries: <b>${tries}</b></p><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;max-width:320px">${deck.map((c, i) => `<button class="btn ${c.up || open.includes(i) ? '' : 'ghost'}" data-i="${i}" style="min-height:56px;font-size:24px;padding:0" aria-label="card">${c.up || open.includes(i) ? c.e : '?'}</button>`).join('')}</div>${found === pairs ? `<p class="good"><b>All pairs found in ${tries} tries! 🎉</b></p>` : ''}<button class="btn ghost small" id="mm" style="margin-top:10px">New game</button>`;
+    $('#mm').onclick = () => funMemory(area, g);
+    area.querySelectorAll('[data-i]').forEach(b => b.onclick = () => {
+      const i = +b.dataset.i; if (lock || deck[i].up || open.includes(i)) return; open.push(i);
+      if (open.length === 2) { tries++; const [a, c] = open; if (deck[a].e === deck[c].e) { deck[a].up = deck[c].up = true; found++; open = []; } else { lock = true; draw(); return void setTimeout(() => { open = []; lock = false; if (area.isConnected) draw(); }, 800); } }
+      draw();
+    });
+  };
+  draw();
+}

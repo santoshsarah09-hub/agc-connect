@@ -77,3 +77,9 @@ Profiles and stars, notes, and chat are saved on each person's own phone, so peo
 
 ## Child safety
 First names only. No kid-to-kid private messages. Review US children's privacy rules (COPPA) before collecting any child data online. [Needs manual verification]
+
+## Fun Zone (Kids Shine and Youth Shine)
+Stars earned from memory verses and games are this week's points and start again from zero every Sunday. Kids spend 20 stars, Youth spend 40, to unlock 30 minutes of Car Race, Sliding Puzzle and Memory Match (Youth versions are harder: more lanes and speed, a 4x4 puzzle, 20 cards). A countdown shows the time left and the games lock when it ends. Change the cost or minutes in data/config.json: `"fun": {"kids": {"cost": 20, "minutes": 30}, "youth": {"cost": 40}}`.
+
+## Assignments
+With the Hub connected, teachers post assignments in Kids/Youth > Teacher. No file editing.
