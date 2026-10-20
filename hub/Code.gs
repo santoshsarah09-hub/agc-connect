@@ -24,7 +24,14 @@ var CONFIG = {
   PROG_PER_DEVICE_HOUR: 120,   // progress updates one phone may send per hour
   PROG_ALL_PER_HOUR: 1500,     // progress updates from everyone together per hour
   BOARD_KEEP: 60,              // newest posts shown
-  FEED_CACHE_SECONDS: 20
+  FEED_CACHE_SECONDS: 20,
+  KEEP_PROGRESS_DAYS: 400,     // monthly cleanup deletes child progress rows older than this
+  KEEP_BOARD_DAYS: 180,        // Fellowship posts
+  KEEP_ASG_DAYS: 400,          // assignments (by due date)
+  KEEP_EVENTS_DAYS: 400,       // events (by date)
+  KEEP_ANN_DAYS: 400,          // announcements (pinned ones stay)
+  KEEP_WEEKLY_DAYS: 800,       // old weekly verses/lessons (the newest per group always stays)
+  STALE_POST_DAYS: 14          // the monthly email warns when a group has no new weekly verse/lesson for this long
 };
 
 var H = {
@@ -537,3 +544,70 @@ var ACTIONS = {
   resSave: resSave_, resDelete: function (b) { admin_(b); var S = sheets_(), r = findById_(S.res, b.id); if (r) S.res.deleteRow(r.row); return { ok: true }; },
   leaderAdd: leaderAdd_, leaderAreas: leaderAreas_, leaderReset: leaderReset_, leaderRemove: leaderRemove_
 };
+
+
+/* ------------------------------------------------ monthly upkeep + report */
+
+// Run installTriggers once from the editor. It sets up one monthly job (1st of each month, about 6 AM).
+function installTriggers() {
+  ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'monthlyMaintenance') ScriptApp.deleteTrigger(t); });
+  ScriptApp.newTrigger('monthlyMaintenance').timeBased().onMonthDay(1).atHour(6).create();
+  Logger.log('Monthly upkeep is on. A report will be emailed to ' + adminEmail_() + ' on the 1st of each month. Run monthlyMaintenance now to test it.');
+}
+function adminEmail_() {
+  return PropertiesService.getScriptProperties().getProperty('ADMIN_EMAIL') || Session.getEffectiveUser().getEmail();
+}
+function daysAgoIso_(n) { return new Date(Date.now() - n * 86400000).toISOString(); }
+function daysAgoDate_(n) { return Utilities.formatDate(new Date(Date.now() - n * 86400000), CONFIG.TZ, 'yyyy-MM-dd'); }
+function purge_(sheet, rows, shouldDelete) {
+  var n = 0;
+  rows.slice().sort(function (a, b) { return b.row - a.row; }).forEach(function (r) { if (shouldDelete(r)) { sheet.deleteRow(r.row); n++; } });
+  return n;
+}
+function cleanup_() {
+  var S = sheets_(), out = {};
+  var pDate = daysAgoDate_(CONFIG.KEEP_PROGRESS_DAYS), iso;
+  out.progress = purge_(S.prog, rows_(S.prog), function (r) { return r.week < pDate; });
+  iso = daysAgoIso_(CONFIG.KEEP_BOARD_DAYS);
+  out.fellowship = purge_(S.board, rows_(S.board), function (r) { return r.created < iso; });
+  var aDate = daysAgoDate_(CONFIG.KEEP_ASG_DAYS), aIso = daysAgoIso_(CONFIG.KEEP_ASG_DAYS);
+  out.assignments = purge_(S.asg, rows_(S.asg), function (r) { return r.due ? r.due < aDate : r.created < aIso; });
+  var eDate = daysAgoDate_(CONFIG.KEEP_EVENTS_DAYS);
+  out.events = purge_(S.events, rows_(S.events), function (r) { return r.date < eDate; });
+  iso = daysAgoIso_(CONFIG.KEEP_ANN_DAYS);
+  out.announcements = purge_(S.ann, rows_(S.ann), function (r) { return r.pinned !== 'yes' && r.created < iso; });
+  var wRows = rows_(S.weekly), newest = {};
+  wRows.forEach(function (r) { if (!newest[r.grp] || r.created > newest[r.grp]) newest[r.grp] = r.created; });
+  iso = daysAgoIso_(CONFIG.KEEP_WEEKLY_DAYS);
+  out.weekly = purge_(S.weekly, wRows, function (r) { return r.created < iso && r.created !== newest[r.grp]; });
+  dropFeedCache_();
+  return out;
+}
+function monthlyMaintenance() {
+  var to = adminEmail_(), lines = [], flags = [];
+  try {
+    var removed = cleanup_(), S = sheets_(), feed = getFeed_();
+    var recent = daysAgoIso_(14), sharing = { kids: {}, youth: {} };
+    rows_(S.prog).forEach(function (r) { if (r.updated >= recent && sharing[r.grp]) sharing[r.grp][r.id.split('|')[0]] = 1; });
+    var nKids = Object.keys(sharing.kids).length, nYouth = Object.keys(sharing.youth).length;
+    ['kids', 'youth'].forEach(function (g) {
+      var w = feed.weekly[g], label = g === 'kids' ? 'Kids' : 'Youth';
+      if (!w) flags.push(label + ': no weekly verse or lesson has been posted yet.');
+      else { var age = Math.floor((Date.now() - new Date(w.created).getTime()) / 86400000); if (age > CONFIG.STALE_POST_DAYS) flags.push(label + ': the last weekly verse/lesson was posted ' + age + ' days ago (' + w.verse + ').'); }
+    });
+    var flagged = rows_(S.board).filter(function (r) { return r.status !== 'ok'; }).length;
+    if (flagged) flags.push('Fellowship: ' + flagged + ' reported post(s) are waiting for you in Leaders > Post.');
+    lines.push('Children sharing progress in the last 2 weeks: Kids ' + nKids + ', Youth ' + nYouth + '.');
+    if (!nKids && !nYouth) lines.push('(No parents have turned on automatic sharing yet.)');
+    lines.push('Active leaders: ' + (feed.leaders.length - 1) + '. Songs saved: ' + feed.songs.length + '. Upcoming events: ' + feed.events.length + '.');
+    var rm = Object.keys(removed).filter(function (k) { return removed[k]; }).map(function (k) { return removed[k] + ' old ' + k; });
+    lines.push('Cleanup: ' + (rm.length ? 'removed ' + rm.join(', ') + '.' : 'nothing was old enough to remove.'));
+  } catch (err) {
+    flags.push('The Hub hit a problem while checking itself: ' + String(err.message || err) + '. Open the Hub script > Executions to see details.');
+  }
+  var subject = 'AGC Connect monthly report: ' + (flags.length ? 'needs attention' : 'all is well');
+  var body = (flags.length ? 'NEEDS ATTENTION\n- ' + flags.join('\n- ') + '\n\n' : 'All checks passed.\n\n') + lines.join('\n') +
+    '\n\nYour own monthly check: open the app, sign in, post and delete a test announcement, and look at Kids and Youth > Teacher.\n(How-To Book: Drive > Executive Assistant Workspace > AGC Connect.)';
+  MailApp.sendEmail(to, subject, body);
+  return { ok: true, flags: flags.length };
+}

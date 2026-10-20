@@ -166,4 +166,26 @@ t('admin can reset a leader PIN; old PIN stops working', () => {
   assert(r.pin !== L3.pin); assert(/do not match/.test(post({ action: 'login', leader: L3.id, pin: L3.pin }).error)); assert(post({ action: 'login', leader: L3.id, pin: r.pin }).token);
 });
 t('sign out kills the token; unknown action is refused', () => { post({ action: 'logout', token: A.token }); assert(/sign in again/i.test(post({ action: 'leaderData', token: A.token }).error)); assert(/Unknown/.test(post({ action: 'nope' }).error)); });
+const sheetNamed = n => Object.values(env.sheetsById)[0].sheets.find(s => s.name === n);
+t('monthly upkeep: installs one monthly trigger (safe to run twice)', () => {
+  env.call('installTriggers'); env.call('installTriggers');
+  assert.strictEqual(env.triggers.length, 1); assert.deepStrictEqual(env.triggers[0].spec.sort(), ['day1', 'h6'].sort());
+});
+t('monthly upkeep: removes old rows, keeps recent ones, emails the owner a report that flags what needs attention', () => {
+  const mk = (id, week) => ({ action: 'progSend', childId: id, deviceId: 'dev-old', group: 'kids', name: 'Old' + id, week, stars: 1 });
+  assert(post(mk('oldkid', '2019-01-06')).ok); assert(post(mk('newkid', new Date().toISOString().slice(0, 10))).ok);
+  const before = sheetNamed('Progress').rows.length;
+  const r = env.call('monthlyMaintenance'); assert(r.ok);
+  assert.strictEqual(sheetNamed('Progress').rows.length, before - 1);
+  assert(sheetNamed('Progress').rows.some(x => String(x[0]).startsWith('newkid')) && !sheetNamed('Progress').rows.some(x => String(x[0]).startsWith('oldkid')));
+  const m = env.mails[env.mails.length - 1]; assert.strictEqual(m.to, 'owner@example.org'); assert(/monthly report/.test(m.subject) && /removed 1 old progress/.test(m.body));
+});
+t('monthly upkeep: says all is well when weekly posts are fresh and nothing is waiting', () => {
+  const A2 = admin(); assert(post({ action: 'weeklySave', token: A2.token, group: 'kids', verse: 'John 1:1' }).ok); assert(post({ action: 'weeklySave', token: A2.token, group: 'youth', verse: 'John 1:2' }).ok);
+  const flagged = Object.values(env.sheetsById)[0].sheets.find(s => s.name === 'Fellowship').rows.slice(1).filter(x => x[3] && x[3] !== 'ok').length;
+  env.call('monthlyMaintenance'); const m = env.mails[env.mails.length - 1];
+  assert(!/last weekly verse|no weekly verse/.test(m.body), m.body);
+  if (!flagged) assert(/all is well/.test(m.subject), m.subject);
+});
+
 console.log(`\n${pass} passed`);

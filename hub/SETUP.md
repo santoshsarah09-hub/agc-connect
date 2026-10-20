@@ -49,3 +49,11 @@ The Hub is a small free Google Apps Script that runs as **you**, so Worship and 
 1. Open the Hub script, replace everything in Code.gs with the new Code.gs, Save.
 2. Deploy > Manage deployments > pencil icon > Version: **New version** > Deploy.
 The link does not change. New tabs (like Assignments) appear in the Sheet by themselves.
+
+## Monthly upkeep and the "all is well" email (one-time setup)
+1. In the Hub script, pick the function **installTriggers** in the function drop-down and click **Run**.
+2. Google asks you to approve more permissions (send email as you, manage the script's timer). Click Review permissions, choose your account, Advanced, then Allow.
+3. Pick **monthlyMaintenance** and click **Run** once to test. Check your Gmail for "AGC Connect monthly report".
+4. Deploy > Manage deployments > pencil > New version > Deploy.
+
+From then on, on the 1st of each month about 6 AM the Hub deletes old rows (child progress after 400 days, Fellowship posts after 180 days, old assignments, events and announcements after 400 days; the newest weekly verse and lesson always stays) and emails you a report. The subject says "all is well" or "needs attention", with a list of what to look at: no weekly verse or lesson in 14 days, reported Fellowship posts waiting, or an error. To send the report to another address, add a script property ADMIN_EMAIL. Change the keep-times in the CONFIG block at the top of Code.gs.

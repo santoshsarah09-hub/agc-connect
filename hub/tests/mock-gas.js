@@ -22,6 +22,7 @@ function makeHub() {
   const root = new Folder('My Drive'); const folders = {}; const reg = f => { folders[f.id] = f; f.kids.forEach(reg); };
   const props = {}, cache = {}; const moved = [];
   const addFile = (folder, name) => folder.files.push({ getName: () => name, getUrl: () => 'https://drive/' + name, getMimeType: () => 'application/pdf', getLastUpdated: () => new Date('2026-10-01T00:00:00Z') });
+  const mails = [], triggers = [];
   const sb = {
     console,
     SpreadsheetApp: { create: n => new SS(n), openById: id => sheetsById[id] },
@@ -36,11 +37,14 @@ function makeHub() {
       DigestAlgorithm: { SHA_256: 'sha256' }, Charset: { UTF_8: 'utf8' },
       computeDigest: (alg, s) => Array.from(crypto.createHash('sha256').update(s, 'utf8').digest()).map(b => (b > 127 ? b - 256 : b))
     },
+    Session: { getEffectiveUser: () => ({ getEmail: () => 'owner@example.org' }) },
+    MailApp: { sendEmail: (to, subject, body) => { mails.push({ to, subject, body }); } },
+    ScriptApp: { getProjectTriggers: () => triggers.slice(), deleteTrigger: t => { const i = triggers.indexOf(t); if (i >= 0) triggers.splice(i, 1); }, newTrigger: fn => { const t = { getHandlerFunction: () => fn, spec: [] }; const c = { timeBased: () => c, onMonthDay: d => { t.spec.push('day' + d); return c; }, atHour: h => { t.spec.push('h' + h); return c; }, create: () => { triggers.push(t); return t; } }; return c; } },
     Logger: { log: m => { if (process.env.HUBDEBUG) console.log("LOG", m); } }
   };
   const ctx = vm.createContext(sb); vm.runInContext(src, ctx);
   const call = (fn, ...a) => vm.runInContext(fn, ctx)(...a);
-  const env = { props, cache, sheetsById, root, moved, addFile, call };
+  const env = { props, cache, sheetsById, root, moved, addFile, call, mails, triggers };
   env.post = b => JSON.parse(call('doPost', { postData: { contents: JSON.stringify(b) } }).getContent());
   env.feed = () => JSON.parse(call('doGet', { parameter: { action: 'hub' } }).getContent());
   return env;
