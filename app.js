@@ -1076,10 +1076,11 @@ function leadersPost(v) {
 function leadersRes(v) {
   leaderGate(v, async () => {
     v.innerHTML = '<div class="card">Loading…</div>';
-    const d = await leaderLoad(v); if (!d) return; const adm = HUB.me.admin;
+    const d = await leaderLoad(v); if (!d) return; const adm = HUB.me.admin, tools = (await getJson('data/bible-tools.json')) || [];
     v.innerHTML = `${meBar()}<div class="card gold"><h2>Ministry resources</h2>${adm
       ? '<p class="muted">Only you can add resources. Put documents in your Drive folder <b>Executive Assistant Workspace › AGC Connect › Leader Resources</b>, inside <b>All Leaders</b>, <b>Kids</b>, <b>Youth</b> or <b>Worship</b>. Leaders see only their own groups and All Leaders. Share the folder with leaders as <b>Viewer</b>, and turn off download, print and copy on each file.</p>'
       : '<p class="muted">Read-only. These are the resources shared with your group. Ask the pastor if you need something added.</p>'}</div>
+    ${tools.length ? `<div class="card"><h2>Bible study and preaching tools</h2><p class="muted">Free websites that open in your browser. Some sites also offer paid extras.</p>${tools.map(gp => `<h3 style="margin:12px 0 4px">${esc(gp.group)}</h3>${(gp.items || []).map(it => `<div class="slot"><div class="t">${esc(it.title)}<div class="muted">${esc(it.desc || '')}</div></div>${linkBtn(it.url, 'Open')}</div>`).join('')}`).join('')}</div>` : ''}
     <div class="card"><h2>Files</h2>${d.files.length ? d.files.map(f => `<div class="slot"><div class="t">${esc(f.name)}<div class="muted">${esc(f.cat || 'All Leaders')} · ${esc(f.type)}</div></div>${linkBtn(f.url, 'View')}</div>`).join('') : '<p class="muted">No files yet.</p>'}</div>
     <div class="card"><h2>Links</h2>${d.resources.length ? d.resources.map(r => `<div class="slot"><div class="t">${esc(r.title)}<div class="muted">${esc(r.cat || 'All Leaders')} ${esc(r.desc || '')}</div></div>${linkBtn(r.url, 'View')}${adm ? `<button class="btn small ghost" data-rd="${esc(r.id)}">✕</button>` : ''}</div>`).join('') : '<p class="muted">None yet.</p>'}
       ${adm ? `<h2 style="margin-top:14px">Add a link</h2>${fld('rt', 'Title', 'maxlength="120"')}<label for="rc">Who can see it</label><select id="rc"><option value="">All Leaders</option><option>Kids</option><option>Youth</option><option>Worship</option></select>${fld('rds', 'Short note', 'maxlength="300"')}${fld('ru', 'Link', 'type="url" placeholder="https://"')}<button class="btn" id="rsave">Save link</button><div id="rmsg"></div>` : ''}</div>`;

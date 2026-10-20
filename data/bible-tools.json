@@ -1,0 +1,19 @@
+[
+  { "group": "Original languages and word study", "items": [
+    { "title": "STEP Bible (Tyndale House, Cambridge)", "desc": "Greek and Hebrew texts with word-by-word meaning, side-by-side translations and lexicons.", "url": "https://www.stepbible.org" },
+    { "title": "Blue Letter Bible", "desc": "Strong's lexicon, interlinear, cross references and commentaries.", "url": "https://www.blueletterbible.org" },
+    { "title": "Bible Hub", "desc": "Parallel translations, interlinear, cross references and many commentaries on one verse page.", "url": "https://biblehub.com" }
+  ]},
+  { "group": "Commentary and background", "items": [
+    { "title": "Enduring Word", "desc": "David Guzik's verse-by-verse commentary, written in plain language.", "url": "https://enduringword.com" },
+    { "title": "Precept Austin", "desc": "Large collection of commentary excerpts gathered verse by verse.", "url": "https://www.preceptaustin.org" },
+    { "title": "Bible Odyssey", "desc": "Short scholarly articles on people, places and themes, from the Society of Biblical Literature.", "url": "https://www.bibleodyssey.org" }
+  ]},
+  { "group": "Reading and searching", "items": [
+    { "title": "Bible Gateway", "desc": "Search many English translations, compare versions and read passages.", "url": "https://www.biblegateway.com" },
+    { "title": "YouVersion Bible", "desc": "The Bible app and website the Bible tab in this app links to.", "url": "https://www.bible.com" }
+  ]},
+  { "group": "Overview and teaching helps", "items": [
+    { "title": "BibleProject", "desc": "Animated overviews of every book of the Bible and themes, with study notes.", "url": "https://bibleproject.com" }
+  ]}
+]
