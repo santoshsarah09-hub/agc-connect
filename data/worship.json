@@ -1,7 +1,29 @@
 {
-  "_note": "Used when the shared Drive server (hub) is not connected, and as a starting list. Songs: {ne, en, cat, key, link, audio}. Announcements: {en, ne, bodyEn, bodyNe, link, created}. Events: {id, date:'YYYY-MM-DD', time:'HH:MM' (Central), minutes, en, ne, place, notes, link, created}. Link to words and chords; do not paste copyrighted lyrics.",
+  "_note": "Used when the shared Drive server (hub) is not connected, and as a starting list. Songs: {ne, en, cat, key, link, audio}. Announcements: {en, ne, bodyEn, bodyNe, link, created}. Events: {id, date:'YYYY-MM-DD', time:'HH:MM' (Central), minutes, en, ne, place, notes, link, created}. Link to words and chords; do not paste copyrighted lyrics. 'sites' is the list of song websites shown on the Songs tab.",
   "announcements": [],
   "songs": [],
   "events": [],
-  "board": []
+  "board": [],
+  "sites": [
+    {
+      "name": "Nepali Christian Songs (.net)",
+      "url": "https://nepalichristiansongs.net/songs/index.html",
+      "note": "Search by code, title or singer, in Nepali or romanized (for example: prem garchu). Some songs have MP3."
+    },
+    {
+      "name": "Nepali Christian Songs (.com)",
+      "url": "https://www.nepalichristiansongs.com/",
+      "note": "Lyrics in Devanagari, browsed by first letter."
+    },
+    {
+      "name": "Nepali Christian Songs (n.php index)",
+      "url": "https://nepalichristiansongs.com/n.php",
+      "note": "Another index of the same family of sites."
+    },
+    {
+      "name": "NepaliHymns",
+      "url": "https://nepalihymns.com/songs/index/ta",
+      "note": "Hymns and choruses, many with guitar chords. Romanized web addresses; check its Copyright page."
+    }
+  ]
 }

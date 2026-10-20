@@ -121,3 +121,4 @@ main.flush{padding:0;max-width:none}
 .song b{font-size:19px}.bigpin{font-size:44px;font-weight:900;letter-spacing:8px;text-align:center;margin:8px 0}
 details.card summary{cursor:pointer;font-size:17px;padding:4px 0}
 @media (prefers-reduced-motion:reduce){.tabs button.has-new::after{animation:none}}
+.nenote{font-size:14px;margin-top:12px;color:#ffe9a8;opacity:.95}

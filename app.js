@@ -242,6 +242,7 @@ function showcaseHTML() {
     ${sl.map((s, i) => `<div class="slide ${i === 0 ? 'on' : ''}" aria-hidden="${i !== 0}">
       ${s.logo ? '<img class="slogo" src="assets/logo-full.png" alt="Awakening Generations Church">' : `<div class="lab">${esc(s.lab)}</div>`}
       ${s.list ? `<div class="e4list">${s.list.map(x => `<span>${esc(x)}</span>`).join('')}</div>` : `<div class="txt" ${LANG === 'ne' && s.ne ? 'lang="ne" data-keep' : ''}>${esc(LANG === 'ne' && s.ne ? s.ne : s.en)}</div>`}
+      ${LANG === 'ne' && !s.ne && (s.k === 'mission' || s.k === 'vision') ? '<div class="nenote">Nepali text has not been added yet.</div>' : ''}
       </div>`).join('')}
     <div class="dots">${sl.map((s, i) => `<button class="dot ${i === 0 ? 'on' : ''}" aria-label="Slide ${i + 1} of ${sl.length}"></button>`).join('')}</div></div>`;
 }
@@ -878,7 +879,8 @@ async function worshipSongs(v) {
   const d = await wData(), songs = d.songs || [];
   v.innerHTML = `${hubNote()}${offNote()}<div class="card gold"><h2>Nepali Christian songs</h2><p class="muted">Search the church list, or search YouTube. Song words and chords stay with their owners; each song here opens its own link.</p>
     <input id="sq" placeholder="Song name or type (Nepali or English)" aria-label="Search songs" autocomplete="off">
-    <a class="btn small" id="syt" target="_blank" rel="noopener" href="#">🔎 Search YouTube</a></div><div id="slist"></div>`;
+    <a class="btn small" id="syt" target="_blank" rel="noopener" href="#">🔎 Search YouTube</a></div><div id="slist"></div>
+    ${(WORSHIP.sites || []).length ? `<div class="card"><h2>More Nepali songs online</h2><p class="muted">Free song websites. They open in a new tab and belong to their owners.</p>${WORSHIP.sites.map(x => `<div class="slot"><div class="t">${esc(x.name)}<div class="muted">${esc(x.note || '')}</div></div>${linkBtn(x.url, 'Open')}</div>`).join('')}</div>` : ''}`;
   const ytUrl = q => 'https://www.youtube.com/results?search_query=' + encodeURIComponent((q || '') + ' Nepali Christian song');
   const draw = () => {
     const q = $('#sq').value.trim().toLowerCase();
@@ -971,7 +973,7 @@ function leadersPost(v) {
       <button class="btn" id="esave">Save event</button><div id="emsg"></div></details>
     <details class="card"><summary><b>New song</b></summary>
       <p class="muted">Add the song name and a link to its words or chords (a website, YouTube, or a Drive file). Do not paste copyrighted lyrics here.</p>
-      ${fld('sn', 'Song name (Nepali)', 'maxlength="120" lang="ne"')}${fld('se', 'Song name (English, optional)', 'maxlength="120"')}${fld('sc', 'Type (Worship, Praise, Hymn…)', 'maxlength="40"')}${fld('sk', 'Key (optional)', 'maxlength="10"')}${fld('sl', 'Link to words / chords', 'type="url" placeholder="https://"')}${fld('sa', 'Link to listen (optional)', 'type="url" placeholder="https://"')}
+      ${fld('sn', 'Song name (Nepali)', 'maxlength="120" lang="ne"')}${fld('se', 'Song name (romanized or English, optional)', 'maxlength="120"')}${fld('sc', 'Type (Worship, Praise, Hymn…)', 'maxlength="40"')}${fld('sk', 'Key (optional)', 'maxlength="10"')}${fld('sl', 'Link to words / chords', 'type="url" placeholder="https://"')}${fld('sa', 'Link to listen (optional)', 'type="url" placeholder="https://"')}
       <button class="btn" id="ssave">Save song</button><div id="smsg"></div></details>
     <div class="card"><h2>Posted announcements</h2>${d.announcements.length ? d.announcements.map(a => `<div class="slot"><div class="t">${esc(a.en || a.ne)} <span class="muted">${a.scope === 'leaders' ? 'Leaders only' : a.scope === 'worship' ? 'Worship' : 'Everyone'}</span></div><button class="btn small ghost" data-ad="${esc(a.id)}">Delete</button></div>`).join('') : '<p class="muted">None yet.</p>'}</div>
     <div class="card"><h2>Events</h2>${(f.events || []).length ? f.events.map(e => `<div class="slot"><div class="t">${esc(e.en || e.ne)} <span class="muted">${esc(e.date)}</span></div><button class="btn small ghost" data-ed="${esc(e.id)}">Delete</button></div>`).join('') : '<p class="muted">None yet.</p>'}</div>
