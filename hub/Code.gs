@@ -20,6 +20,7 @@ var CONFIG = {
   MAX_FAILS: 5,                // wrong PINs allowed per leader ...
   LOCK_SECONDS: 900,           // ... before that leader is locked for 15 minutes
   BOARD_PER_HOUR: 5,           // fellowship posts one phone may make per hour
+  BOARD_ALL_PER_HOUR: 40,      // fellowship posts from everyone together per hour (stops fake-phone spam)
   BOARD_KEEP: 60,              // newest posts shown
   FEED_CACHE_SECONDS: 20
 };
@@ -289,6 +290,9 @@ function boardPost_(b) {
   if (!device) throw new Error('Missing device.');
   var cache = CacheService.getScriptCache(), k = 'bp:' + device, n = Number(cache.get(k)) || 0;
   if (n >= CONFIG.BOARD_PER_HOUR) throw new Error('You have posted a lot in the last hour. Please try again later.');
+  var gk = 'bp:all:' + Utilities.formatDate(new Date(), CONFIG.TZ, 'yyyyMMddHH'), g = Number(cache.get(gk)) || 0;
+  if (g >= CONFIG.BOARD_ALL_PER_HOUR) throw new Error('The board is very busy right now. Please try again in a little while.');
+  cache.put(gk, String(g + 1), 3600);
   cache.put(k, String(n + 1), 3600);
   appendObj_(sheets_().board, H.board, { id: newId_(), name: name, text: text, status: 'ok', created: nowIso_(), deviceId: device });
   return { ok: true };
