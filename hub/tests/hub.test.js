@@ -188,4 +188,16 @@ t('monthly upkeep: says all is well when weekly posts are fresh and nothing is w
   if (!flagged) assert(/all is well/.test(m.subject), m.subject);
 });
 
+
+t('monthly maintenance makes a backup copy and keeps only the newest 6', () => {
+  const n0 = env.copies.length;
+  env.call('monthlyMaintenance');
+  assert.strictEqual(env.copies.length, n0 + 1); assert(/^AGC Connect - Hub Data backup 20\d\d-\d\d$/.test(env.copies[env.copies.length - 1]));
+  const app = env.root.kids.find(k => k.name === 'Executive Assistant Workspace').kids.find(k => k.name === 'AGC Connect');
+  for (let i = 1; i <= 8; i++) app.files.push({ getName: () => 'AGC Connect - Hub Data backup 2019-0' + i, setTrashed: () => { const j = app.files.findIndex(f => f.getName() === 'AGC Connect - Hub Data backup 2019-0' + i); if (j >= 0) app.files.splice(j, 1); env.trashed.push('2019-0' + i); } });
+  env.call('monthlyMaintenance');
+  const kept = app.files.filter(f => f.getName().indexOf('AGC Connect - Hub Data backup') === 0).length;
+  assert.strictEqual(kept, 6); assert(env.trashed.length >= 3);
+  assert(/Backup saved/.test(env.mails[env.mails.length - 1].body));
+});
 console.log(`\n${pass} passed`);

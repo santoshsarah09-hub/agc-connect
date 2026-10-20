@@ -564,6 +564,19 @@ function purge_(sheet, rows, shouldDelete) {
   rows.slice().sort(function (a, b) { return b.row - a.row; }).forEach(function (r) { if (shouldDelete(r)) { sheet.deleteRow(r.row); n++; } });
   return n;
 }
+var BACKUP_PREFIX = 'AGC Connect - Hub Data backup ', BACKUPS_KEPT = 6;
+// Copies the data sheet into the AGC Connect folder before any cleanup, and keeps the newest 6 copies.
+function backup_() {
+  var props = PropertiesService.getScriptProperties();
+  var app = getOrCreateFolder_(getOrCreateFolder_(DriveApp.getRootFolder(), CONFIG.ROOT_FOLDER), CONFIG.APP_FOLDER);
+  var name = BACKUP_PREFIX + Utilities.formatDate(new Date(), CONFIG.TZ, 'yyyy-MM');
+  DriveApp.getFileById(props.getProperty('SHEET_ID')).makeCopy(name, app);
+  var list = [], it = app.getFiles();
+  while (it.hasNext()) { var f = it.next(); if (String(f.getName()).indexOf(BACKUP_PREFIX) === 0) list.push(f); }
+  list.sort(function (a, b) { return a.getName() < b.getName() ? 1 : -1; });
+  for (var i = BACKUPS_KEPT; i < list.length; i++) list[i].setTrashed(true);
+  return name;
+}
 function cleanup_() {
   var S = sheets_(), out = {};
   var pDate = daysAgoDate_(CONFIG.KEEP_PROGRESS_DAYS), iso;
@@ -586,6 +599,7 @@ function cleanup_() {
 function monthlyMaintenance() {
   var to = adminEmail_(), lines = [], flags = [];
   try {
+    try { lines.push('Backup saved: ' + backup_() + ' (the newest ' + BACKUPS_KEPT + ' are kept in the AGC Connect folder).'); } catch (be) { flags.push('The backup failed: ' + String(be.message || be) + '. Cleanup still ran.'); }
     var removed = cleanup_(), S = sheets_(), feed = getFeed_();
     var recent = daysAgoIso_(14), sharing = { kids: {}, youth: {} };
     rows_(S.prog).forEach(function (r) { if (r.updated >= recent && sharing[r.grp]) sharing[r.grp][r.id.split('|')[0]] = 1; });
