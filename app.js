@@ -13,10 +13,50 @@ const BOOKS = ['Genesis','Exodus','Leviticus','Numbers','Deuteronomy','Joshua','
 const USFM = 'GEN EXO LEV NUM DEU JOS JDG RUT 1SA 2SA 1KI 2KI 1CH 2CH EZR NEH EST JOB PSA PRO ECC SNG ISA JER LAM EZK DAN HOS JOL AMO OBA JON MIC NAM HAB ZEP HAG ZEC MAL MAT MRK LUK JHN ACT ROM 1CO 2CO GAL EPH PHP COL 1TH 2TH 1TI 2TI TIT PHM HEB JAS 1PE 2PE 1JN 2JN 3JN JUD REV'.split(' ');
 
 /* ---------- storage (this device) ---------- */
-const KEY = 'agc.connect.v2';
+const KEYBASE = 'agc.connect.v2';
+let KEY = KEYBASE;
 const blank = () => ({ slots: {}, notes: [], lang: 'en', ver: {}, cache: {}, profiles: [], cur: {}, chat: { kids: [], youth: [] }, leader: false });
-let S = (() => { try { return Object.assign(blank(), JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { return blank(); } })();
-const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} };
+const loadState = () => { try { return Object.assign(blank(), JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { return blank(); } };
+let S = loadState();
+const localSave = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} };
+
+/* ---------- parent account (Firebase) ---------- */
+let CLOUD = null, ME = null, syncErr = false, syncTimer = null;
+const pack = () => ({ profiles: S.profiles, cur: S.cur, notes: S.notes });
+function save() {
+  localSave();
+  if (CLOUD && ME) { clearTimeout(syncTimer); syncTimer = setTimeout(flushCloud, 800); }
+}
+async function flushCloud() {
+  clearTimeout(syncTimer);
+  if (!(CLOUD && ME)) return;
+  try { await CLOUD.save(ME.uid, pack()); syncErr = false; } catch (e) { syncErr = true; }
+}
+async function makeFirebase(cfg) {
+  const base = 'https://www.gstatic.com/firebasejs/10.12.2/';
+  const [A, Au, F] = await Promise.all([import(base + 'firebase-app.js'), import(base + 'firebase-auth.js'), import(base + 'firebase-firestore.js')]);
+  const app = A.initializeApp(cfg), auth = Au.getAuth(app), db = F.getFirestore(app);
+  return {
+    onAuth: cb => Au.onAuthStateChanged(auth, u => cb(u ? { uid: u.uid, email: u.email } : null)),
+    signUp: (e, p) => Au.createUserWithEmailAndPassword(auth, e, p),
+    signIn: (e, p) => Au.signInWithEmailAndPassword(auth, e, p),
+    signOut: () => Au.signOut(auth),
+    reset: e => Au.sendPasswordResetEmail(auth, e),
+    load: async uid => { const s = await F.getDoc(F.doc(db, 'accounts', uid)); return s.exists() ? s.data() : null; },
+    save: (uid, data) => F.setDoc(F.doc(db, 'accounts', uid), Object.assign({}, data, { updatedAt: Date.now() }))
+  };
+}
+const AUTH_MSG = {
+  'auth/invalid-credential': 'That email or password is not right.', 'auth/wrong-password': 'That email or password is not right.',
+  'auth/user-not-found': 'That email or password is not right.', 'auth/invalid-email': 'Please check the email address.',
+  'auth/email-already-in-use': 'That email already has an account. Try signing in.', 'auth/weak-password': 'Please use a password with at least 6 characters.',
+  'auth/too-many-requests': 'Too many tries. Please wait a few minutes and try again.', 'auth/network-request-failed': 'No connection. Please check your internet and try again.'
+};
+const authMsg = e => AUTH_MSG[(e && e.code) || ''] || 'Something went wrong. Please try again.';
+function accountNote() {
+  if (CLOUD && ME) return `<div class="preview" style="background:#e3f6e8;color:#14532d">Signed in as <b>${esc(ME.email)}</b>. Your family is saved to your account.${syncErr ? ' <b>Could not reach your account just now; changes are saved on this phone.</b>' : ''}</div>`;
+  return '<div class="preview">Sign-in is not turned on yet, so profiles are saved on this phone only.</div>';
+}
 
 /* ---------- data ---------- */
 let CFG = { versions: [], defaultVersion: { en: 'NASB1995', ne: 'NNRV' }, youversion: {}, chat: { kids: 'leaders-only', youth: 'open', maxLength: 280 } };
@@ -167,7 +207,7 @@ function notesView(v, scope) {
     const d = $('#nd'); if (d) d.onclick = () => { if (confirm('Delete this note?')) { S.notes = S.notes.filter(x => x.id !== e); save(); noteEdit[scope] = null; render(); } };
     return;
   }
-  v.innerHTML = `<div class="preview">Notes are saved on this phone only.</div><button class="btn" id="nn">+ New note</button>
+  v.innerHTML = `${CLOUD && ME ? '' : '<div class="preview">Notes are saved on this phone only.</div>'}<button class="btn" id="nn">+ New note</button>
     <div class="card">${mine.length ? mine.map(n => `<div class="note-item" data-n="${n.id}"><b>${esc(n.title)}</b><div class="muted">${new Date(n.date).toLocaleDateString()}</div><div>${esc(n.body.slice(0, 90))}${n.body.length > 90 ? '…' : ''}</div></div>`).join('') : '<span class="muted">No notes yet.</span>'}</div>`;
   $('#nn').onclick = () => { noteEdit[scope] = 'new'; render(); };
   v.querySelectorAll('[data-n]').forEach(x => x.onclick = () => { noteEdit[scope] = x.dataset.n; render(); });
@@ -252,7 +292,7 @@ function needProfile(v, g) {
 }
 function profilesTab(v, g) {
   const list = profilesOf(g);
-  v.innerHTML = `<div class="preview">Profiles and progress are saved on this phone only.</div>
+  v.innerHTML = `${accountNote()}
     ${list.length ? `<div class="card"><h2>${g === 'kids' ? 'Your children' : 'Profiles'}</h2>${list.map(p => `<div class="slot"><div class="t">${esc(p.name)} <span class="muted">${g === 'kids' ? (p.age === 'younger' ? 'Younger' : 'Older') + ' · ' : ''}⭐ ${p.stars} · ${p.learned.length} learned</span></div>
       <button class="btn small ${p.id === (curProfile(g) || {}).id ? '' : 'ghost'}" data-s="${p.id}">${p.id === (curProfile(g) || {}).id ? 'Active' : 'Switch'}</button>
       <button class="btn small ghost" data-x="${p.id}" aria-label="Remove ${esc(p.name)}">✕</button></div>`).join('')}</div>` : ''}
@@ -558,7 +598,67 @@ const VIEWS = {
 };
 
 /* ---------- start + member password ---------- */
-function startApp() { $('#gate').hidden = true; $('#app').hidden = false; render(); }
+function startApp() { $('#gate').hidden = true; $('#auth').hidden = true; $('#app').hidden = false; $('#signout').hidden = !(CLOUD && ME); render(); }
+
+/* sign-in screen (parents) */
+let authMode = 'in';
+function showAuth(msg, lock) {
+  $('#gate').hidden = true; $('#app').hidden = true; $('#auth').hidden = false;
+  $('#au-msg').innerHTML = msg ? `<span class="bad">${esc(msg)}</span>` : '';
+  $('#au-go').disabled = !!lock;
+}
+function setAuthMode(m) {
+  authMode = m;
+  $('#au-in').className = 'btn small' + (m === 'in' ? '' : ' ghost'); $('#au-up').className = 'btn small' + (m === 'up' ? '' : ' ghost');
+  $('#au-go').textContent = m === 'in' ? 'Sign in' : 'Create account';
+  $('#au-consent').hidden = m !== 'up'; $('#au-forgot').hidden = m !== 'in';
+  $('#pw2').autocomplete = m === 'in' ? 'current-password' : 'new-password'; $('#au-msg').innerHTML = '';
+}
+function wireAuth() {
+  $('#au-in').onclick = () => setAuthMode('in'); $('#au-up').onclick = () => setAuthMode('up');
+  const go = async () => {
+    const email = $('#em').value.trim(), pw = $('#pw2').value;
+    if (!email || !pw) { $('#au-msg').innerHTML = '<span class="bad">Please enter your email and password.</span>'; return; }
+    if (authMode === 'up' && !$('#au-ck').checked) { $('#au-msg').innerHTML = '<span class="bad">Please check the box to continue.</span>'; return; }
+    $('#au-go').disabled = true; $('#au-msg').textContent = 'One moment…';
+    try { await (authMode === 'in' ? CLOUD.signIn(email, pw) : CLOUD.signUp(email, pw)); $('#au-msg').textContent = ''; $('#pw2').value = ''; }
+    catch (e) { $('#au-msg').innerHTML = `<span class="bad">${esc(authMsg(e))}</span>`; }
+    $('#au-go').disabled = false;
+  };
+  $('#au-go').onclick = go; $('#pw2').onkeydown = e => { if (e.key === 'Enter') go(); };
+  $('#au-forgot').onclick = async () => {
+    const email = $('#em').value.trim();
+    if (!email) { $('#au-msg').innerHTML = '<span class="bad">Type your email above first.</span>'; return; }
+    try { await CLOUD.reset(email); $('#au-msg').innerHTML = '<span class="good">If that email has an account, a reset link is on its way.</span>'; }
+    catch (e) { $('#au-msg').innerHTML = `<span class="bad">${esc(authMsg(e))}</span>`; }
+  };
+  $('#signout').onclick = async () => {
+    await flushCloud();
+    try { await CLOUD.signOut(); } catch (e) {}
+  };
+}
+async function afterGate() {
+  const fb = CFG.firebase || {};
+  const wanted = !!(fb.apiKey && fb.projectId);
+  if (window.__agcCloud) CLOUD = window.__agcCloud;
+  else if (wanted) { try { CLOUD = await makeFirebase(fb); } catch (e) { CLOUD = null; } }
+  if (!CLOUD) { if (wanted) { wireAuth(); return showAuth('Sign-in is not available right now. Please check your internet and reload.', true); } return startApp(); }
+  wireAuth(); setAuthMode('in');
+  CLOUD.onAuth(async u => {
+    if (!u) {
+      if (ME && !syncErr) { try { localStorage.removeItem(KEY); } catch (e) {} }
+      ME = null; KEY = KEYBASE; S = blank(); syncErr = false; return showAuth('');
+    }
+    ME = u; KEY = KEYBASE + '.' + u.uid; S = loadState();
+    try {
+      const d = await CLOUD.load(u.uid);
+      if (d && d.profiles) { S.profiles = d.profiles; S.cur = d.cur || {}; S.notes = d.notes || S.notes; localSave(); }
+      else if (S.profiles.length || S.notes.length) await CLOUD.save(u.uid, pack());
+      syncErr = false;
+    } catch (e) { syncErr = true; }
+    startApp();
+  });
+}
 (async function init() {
   CFG = Object.assign(CFG, (await getJson('data/config.json')) || {});
   SHINE = (await getJson('data/shine.json')) || SHINE; PRAYER = (await getJson('data/prayer.json')) || PRAYER;
@@ -566,10 +666,10 @@ function startApp() { $('#gate').hidden = true; $('#app').hidden = false; render
   const hash = (CFG.passwordSha256 || '').toLowerCase();
   let ok = !hash;
   try { ok = ok || sessionStorage.getItem('agc.ok') === hash; } catch (e) {}
-  if (ok) return startApp();
+  if (ok) return afterGate();
   $('#gate').hidden = false;
   const tryPw = async () => {
-    if ((await sha256($('#pw').value)) === hash) { try { sessionStorage.setItem('agc.ok', hash); } catch (e) {} startApp(); }
+    if ((await sha256($('#pw').value)) === hash) { try { sessionStorage.setItem('agc.ok', hash); } catch (e) {} afterGate(); }
     else $('#pwmsg').textContent = 'That password is not right.';
   };
   $('#pwgo').onclick = tryPw; $('#pw').onkeydown = e => { if (e.key === 'Enter') tryPw(); };

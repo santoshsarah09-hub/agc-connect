@@ -24,8 +24,25 @@
   </div>
 </div>
 
+<div id="auth" hidden>
+  <div class="gate-box">
+    <img src="assets/logo-full.png" alt="Awakening Generations Church" class="gate-logo">
+    <h1>Welcome</h1>
+    <p>Parents: sign in to keep your family's progress safe.</p>
+    <div class="seg"><button class="btn small" id="au-in">Sign in</button><button class="btn small ghost" id="au-up">Create account</button></div>
+    <label for="em">Email</label>
+    <input id="em" type="email" autocomplete="email" inputmode="email">
+    <label for="pw2">Password</label>
+    <input id="pw2" type="password" autocomplete="current-password">
+    <div id="au-consent" hidden><label class="chk"><input type="checkbox" id="au-ck"> I am a parent or guardian, or I am 13 or older.</label></div>
+    <button class="btn" id="au-go">Sign in</button>
+    <button class="btn ghost small" id="au-forgot">Forgot password?</button>
+    <div id="au-msg" aria-live="polite"></div>
+  </div>
+</div>
+
 <div id="app" hidden>
-  <header class="top"><img src="assets/emblem.png" alt="" class="top-logo"><div class="brand">AGC <span>Connect</span></div></header>
+  <header class="top"><img src="assets/emblem.png" alt="" class="top-logo"><div class="brand">AGC <span>Connect</span></div><button class="btn small ghost so" id="signout" hidden>Sign out</button></header>
   <nav class="inner" id="inner" aria-label="Section tabs"></nav>
   <main id="view" aria-live="polite"></main>
   <nav class="tabs" id="tabs" aria-label="Main sections"></nav>
