@@ -1227,6 +1227,7 @@ async function afterGate() {
 /* ---------- Fun Zone: earn stars by learning verses, spend them on a timed play session ---------- */
 const FUNCFG = g => Object.assign({ cost: g === 'youth' ? 40 : 20, minutes: 30 }, ((CFG.fun || {})[g]) || {});
 let FUNT = null;
+const FUNGAMES = [['race', '🛻 Truck Race'], ['catch', '⭐ Star Catch'], ['ttt', '⭕ Tic-Tac-Toe'], ['scramble', '🔤 Word Scramble'], ['simon', '🎵 Simon Pattern'], ['puzzle', '🧩 Puzzle'], ['memory', '🃏 Memory Match']];
 const spentNow = p => (p.spentWk && p.spentWk.wk === thisWeek() ? p.spentWk.n : 0);
 const starBal = p => Math.max(0, weekStats(p, thisWeek()).stars - spentNow(p)); // points reset every Sunday
 const fmtClock = ms => { const s = Math.max(0, Math.ceil(ms / 1000)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
@@ -1236,11 +1237,11 @@ function funView(v, g) {
   const p = needProfile(v, g); if (!p) return;
   const C = FUNCFG(g), now = Date.now(), left = (p.funUntil || 0) - now, bal = starBal(p);
   if (left > 0) {
-    v.innerHTML = profileBar(g) + `<div class="card gold"><h2>🎮 Fun Zone</h2><p>Time left: <b id="funclock">${fmtClock(left)}</b></p></div>
-      <div class="card"><div class="tabs2"><button class="btn small" data-fg="race">🏎️ Car Race</button> <button class="btn small ghost" data-fg="puzzle">🧩 Puzzle</button> <button class="btn small ghost" data-fg="memory">🃏 Memory Match</button></div><div id="funarea"></div></div>`;
+    v.innerHTML = profileBar(g) + `<div class="card gold"><h2>🎮 Fun Zone</h2><p>Time left: <b id="funclock">${fmtClock(left)}</b></p><p class="muted">⭐ ${C.cost} stars were used to unlock this ${C.minutes}-minute session. Stars left this week: ${bal}</p></div>
+      <div class="card"><div class="tabs2">${FUNGAMES.map(([k, n]) => `<button class="btn small ${k === 'race' ? '' : 'ghost'}" data-fg="${k}">${n}</button>`).join(' ')}</div><div id="funarea"></div></div>`;
     wireBar(g);
     const area = $('#funarea'); let cur = 'race';
-    const open = k => { cur = k; v.querySelectorAll('[data-fg]').forEach(b => b.classList.toggle('ghost', b.dataset.fg !== k)); window.__funRaf && cancelAnimationFrame(window.__funRaf); window.__funRaf = 0; ({ race: funRace, puzzle: funPuzzle, memory: funMemory })[k](area, g); applyLang(); };
+    const open = k => { cur = k; v.querySelectorAll('[data-fg]').forEach(b => b.classList.toggle('ghost', b.dataset.fg !== k)); window.__funRaf && cancelAnimationFrame(window.__funRaf); window.__funRaf = 0; ({ race: funRace, catch: funCatch, ttt: funTtt, scramble: funScramble, simon: funSimon, puzzle: funPuzzle, memory: funMemory })[k](area, g); applyLang(); };
     v.querySelectorAll('[data-fg]').forEach(b => b.onclick = () => open(b.dataset.fg));
     open(cur);
     FUNT = setInterval(() => {
@@ -1255,10 +1256,10 @@ function funView(v, g) {
     <p>Learn memory verses to earn ⭐ stars. Spend <b>${C.cost} stars</b> to unlock <b>${C.minutes} minutes</b> of fun games: car racing, puzzles and more.</p>
     <p>Your stars this week: <b>⭐ ${bal}</b> of ${C.cost}</p><p class="muted">Stars start again from zero every Sunday.</p>
     <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="${C.cost}" aria-valuenow="${Math.min(bal, C.cost)}" style="background:#e3e8ef;border-radius:8px;height:12px;overflow:hidden"><div style="background:var(--gold);height:100%;width:${Math.min(100, Math.round(bal / C.cost * 100))}%"></div></div>
-    ${p.funUntil ? '<p class="muted">Your last play time has ended.</p>' : ''}
+    ${p.funUntil ? `<p class="good"><b>Play time is over.</b> ${p.funCost || C.cost} stars were used for that session. Stars left this week: ${bal}</p>` : ''}
     <button class="btn" id="funstart" ${ok ? '' : 'disabled'} style="margin-top:12px">${ok ? 'Unlock ' + C.minutes + ' minutes' : 'Keep learning verses to unlock'}</button></div>`;
   wireBar(g);
-  $('#funstart').onclick = () => { if (starBal(p) < C.cost) return; p.spentWk = { wk: thisWeek(), n: spentNow(p) + C.cost }; p.funUntil = Date.now() + C.minutes * 60000; save(); funView(v, g); applyLang(); };
+  $('#funstart').onclick = () => { if (starBal(p) < C.cost) return; p.spentWk = { wk: thisWeek(), n: spentNow(p) + C.cost }; p.funUntil = Date.now() + C.minutes * 60000; p.funCost = C.cost; save(); funView(v, g); applyLang(); };
 }
 function funRace(area, g) {
   const hard = g === 'youth', lanes = hard ? 4 : 3, W = 280, H = 360, lw = W / lanes;
@@ -1270,11 +1271,11 @@ function funRace(area, g) {
   document.addEventListener('keydown', key);
   const loop = () => {
     if (!cv.isConnected) return;
-    t++; if (!over) { if (t % (hard ? 28 : 55) === 0) obs.push({ l: Math.floor(Math.random() * lanes), y: -30 }); obs.forEach(o => o.y += speed); if (obs.length && obs[0].y > H) { obs.shift(); score++; speed += hard ? 0.12 : 0.05; } if (obs.some(o => o.l === lane && o.y > H - 90 && o.y < H - 30)) { over = true; $('#rs').innerHTML = `<b>Crash! Score ${score}</b> <button class="btn small" id="rr">Race again</button>`; $('#rr').onclick = () => funRace(area, g); } }
+    t++; if (!over) { if (t % (hard ? 28 : 55) === 0) obs.push({ l: Math.floor(Math.random() * lanes), y: -30 }); obs.forEach(o => o.y += speed); if (obs.length && obs[0].y > H) { obs.shift(); score++; speed += hard ? 0.12 : 0.05; } if (obs.some(o => o.l === lane && o.y > H - 126 && o.y < H - 36)) { over = true; $('#rs').innerHTML = `<b>Crash! Score ${score}</b> <button class="btn small" id="rr">Race again</button>`; $('#rr').onclick = () => funRace(area, g); } }
     cx.fillStyle = '#2b2b2b'; cx.fillRect(0, 0, W, H); cx.strokeStyle = '#fff'; cx.setLineDash([14, 14]); cx.lineDashOffset = -t * 2;
     for (let i = 1; i < lanes; i++) { cx.beginPath(); cx.moveTo(i * lw, 0); cx.lineTo(i * lw, H); cx.stroke(); }
     cx.setLineDash([]); cx.fillStyle = '#e53935'; obs.forEach(o => cx.fillRect(o.l * lw + 10, o.y, lw - 20, 30));
-    cx.fillStyle = '#ffc107'; cx.fillRect(lane * lw + 12, H - 80, lw - 24, 48); cx.fillStyle = '#001f3f'; cx.fillRect(lane * lw + 18, H - 70, lw - 36, 14);
+    funTruck(cx, lane * lw + 12, H - 96, lw - 24, 64);
     cx.fillStyle = '#fff'; cx.font = 'bold 16px sans-serif'; cx.fillText('Score ' + score, 8, 20);
     window.__funRaf = requestAnimationFrame(loop);
   };
@@ -1307,4 +1308,96 @@ function funMemory(area, g) {
     });
   };
   draw();
+}
+
+/* ---------- more Fun Zone games ---------- */
+function funTruck(cx, x, y, w, h) { // top-down blue pickup truck, front at the top (no brand badge)
+  cx.fillStyle = '#111'; [[-3, 8], [-3, h - 24], [w - 4, 8], [w - 4, h - 24]].forEach(([dx, dy]) => cx.fillRect(x + dx, y + dy, 7, 15));
+  cx.fillStyle = '#0d47a1'; cx.fillRect(x, y, w, h);
+  cx.fillStyle = '#5b9bff'; cx.fillRect(x + 4, y + 4, w - 8, 8);
+  cx.fillStyle = '#ffeb3b'; cx.fillRect(x + 3, y, 9, 4); cx.fillRect(x + w - 12, y, 9, 4);
+  cx.fillStyle = '#0a1d3a'; cx.fillRect(x + 5, y + 14, w - 10, 7);
+  cx.fillStyle = '#1565c0'; cx.fillRect(x + 4, y + 21, w - 8, 15);
+  cx.fillStyle = '#0a1d3a'; cx.fillRect(x + 5, y + 36, w - 10, 4);
+  cx.fillStyle = '#08306b'; cx.fillRect(x + 4, y + 43, w - 8, h - 49);
+  cx.strokeStyle = '#0d47a1'; cx.lineWidth = 1; for (let k = 1; k < 4; k++) { cx.beginPath(); cx.moveTo(x + 4, y + 43 + k * (h - 49) / 4); cx.lineTo(x + w - 4, y + 43 + k * (h - 49) / 4); cx.stroke(); }
+  cx.fillStyle = '#cfd8dc'; cx.fillRect(x + 2, y + h - 4, w - 4, 4);
+}
+function funCatch(area, g) {
+  const hard = g === 'youth', W = 280, H = 360;
+  area.innerHTML = `<canvas id="cc" width="${W}" height="${H}" style="max-width:100%;background:#12355b;border-radius:10px;touch-action:none" aria-label="Star catch"></canvas><p class="muted">Slide your finger (or arrow keys) to catch ⭐. Avoid the ${hard ? 'dark clouds' : 'rocks'}!</p><div id="cs2"></div>`;
+  const cv = $('#cc'), cx = cv.getContext('2d'); let bx = W / 2, items = [], score = 0, lives = 3, t = 0, over = false;
+  const setX = cx2 => { const r = cv.getBoundingClientRect(); bx = Math.max(25, Math.min(W - 25, (cx2 - r.left) / r.width * W)); };
+  cv.onpointermove = e => setX(e.clientX); cv.onpointerdown = e => setX(e.clientX);
+  const key = e => { if (!cv.isConnected) return document.removeEventListener('keydown', key); if (e.key === 'ArrowLeft') bx = Math.max(25, bx - 24); if (e.key === 'ArrowRight') bx = Math.min(W - 25, bx + 24); };
+  document.addEventListener('keydown', key);
+  const loop = () => {
+    if (!cv.isConnected) return;
+    t++;
+    if (!over) {
+      if (t % (hard ? 22 : 34) === 0) items.push({ x: 15 + Math.random() * (W - 30), y: -10, bad: Math.random() < (hard ? .4 : .25), v: (hard ? 3.2 : 2.2) + score * .03 });
+      items.forEach(o => o.y += o.v);
+      items = items.filter(o => {
+        if (o.y > H - 40 && o.y < H - 10 && Math.abs(o.x - bx) < 32) { if (o.bad) lives--; else score++; return false; }
+        if (o.y > H) { if (!o.bad) lives--; return false; }
+        return true;
+      });
+      if (lives <= 0) { over = true; $('#cs2').innerHTML = `<b>Game over! You caught ${score} ⭐</b> <button class="btn small" id="cr">Play again</button>`; $('#cr').onclick = () => funCatch(area, g); }
+    }
+    cx.fillStyle = '#12355b'; cx.fillRect(0, 0, W, H);
+    items.forEach(o => { cx.font = '24px sans-serif'; cx.fillText(o.bad ? (hard ? '☁️' : '🪨') : '⭐', o.x - 12, o.y + 8); });
+    cx.fillStyle = '#ffc107'; cx.fillRect(bx - 28, H - 30, 56, 14); cx.fillRect(bx - 28, H - 40, 6, 10); cx.fillRect(bx + 22, H - 40, 6, 10);
+    cx.fillStyle = '#fff'; cx.font = 'bold 16px sans-serif'; cx.fillText('⭐ ' + score + '   ❤️ ' + Math.max(0, lives), 8, 20);
+    window.__funRaf = requestAnimationFrame(loop);
+  };
+  window.__funRaf = requestAnimationFrame(loop);
+}
+function funTtt(area, g) {
+  const hard = g === 'youth', L = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+  let b = Array(9).fill(''), end = '';
+  const win = (bd, m) => L.some(l => l.every(i => bd[i] === m));
+  const full = bd => bd.every(x => x);
+  const mm = (bd, m) => { // minimax: O (computer) maximises
+    if (win(bd, 'O')) return 1; if (win(bd, 'X')) return -1; if (full(bd)) return 0;
+    const sc = bd.map((x, i) => x ? null : (() => { const c = bd.slice(); c[i] = m; return mm(c, m === 'O' ? 'X' : 'O'); })()).filter(x => x !== null);
+    return m === 'O' ? Math.max(...sc) : Math.min(...sc);
+  };
+  const cpu = () => {
+    const free = b.map((x, i) => x ? -1 : i).filter(i => i >= 0); if (!free.length) return;
+    let pick;
+    if (hard) { let best = -2; free.forEach(i => { const c = b.slice(); c[i] = 'O'; const v = mm(c, 'X'); if (v > best) { best = v; pick = i; } }); }
+    else { const tryM = m => free.find(i => { const c = b.slice(); c[i] = m; return win(c, m); }); pick = tryM('O'); if (pick === undefined && Math.random() < .5) pick = tryM('X'); if (pick === undefined) pick = free[Math.floor(Math.random() * free.length)]; }
+    b[pick] = 'O';
+  };
+  const draw = () => {
+    if (!end) { if (win(b, 'X')) end = 'You win! 🎉'; else if (win(b, 'O')) end = 'The computer wins. Try again!'; else if (full(b)) end = "It's a tie."; }
+    area.innerHTML = `<p>You are ❌. ${hard ? 'This computer is tough!' : 'Get three in a row.'}</p><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;max-width:216px">${b.map((x, i) => `<button class="btn ${x ? '' : 'ghost'}" data-i="${i}" style="min-height:64px;font-size:28px;padding:0" aria-label="square" ${x || end ? 'disabled' : ''}>${x === 'X' ? '❌' : x === 'O' ? '⭕' : ''}</button>`).join('')}</div>${end ? `<p><b>${end}</b> <button class="btn small" id="tt">Play again</button></p>` : ''}`;
+    if ($('#tt')) $('#tt').onclick = () => funTtt(area, g);
+    area.querySelectorAll('[data-i]').forEach(bt => bt.onclick = () => { const i = +bt.dataset.i; if (b[i] || end) return; b[i] = 'X'; if (!win(b, 'X') && !full(b)) cpu(); draw(); });
+  };
+  draw();
+}
+function funScramble(area, g) {
+  const W = g === 'youth' ? ['COVENANT', 'REDEEMER', 'SALVATION', 'SCRIPTURE', 'DISCIPLE', 'FORGIVEN', 'RIGHTEOUS', 'FELLOWSHIP', 'RESURRECTION', 'PROPHECY', 'MERCIFUL', 'SANCTIFIED'] : ['GRACE', 'FAITH', 'PRAYER', 'JESUS', 'DAVID', 'MOSES', 'NOAH', 'LOVE', 'HOPE', 'ANGEL', 'PSALM', 'SHEEP', 'SAVIOR', 'BIBLE', 'CHURCH', 'PEACE'];
+  let score = 0, w, sc, hint = 0, msg = '';
+  const next = () => { w = W[Math.floor(Math.random() * W.length)]; do { sc = w.split('').sort(() => Math.random() - .5).join(''); } while (sc === w); hint = 0; msg = ''; };
+  const draw = () => {
+    area.innerHTML = `<p>Unscramble the Bible word. Words solved: <b>${score}</b></p><p style="font-size:28px;letter-spacing:6px;font-weight:700">${sc}</p>${hint ? `<p class="muted">Hint: starts with <b>${w[0]}</b></p>` : ''}<input id="sw" maxlength="20" autocomplete="off" autocapitalize="characters" aria-label="Your answer" style="text-transform:uppercase"> <button class="btn small" id="sg">Check</button> <button class="btn small ghost" id="sh">Hint</button> <button class="btn small ghost" id="sk">Skip</button><p id="sm">${msg}</p>`;
+    const chk = () => { const a = $('#sw').value.trim().toUpperCase(); if (!a) return; if (a === w) { score++; next(); msg = '<span class="good">Correct! 🎉</span>'; } else msg = '<span class="bad">Not yet. Try again!</span>'; draw(); };
+    $('#sg').onclick = chk; $('#sw').onkeydown = e => { if (e.key === 'Enter') chk(); };
+    $('#sh').onclick = () => { hint = 1; draw(); }; $('#sk').onclick = () => { next(); draw(); };
+  };
+  next(); draw();
+}
+function funSimon(area, g) {
+  const hard = g === 'youth', cols = ['#e53935', '#43a047', '#1e88e5', '#fdd835'], seq = []; let pos = 0, busy = true, best = 0;
+  const flash = (i, ms) => { const b = area.querySelector(`[data-p="${i}"]`); if (!b) return; b.style.opacity = '1'; b.style.outline = '4px solid #fff'; setTimeout(() => { if (b.isConnected) { b.style.opacity = '.55'; b.style.outline = ''; } }, ms); };
+  const draw = (m) => { area.innerHTML = `<p>Watch the pattern, then repeat it. Round: <b>${seq.length}</b> &nbsp; Best: <b>${best}</b></p><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:240px">${cols.map((c, i) => `<button data-p="${i}" aria-label="colour ${i + 1}" style="height:90px;border:0;border-radius:12px;background:${c};opacity:.55"></button>`).join('')}</div><p>${m || ''}</p>`; area.querySelectorAll('[data-p]').forEach(b => b.onclick = () => press(+b.dataset.p)); };
+  const play = () => { busy = true; pos = 0; seq.push(Math.floor(Math.random() * 4)); draw('Watch…'); const gap = hard ? 450 : 750; seq.forEach((c, k) => setTimeout(() => { if (area.isConnected) flash(c, gap - 150); }, 700 + k * gap)); setTimeout(() => { if (area.isConnected) { busy = false; draw('Your turn!'); } }, 700 + seq.length * gap); };
+  const press = i => {
+    if (busy) return; flash(i, 200);
+    if (i !== seq[pos]) { busy = true; best = Math.max(best, seq.length - 1); const n = seq.length - 1; seq.length = 0; draw(`<b>Oops! You got ${n} round${n === 1 ? '' : 's'}.</b> <button class="btn small" id="sa">Play again</button>`); $('#sa').onclick = play; return; }
+    if (++pos === seq.length) { busy = true; best = Math.max(best, seq.length); setTimeout(() => { if (area.isConnected) play(); }, 600); }
+  };
+  draw('<button class="btn small" id="sa">Start</button>'); $('#sa').onclick = play;
 }
