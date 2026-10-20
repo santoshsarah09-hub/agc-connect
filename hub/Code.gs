@@ -31,11 +31,12 @@ var H = {
   events: ['id', 'date', 'time', 'minutes', 'titleEn', 'titleNe', 'place', 'link', 'notes', 'area', 'created', 'by'],
   board: ['id', 'name', 'text', 'status', 'created', 'deviceId'],
   lboard: ['id', 'area', 'text', 'by', 'created'],
-  res: ['id', 'title', 'desc', 'category', 'url', 'created', 'by']
+  res: ['id', 'title', 'desc', 'category', 'url', 'created', 'by'],
+  asg: ['id', 'grp', 'title', 'titleNe', 'detail', 'detailNe', 'due', 'ref', 'created', 'by']
 };
 var AREAS = ['kids', 'youth', 'worship'];     // what a leader can be given access to
 var RES_SUBFOLDERS = ['All Leaders', 'Kids', 'Youth', 'Worship'];
-var SHEETS = { leaders: 'Leaders', ann: 'Announcements', songs: 'Songs', events: 'Events', board: 'Fellowship', lboard: 'LeaderBoard', res: 'Resources' };
+var SHEETS = { leaders: 'Leaders', ann: 'Announcements', songs: 'Songs', events: 'Events', board: 'Fellowship', lboard: 'LeaderBoard', res: 'Resources', asg: 'Assignments' };
 
 /* ---------------------------------------------------------------- setup */
 
@@ -266,7 +267,8 @@ function getFeed_() {
   board.sort(function (a, b) { return a.created < b.created ? 1 : -1; });
   var leaders = rows_(S.leaders).filter(function (r) { return r.active === 'yes'; }).map(function (r) { return { id: r.id, name: r.name, role: r.role }; });
   leaders.unshift({ id: 'admin', name: PropertiesService.getScriptProperties().getProperty('ADMIN_NAME') || 'Admin', role: 'Admin' });
-  var out = { ok: true, announcements: ann, songs: songs, events: events, board: board.slice(0, CONFIG.BOARD_KEEP), leaders: leaders, now: nowIso_() };
+  var asg = rows_(S.asg).filter(function (r) { return r.due === '' || String(r.due) >= addDays_(today, -30); }).map(function (r) { return { id: r.id, group: r.grp, title: r.title, title_ne: r.titleNe, detail: r.detail, detail_ne: r.detailNe, due: r.due, ref: r.ref }; });
+  var out = { ok: true, assignments: asg, announcements: ann, songs: songs, events: events, board: board.slice(0, CONFIG.BOARD_KEEP), leaders: leaders, now: nowIso_() };
   try { cache.put('feed', JSON.stringify(out), CONFIG.FEED_CACHE_SECONDS); } catch (e) { /* too big to cache */ }
   return out;
 }
@@ -357,6 +359,24 @@ function deleteRow_(key, b) {
   var area = key === 'ann' ? r.scope : key === 'songs' ? 'worship' : key === 'events' ? (r.area || 'all') : 'all';
   need_(w, area);
   S[key].deleteRow(r.row);
+  return { ok: true };
+}
+function asgSave_(b) {
+  var w = who_(b), S = sheets_();
+  var grp = b.group === 'youth' ? 'youth' : 'kids';
+  need_(w, grp);
+  var o = { grp: grp, title: txt_(b.title, 80), titleNe: txt_(b.titleNe, 80), detail: txt_(b.detail, 300), detailNe: txt_(b.detailNe, 300), due: b.due ? String(b.due) : '', ref: txt_(b.ref, 60) };
+  if (!o.title && !o.titleNe) throw new Error('Please type a title.');
+  if (o.due && !dateOk_(o.due)) throw new Error('Please choose a valid due date.');
+  o.id = newId_(); o.created = nowIso_(); o.by = w.name;
+  appendObj_(S.asg, H.asg, o);
+  return { ok: true, id: o.id };
+}
+function asgDelete_(b) {
+  var w = who_(b), S = sheets_(), r = findById_(S.asg, b.id);
+  if (!r) return { ok: true };
+  need_(w, r.grp === 'youth' ? 'youth' : 'kids');
+  S.asg.deleteRow(r.row);
   return { ok: true };
 }
 function songSave_(b) {
@@ -451,6 +471,7 @@ function logout_(b) { try { CacheService.getScriptCache().remove('tok:' + String
 var ACTIONS = {
   post: boardPost_, report: boardReport_, login: login_, logout: logout_,
   leaderData: leaderData_, annSave: annSave_, annDelete: function (b) { return deleteRow_('ann', b); },
+  asgSave: asgSave_, asgDelete: asgDelete_,
   songSave: songSave_, songDelete: function (b) { return deleteRow_('songs', b); },
   eventSave: eventSave_, eventDelete: function (b) { return deleteRow_('events', b); },
   boardSet: boardSet_, lboardPost: lboardPost_, lboardDelete: lboardDelete_,

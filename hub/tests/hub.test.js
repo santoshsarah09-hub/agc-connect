@@ -7,9 +7,9 @@ env.call('setup');
 const PIN = () => env.props.ADMIN_PIN;
 const admin = () => post({ action: 'login', leader: 'admin', pin: PIN() });
 console.log('Hub backend tests');
-t('setup creates folders, sheet with 7 tabs, admin PIN; safe to run twice', () => {
+t('setup creates folders, sheet with 8 tabs, admin PIN; safe to run twice', () => {
   assert.strictEqual(env.root.kids[0].name, 'Executive Assistant Workspace'); assert.strictEqual(env.root.kids[0].kids[0].name, 'AGC Connect'); assert.strictEqual(env.root.kids[0].kids[0].kids[0].name, 'Leader Resources');
-  assert(/^\d{6}$/.test(PIN())); assert.strictEqual(Object.values(env.sheetsById)[0].sheets.length, 7);
+  assert(/^\d{6}$/.test(PIN())); assert.strictEqual(Object.values(env.sheetsById)[0].sheets.length, 8);
   env.call('setup'); assert.strictEqual(Object.keys(env.sheetsById).length, 1); assert.strictEqual(env.root.kids.length, 1);
 });
 t('public feed starts empty and lists the admin as a sign-in name', () => { const f = env.feed(); assert.deepStrictEqual(f.songs, []); assert.strictEqual(f.leaders[0].id, 'admin'); assert(!JSON.stringify(f).includes(PIN())); });
@@ -32,6 +32,13 @@ t('leader signs in with their own PIN; wrong PIN fails; other leaders unaffected
   T1 = post({ action: 'login', leader: L1.id, pin: L1.pin }); assert(T1.token && T1.admin === false && T1.role === 'Worship leader' && T1.areas[0] === 'worship');
 });
 t('a leader cannot add or remove leaders', () => { assert(/only the admin/i.test(post({ action: 'leaderAdd', token: T1.token, name: 'X' }).error)); assert(/only the admin/i.test(post({ action: 'leaderRemove', token: T1.token, id: L1.id }).error)); });
+t('assignments: only leaders with the matching area can post; admin can; public feed carries them', () => {
+  assert(/not allowed|access|permission|do not/i.test(post({ action: 'asgSave', token: T1.token, group: 'kids', title: 'X' }).error || ''));
+  const r = post({ action: 'asgSave', token: A.token, group: 'kids', title: 'Learn Psalm 23', due: '2031-02-02' }); assert(r.ok && r.id);
+  assert(/title/i.test(post({ action: 'asgSave', token: A.token, group: 'kids' }).error));
+  const f = env.feed(); assert(f.assignments.some(a => a.title === 'Learn Psalm 23' && a.group === 'kids'));
+  assert(post({ action: 'asgDelete', token: A.token, id: r.id }).ok);
+});
 t('leader posts announcements; "leaders" scope never reaches the public feed; pinned first', () => {
   post({ action: 'annSave', token: A.token, scope: 'all', titleEn: 'Service moved', bodyEn: 'Starts 11am', titleNe: '' });
   post({ action: 'annSave', token: T1.token, scope: 'leaders', titleEn: 'Leaders only meeting' });

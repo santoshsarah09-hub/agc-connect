@@ -44,3 +44,8 @@ The Hub is a small free Google Apps Script that runs as **you**, so Worship and 
 - The app refreshes the shared list at most every 20 seconds, so a new post appears on other phones within about 20 to 90 seconds.
 - There are no push notifications. People see a red dot on Worship when something new is posted, and can add events and assignment due dates to their phone calendar (with an alert). Real push needs a separate always-on service. [Needs manual verification: free options]
 - Data is stored in your Google Drive under your account. If you delete the sheet, the data is gone; use File > Version history or make a copy now and then.
+
+## Updating the Hub script later (keeps your data and the same link)
+1. Open the Hub script, replace everything in Code.gs with the new Code.gs, Save.
+2. Deploy > Manage deployments > pencil icon > Version: **New version** > Deploy.
+The link does not change. New tabs (like Assignments) appear in the Sheet by themselves.

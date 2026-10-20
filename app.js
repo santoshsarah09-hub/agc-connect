@@ -734,11 +734,13 @@ function wireWeek(v) {
     $('#repmsg', v).textContent = r === 'shared' ? T('Report ready to send.') : r === 'copied' ? T('Report copied. Paste it into a message to the teacher.') : r === 'fail' ? T('Could not copy. Please try again.') : '';
   });
 }
+const asgList = g => [].concat(((SHINE[g] || {}).assignments) || [], ((HUB.feed && HUB.feed.assignments) || []).filter(a => a.group === g)).filter(a => a && a.id);
 function assignView(v, g) {
+  if (hubOn() && !v.__f) { v.__f = 1; hubFeed().then(f => { if (f && (f.assignments || []).length && v.isConnected) { assignView(v, g); applyLang(); } }); }
   const p = needProfile(v, g); if (!p) return;
   p.hw = p.hw && typeof p.hw === 'object' ? p.hw : {};
   const today = todayKey(), min = dateKey(addDays(new Date(), -14));
-  const list = (((SHINE[g] || {}).assignments) || []).filter(a => a && a.id && (!a.due || a.due >= min)).sort((a, b) => (a.due || '9').localeCompare(b.due || '9'));
+  const list = asgList(g).filter(a => (!a.due || a.due >= min)).sort((a, b) => (a.due || '9').localeCompare(b.due || '9'));
   v.innerHTML = profileBar(g) + (list.length ? list.map(a => {
     const done = p.hw[a.id], late = a.due && a.due < today && !done;
     return `<div class="card ${done ? 'done' : ''}"><h2>${esc(pickLang(a, 'title'))}</h2>${pickLang(a, 'detail') ? `<p>${esc(pickLang(a, 'detail'))}</p>` : ''}${a.ref ? `<p>📖 ${esc(a.ref)}</p>` : ''}
@@ -766,16 +768,17 @@ function teacherView(v, g) {
   const weeks = [...new Set([thisWeek(), ...all.map(r => r.week)])].sort().reverse();
   const sel = weeks.includes(v.__wk) ? v.__wk : weeks[0];
   const rows = all.filter(r => r.week === sel).sort((a, b) => a.name.localeCompare(b.name));
-  const posted = ((SHINE[g] || {}).assignments || []).filter(a => a && a.id);
+  const posted = asgList(g), live = hubOn() && !!HUB.me;
+  if (hubOn() && !v.__f) { v.__f = 1; hubFeed(true).then(f => { if (f && v.isConnected) { teacherView(v, g); applyLang(); } }); }
   v.innerHTML = `<div class="card gold"><h2>Weekly progress</h2>
     <label for="wk">Week</label><select id="wk">${weeks.map(w => `<option value="${w}" ${w === sel ? 'selected' : ''}>${esc(weekLabel(w))}</option>`).join('')}</select>
     ${rows.length ? `<div class="scrollx"><table class="tbl"><tr><th>Name</th><th>⭐</th><th>Verses</th><th>Steps</th><th>Rounds</th><th>Assignments</th></tr>${rows.map(r => `<tr><td>${esc(r.name)}</td><td>${r.stars}</td><td>${r.learned}</td><td>${r.steps}</td><td>${r.games}</td><td>${r.hwDone}/${r.hwTotal}</td></tr>`).join('')}</table></div><p class="muted">${rows.length} reported this week.</p>` : '<p class="muted">No reports for this week yet. Parents send them from My Kids. Paste them below.</p>'}</div>
     <div class="card"><h2>Add reports</h2><p class="muted">Paste the messages parents send you. You can paste many at once.</p><textarea id="rp" rows="4" aria-label="Paste reports"></textarea>
     <button class="btn" id="radd">Add reports</button> <button class="btn ghost small" id="rclr">Clear all reports</button><div id="rmsg" aria-live="polite"></div></div>
-    <div class="card"><h2>Assignments posted</h2>${posted.length ? posted.map(a => `<div class="slot"><div class="t">${esc(a.title)} <span class="muted">${a.due ? esc(fmtDay(a.due)) : ''}</span></div></div>`).join('') : '<p class="muted">None yet.</p>'}
+    <div class="card"><h2>Assignments posted</h2>${posted.length ? posted.map(a => `<div class="slot"><div class="t">${esc(a.title)} <span class="muted">${a.due ? esc(fmtDay(a.due)) : ''}</span>${a.group ? ` <button class="btn ghost small" data-adel="${esc(a.id)}">Delete</button>` : ''}</div></div>`).join('') : '<p class="muted">None yet.</p>'}
     <h2 style="margin-top:14px">New assignment</h2><label for="at">Title</label><input id="at" maxlength="80"><label for="ad">Details (optional)</label><textarea id="ad" rows="2" maxlength="300"></textarea>
-    <label for="adu">Due date</label><input id="adu" type="date"><button class="btn" id="agen">Make assignment text</button>
-    <p class="muted">Copy the text this makes into <b>data/shine.json</b> under "${g}" then "assignments" (or send it to Claude to add). It shows for everyone after the next update.</p><textarea id="aout" rows="5" readonly aria-label="Assignment text"></textarea></div>`;
+    <label for="adu">Due date</label><input id="adu" type="date"><button class="btn" id="agen">${live ? 'Post assignment' : 'Make assignment text'}</button><div id="amsg" aria-live="polite"></div>
+    ${live ? '<p class="muted">Posts for every phone in about 20 seconds. No files to edit.</p>' : ''}<p class="muted" ${live ? 'hidden' : ''}>Copy the text this makes into <b>data/shine.json</b> under "${g}" then "assignments" (or send it to Claude to add). It shows for everyone after the next update.</p><textarea id="aout" rows="5" readonly aria-label="Assignment text"></textarea></div>`;
   $('#wk').onchange = e => { v.__wk = e.target.value; teacherView(v, g); applyLang(); };
   $('#radd').onclick = () => {
     const { out, bad } = parseReports($('#rp').value);
@@ -785,8 +788,15 @@ function teacherView(v, g) {
     $('#rmsg').innerHTML = `<span class="${out.length ? 'good' : 'bad'}">${out.length ? 'Added ' + out.length + (out.length === 1 ? ' report.' : ' reports.') : 'No reports found. Paste the whole message including the Code line.'}${bad ? ' ' + bad + ' could not be read.' : ''}</span>`;
   };
   $('#rclr').onclick = () => { if (confirm('Clear all saved reports from this phone?')) { S.teacher.reports = {}; save(); teacherView(v, g); applyLang(); } };
-  $('#agen').onclick = () => {
+  v.querySelectorAll('[data-adel]').forEach(b => b.onclick = async () => { if (!confirm('Delete this assignment?')) return; try { await hubCall({ action: 'asgDelete', id: b.dataset.adel }); await hubFeed(true); teacherView(v, g); applyLang(); } catch (e) { alert(e.message); } });
+  $('#agen').onclick = async () => {
     const title = $('#at').value.trim(), due = $('#adu').value;
+    if (live) {
+      if (!title) { $('#amsg').innerHTML = '<span class="bad">Please type a title first.</span>'; return; }
+      try { await hubCall({ action: 'asgSave', group: g, title, detail: $('#ad').value.trim(), due }); await hubFeed(true); teacherView(v, g); applyLang(); }
+      catch (e) { $('#amsg').innerHTML = `<span class="bad">${esc(e.message)}</span>`; }
+      return;
+    }
     if (!title) { $('#aout').value = 'Please type a title first.'; return; }
     const o = { id: 'a-' + (due || todayKey()).replace(/-/g, '') + '-' + uid().slice(0, 3), title: title.slice(0, 80), detail: $('#ad').value.trim().slice(0, 300), due: due || '' };
     $('#aout').value = JSON.stringify(o, null, 2) + ',';
