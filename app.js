@@ -1309,7 +1309,8 @@ async function afterGate() {
 /* ---------- Fun Zone: earn stars by learning verses, spend them on a timed play session ---------- */
 const FUNCFG = g => Object.assign({ cost: g === 'youth' ? 40 : 50, minutes: 30 }, ((CFG.fun || {})[g]) || {});
 let FUNT = null;
-const FUNGAMES = [['race', '🛻 Truck Race'], ['catch', '⭐ Star Catch'], ['ttt', '⭕ Tic-Tac-Toe'], ['scramble', '🔤 Word Scramble'], ['simon', '🎵 Simon Pattern'], ['puzzle', '🧩 Puzzle'], ['memory', '🃏 Memory Match'], ['quiz', '❓ Quiz Rush'], ['dove', '🕊️ Dove Tap'], ['world', '🌍 Bible Worlds']];
+const FUNPREM = [{ k: 'asmr', title: '🫧 3D Calm Bubbles', blurb: 'A slow, relaxing 3D game: float through soft glowing bubbles and pop them with gentle sounds.', get fn() { return funAsmr; } }, { k: 'world', title: '🌍 Bible Worlds', blurb: 'Pick a Bible character and explore their 3D world. Look all around and find things from their story!', get fn() { return funWorld; } }];
+const FUNGAMES = [['race', '🛻 Truck Race'], ['catch', '⭐ Star Catch'], ['ttt', '⭕ Tic-Tac-Toe'], ['scramble', '🔤 Word Scramble'], ['simon', '🎵 Simon Pattern'], ['puzzle', '🧩 Puzzle'], ['memory', '🃏 Memory Match'], ['quiz', '❓ Quiz Rush'], ['dove', '🕊️ Dove Tap']];
 const monthKey = () => todayKey().slice(0, 7);
 const spentNow = p => (p.spentWk && String(p.spentWk.wk).startsWith(monthKey()) ? p.spentWk.n : 0);
 const monthStars = p => Math.max(0, (Array.isArray(p.log) ? p.log : []).filter(x => String(x.d).startsWith(monthKey())).reduce((a, x) => a + (x.n || 0), 0));
@@ -1320,14 +1321,15 @@ function funView(v, g) {
   stopFun();
   const p = needProfile(v, g); if (!p) return;
   const C = FUNCFG(g), now = Date.now(), left = (p.funUntil || 0) - now, bal = starBal(p);
-  const A = Object.assign({ cost: 100, minutes: 30 }, ((CFG.fun || {}).asmr) || {}), aleft = (p.asmrUntil || 0) - now;
-  if (aleft > 0 && left <= 0) {
-    v.innerHTML = profileBar(g) + `<div class="card gold"><h2>🫧 3D Calm Bubbles</h2><p>Time left: <b id="funclock">${fmtClock(aleft)}</b></p><p class="muted">⭐ ${p.asmrCost || A.cost} stars were used for this ${A.minutes}-minute session. Stars left this month: ${bal}</p><button class="btn small ghost" id="funmute">${FUNMUTE() ? '🔇 Sound off' : '🔊 Sound on'}</button></div><div class="card"><div id="funarea"></div></div>`;
+  const PR = FUNPREM.map(P => Object.assign({}, P, { A: Object.assign({ cost: 100, minutes: 30 }, ((CFG.fun || {})[P.k]) || {}), left: (p[P.k + 'Until'] || 0) - now }));
+  const act = PR.find(P => P.left > 0);
+  if (act && left <= 0) {
+    v.innerHTML = profileBar(g) + `<div class="card gold"><h2>${act.title}</h2><p>Time left: <b id="funclock">${fmtClock(act.left)}</b></p><p class="muted">⭐ ${p[act.k + 'Cost'] || act.A.cost} stars were used for this ${act.A.minutes}-minute session. Stars left this month: ${bal}</p><button class="btn small ghost" id="funmute">${FUNMUTE() ? '🔇 Sound off' : '🔊 Sound on'}</button></div><div class="card"><div id="funarea"></div></div>`;
     wireBar(g); $('#funmute').onclick = e => { lsSet('agc.mute', FUNMUTE() ? '' : '1'); e.target.textContent = FUNMUTE() ? '🔇 Sound off' : '🔊 Sound on'; funSnd('ok'); };
-    window.__funGen = (window.__funGen || 0) + 1; funAsmr($('#funarea'), g);
+    window.__funGen = (window.__funGen || 0) + 1; act.fn($('#funarea'), g);
     FUNT = setInterval(() => {
       if (!v.isConnected || !$('#funclock')) return stopFun();
-      const l = (p.asmrUntil || 0) - Date.now();
+      const l = (p[act.k + 'Until'] || 0) - Date.now();
       if (l <= 0) { stopFun(); window.__funGen++; funView(v, g); applyLang(); } else $('#funclock').textContent = fmtClock(l);
     }, 1000);
     return;
@@ -1337,7 +1339,7 @@ function funView(v, g) {
       <div class="card"><div class="tabs2">${FUNGAMES.map(([k, n]) => `<button class="btn small ${k === 'race' ? '' : 'ghost'}" data-fg="${k}">${n}</button>`).join(' ')}</div><div id="funarea"></div></div>`;
     wireBar(g); $('#funmute').onclick = e => { lsSet('agc.mute', FUNMUTE() ? '' : '1'); e.target.textContent = FUNMUTE() ? '🔇 Sound off' : '🔊 Sound on'; funSnd('ok'); };
     const area = $('#funarea'); let cur = 'race';
-    const open = k => { window.__funGen = (window.__funGen || 0) + 1; cur = k; v.querySelectorAll('[data-fg]').forEach(b => b.classList.toggle('ghost', b.dataset.fg !== k)); window.__funRaf && cancelAnimationFrame(window.__funRaf); window.__funRaf = 0; ({ race: funRace, catch: funCatch, ttt: funTtt, scramble: funScramble, simon: funSimon, puzzle: funPuzzle, memory: funMemory, quiz: funQuiz, dove: funDove, world: funWorld })[k](area, g); applyLang(); if (k === 'race' || k === 'catch') setTimeout(() => { const c = area.querySelector('canvas'); if (c && c.scrollIntoView) c.scrollIntoView({ block: 'center', behavior: 'smooth' }); }, 60); };
+    const open = k => { window.__funGen = (window.__funGen || 0) + 1; cur = k; v.querySelectorAll('[data-fg]').forEach(b => b.classList.toggle('ghost', b.dataset.fg !== k)); window.__funRaf && cancelAnimationFrame(window.__funRaf); window.__funRaf = 0; ({ race: funRace, catch: funCatch, ttt: funTtt, scramble: funScramble, simon: funSimon, puzzle: funPuzzle, memory: funMemory, quiz: funQuiz, dove: funDove })[k](area, g); applyLang(); if (k === 'race' || k === 'catch') setTimeout(() => { const c = area.querySelector('canvas'); if (c && c.scrollIntoView) c.scrollIntoView({ block: 'center', behavior: 'smooth' }); }, 60); };
     v.querySelectorAll('[data-fg]').forEach(b => b.onclick = () => open(b.dataset.fg));
     open(cur);
     FUNT = setInterval(() => {
@@ -1354,9 +1356,9 @@ function funView(v, g) {
     <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="${C.cost}" aria-valuenow="${Math.min(bal, C.cost)}" style="background:#e3e8ef;border-radius:8px;height:12px;overflow:hidden"><div style="background:var(--gold);height:100%;width:${Math.min(100, Math.round(bal / C.cost * 100))}%"></div></div>
     ${p.funUntil ? `<p class="good"><b>Play time is over.</b> ${p.funCost || C.cost} stars were used for that session. Stars left this month: ${bal}</p>` : ''}
     <button class="btn" id="funstart" ${ok ? '' : 'disabled'} style="margin-top:12px">${ok ? 'Unlock ' + C.minutes + ' minutes' : 'Keep learning verses to unlock'}</button></div>
-    <div class="card gold"><h2>🫧 3D Calm Bubbles</h2><p>A slow, relaxing 3D game: float through soft glowing bubbles and pop them with gentle sounds. Costs <b>${A.cost} stars</b> for <b>${A.minutes} minutes</b>.</p><p>Your stars this month: <b>⭐ ${bal}</b> of ${A.cost}</p><button class="btn" id="asmrstart" ${bal >= A.cost ? '' : 'disabled'}>${bal >= A.cost ? 'Unlock ' + A.minutes + ' minutes' : 'Keep earning stars to unlock'}</button></div>`;
+    ${PR.map(P => `<div class="card gold"><h2>${P.title}</h2><p>${P.blurb} Costs <b>${P.A.cost} stars</b> for <b>${P.A.minutes} minutes</b>.</p><p>Your stars this month: <b>⭐ ${bal}</b> of ${P.A.cost}</p><button class="btn" data-prem="${P.k}" ${bal >= P.A.cost ? '' : 'disabled'}>${bal >= P.A.cost ? 'Unlock ' + P.A.minutes + ' minutes' : 'Keep earning stars to unlock'}</button></div>`).join('')}`;
   wireBar(g);
-  $('#asmrstart').onclick = () => { if (starBal(p) < A.cost) return; p.spentWk = { wk: monthKey(), n: spentNow(p) + A.cost }; p.asmrUntil = Date.now() + A.minutes * 60000; p.asmrCost = A.cost; save(); funView(v, g); applyLang(); };
+  v.querySelectorAll('[data-prem]').forEach(b => b.onclick = () => { const P = PR.find(x => x.k === b.dataset.prem); if (starBal(p) < P.A.cost) return; p.spentWk = { wk: monthKey(), n: spentNow(p) + P.A.cost }; p[P.k + 'Until'] = Date.now() + P.A.minutes * 60000; p[P.k + 'Cost'] = P.A.cost; save(); funView(v, g); applyLang(); });
   $('#funstart').onclick = () => { if (starBal(p) < C.cost) return; p.spentWk = { wk: monthKey(), n: spentNow(p) + C.cost }; p.funUntil = Date.now() + C.minutes * 60000; p.funCost = C.cost; save(); funView(v, g); applyLang(); };
 }
 function funPuzzle(area, g) {
@@ -1716,17 +1718,63 @@ const BWORLDS = [
     { e: '🌾', n: 'The grain', t: 'Joseph stored up lots of grain in the good years.', r: 'Genesis 41:48-49' },
     { e: '👑', n: 'The ruler', t: 'Pharaoh made Joseph a ruler over Egypt.', r: 'Genesis 41:40-41' },
     { e: '🤗', n: 'Forgiving', t: 'Joseph forgave his brothers.', r: 'Genesis 45:4-5' }] }
+,
+  { id: 'abraham', em: '👨‍🦳', name: 'Abraham', ref: 'Genesis 12–22', sky: ['#1f2a5a', '#e0a96b'], gr: '#b58d55', decor: ['⭐', '🌵', '⛰️', '⭐'], items: [
+    { e: '🛣️', n: 'The journey', t: 'God told Abraham to leave his home, and he went.', r: 'Genesis 12:1,4' },
+    { e: '🌍', n: 'God’s promise', t: 'God promised to bless all the families of the earth.', r: 'Genesis 12:3' },
+    { e: '⭐', n: 'The stars', t: 'God told Abraham to look at the stars. His family would be that many!', r: 'Genesis 15:5' },
+    { e: '⛺', n: 'The tent', t: 'Abraham was sitting at the door of his tent when God’s visitors came.', r: 'Genesis 18:1' },
+    { e: '👶', n: 'Isaac', t: 'God gave Abraham and Sarah a son named Isaac.', r: 'Genesis 21:2-3' },
+    { e: '🐏', n: 'The ram', t: 'God provided a ram for the offering.', r: 'Genesis 22:13' }] },
+  { id: 'esther', em: '👸', name: 'Esther', ref: 'Esther 2–8', sky: ['#c9a0dc', '#f6e3c1'], gr: '#a8486b', decor: ['🏰', '🌹', '🏛️', '🏰'], items: [
+    { e: '👑', n: 'The crown', t: 'Esther became queen.', r: 'Esther 2:17' },
+    { e: '📜', n: 'The message', t: 'Mordecai asked, “Who knows whether you have come to the kingdom for such a time as this?”', r: 'Esther 4:14' },
+    { e: '🙏', n: 'The fast', t: 'Esther asked the people to fast and pray for her.', r: 'Esther 4:16' },
+    { e: '🏰', n: 'The palace', t: 'Esther went to the king, and he welcomed her.', r: 'Esther 5:1-2' },
+    { e: '🍽️', n: 'The banquet', t: 'Esther invited the king to a banquet.', r: 'Esther 5:4' },
+    { e: '🎉', n: 'The joy', t: 'God’s people had gladness and joy.', r: 'Esther 8:16-17' }] },
+  { id: 'ruth', em: '👩', name: 'Ruth', ref: 'Ruth 1–4', sky: ['#f4c27a', '#fdeccb'], gr: '#c4a14a', decor: ['☁️', '🌾', '🌾', '🌳'], items: [
+    { e: '💛', n: 'Staying with Naomi', t: 'Ruth said to Naomi, “Where you go, I will go.”', r: 'Ruth 1:16' },
+    { e: '🛣️', n: 'The road', t: 'Ruth and Naomi came to Bethlehem.', r: 'Ruth 1:19' },
+    { e: '🌾', n: 'The grain', t: 'Ruth picked up leftover grain in the field.', r: 'Ruth 2:2-3' },
+    { e: '🧑‍🌾', n: 'Boaz', t: 'Boaz was kind and told his workers to leave extra grain for Ruth.', r: 'Ruth 2:15-16' },
+    { e: '💍', n: 'The wedding', t: 'Ruth married Boaz.', r: 'Ruth 4:13' },
+    { e: '👶', n: 'Obed', t: 'Ruth and Boaz had a son named Obed. He became King David’s grandfather.', r: 'Ruth 4:13,17' }] },
+  { id: 'samuel', em: '👦', name: 'Samuel', ref: '1 Samuel 1–16', sky: ['#2b2f5e', '#8fa6cf'], gr: '#6f7f5a', decor: ['⭐', '🕯️', '⛰️', '⭐'], items: [
+    { e: '🙏', n: 'Hannah’s prayer', t: 'Hannah prayed for a son, and she gave him back to God.', r: '1 Samuel 1:27-28' },
+    { e: '⛪', n: 'The house of God', t: 'Samuel served God in the house of the Lord.', r: '1 Samuel 2:11' },
+    { e: '🛏️', n: 'The night voice', t: 'Samuel heard a voice call his name in the night.', r: '1 Samuel 3:4' },
+    { e: '👂', n: 'Listening', t: 'Samuel said, “Speak, for Your servant is listening.”', r: '1 Samuel 3:10' },
+    { e: '🪨', n: 'The stone', t: 'Samuel set up a stone and said, “Thus far the Lord has helped us.”', r: '1 Samuel 7:12' },
+    { e: '🏺', n: 'The oil', t: 'God sent Samuel to anoint David with oil.', r: '1 Samuel 16:12-13' }] },
+  { id: 'elijah', em: '🧙', name: 'Elijah', ref: '1 Kings 17–19', sky: ['#6b8fb5', '#e9d7b0'], gr: '#8a6d46', decor: ['☁️', '⛰️', '🌵', '☁️'], items: [
+    { e: '🐦', n: 'The ravens', t: 'Ravens brought Elijah bread and meat.', r: '1 Kings 17:6' },
+    { e: '🏺', n: 'The jar of flour', t: 'The widow’s flour and oil did not run out.', r: '1 Kings 17:14-16' },
+    { e: '🔥', n: 'The fire', t: 'Fire fell from heaven on Mount Carmel.', r: '1 Kings 18:38' },
+    { e: '🌧️', n: 'The rain', t: 'A big rain came after a long dry time.', r: '1 Kings 18:45' },
+    { e: '🌬️', n: 'The whisper', t: 'God spoke to Elijah in a gentle whisper.', r: '1 Kings 19:12' },
+    { e: '🐎', n: 'The chariot', t: 'A chariot of fire took Elijah up to heaven.', r: '2 Kings 2:11' }] },
+  { id: 'mary', em: '👩‍🍼', name: 'Mary', ref: 'Luke 1–2', sky: ['#1c2650', '#6d8bd1'], gr: '#6a7d52', decor: ['⭐', '🌙', '⭐', '🏘️'], items: [
+    { e: '😇', n: 'The angel', t: 'The angel Gabriel visited Mary with good news.', r: 'Luke 1:26-28' },
+    { e: '🎵', n: 'Mary’s song', t: 'Mary sang, “My soul exalts the Lord.”', r: 'Luke 1:46' },
+    { e: '🏘️', n: 'Bethlehem', t: 'Mary and Joseph traveled to Bethlehem.', r: 'Luke 2:4-5' },
+    { e: '👶', n: 'Baby Jesus', t: 'Jesus was born and laid in a manger.', r: 'Luke 2:7' },
+    { e: '🐑', n: 'The shepherds', t: 'Shepherds heard the good news of Jesus’ birth.', r: 'Luke 2:8-11' },
+    { e: '⭐', n: 'The star', t: 'Wise men saw the star and brought gifts to Jesus.', r: 'Matthew 2:9-11' }] }
 ];
 function funWorld(area, g, pickId) {
   const G = window.__funGen;
   if (!pickId) {
-    area.innerHTML = `<p>Choose a Bible character. Then look all around their world and find 6 things from their story! 🌍</p><div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px">${BWORLDS.map(w => `<button class="btn ghost" data-w="${w.id}" style="min-height:72px"><span style="font-size:30px">${w.em}</span><br><b>${esc(w.name)}</b><br><span class="muted" style="font-size:12px">${esc(w.ref)}</span></button>`).join('')}</div>`;
+    area.innerHTML = `<p>Choose a Bible character. Then look all around their world and find 6 things from their story! ${g === 'youth' ? 'Youth challenge: beat the clock and avoid things that do not belong!' : ''} 🌍</p><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">${BWORLDS.map(w => `<button class="btn ghost" data-w="${w.id}" style="min-height:72px"><span style="font-size:28px">${w.em}</span><br><b>${esc(w.name)}</b><br><span class="muted" style="font-size:11px">${esc(w.ref)}</span></button>`).join('')}</div>`;
     area.querySelectorAll('[data-w]').forEach(b => b.onclick = () => funWorld(area, g, b.dataset.w)); return;
   }
-  const W0 = BWORLDS.find(w => w.id === pickId), Wd = 340, H = 400, F = 300, rad = Math.PI / 180;
-  area.innerHTML = `<p><b>${W0.em} You are ${esc(W0.name)}!</b> Drag to look around. Tap things from the story. Found: <b id="wf">0</b> of 6</p><canvas id="wc" width="${Wd}" height="${H}" style="width:100%;max-width:${Wd}px;border-radius:14px;touch-action:none;display:block;margin:auto"></canvas><div class="seg" style="margin-top:8px"><button class="btn small ghost" id="wl">◀ Look left</button><button class="btn small ghost" id="wr">Look right ▶</button></div><div id="wmsg" class="card" style="min-height:54px;margin-top:8px">Find the things from ${esc(W0.name)}’s story. 👀</div><button class="btn small ghost" id="wb">Choose another character</button>`;
-  const cv = $('#wc'), cx = cv.getContext('2d'); let yaw = 0, pitch = 0, drag = null, moved = false, found = new Set(), pulse = 0;
+  const W0 = BWORLDS.find(w => w.id === pickId), youth = g === 'youth', TL0 = 120, Wd = 340, H = 400, F = 300, rad = Math.PI / 180;
+  let TL = TL0;
+  area.innerHTML = `<p><b>${W0.em} You are ${esc(W0.name)}!</b> Drag to look around. Tap things from the story. Found: <b id="wf">0</b> of 6${youth ? ' · ⏱ <b id="wt">' + TL + '</b>s' : ''}</p><canvas id="wc" width="${Wd}" height="${H}" style="width:100%;max-width:${Wd}px;border-radius:14px;touch-action:none;display:block;margin:auto"></canvas><div class="seg" style="margin-top:8px"><button class="btn small ghost" id="wl">◀ Look left</button><button class="btn small ghost" id="wr">Look right ▶</button></div><div id="wmsg" class="card" style="min-height:54px;margin-top:8px">Find the things from ${esc(W0.name)}’s story. ${youth ? 'You have 2 minutes. ' : ''}👀</div><button class="btn small ghost" id="wb">Choose another character</button>`;
+  const cv = $('#wc'), cx = cv.getContext('2d'); let yaw = 0, pitch = 0, drag = null, moved = false, found = new Set(), pulse = 0, over = false, clock = null;
   const spots = W0.items.map((it, i) => Object.assign({}, it, { az: (i * 60 + (Math.random() * 24 - 12)) * rad, el: (Math.random() * 36 - 8) * rad, d: .9 + Math.random() * .5 }));
+  const DEC = ['🚗', '📱', '🎈', '⚽', '🍕', '🚲'].sort(() => Math.random() - .5).slice(0, youth ? 4 : 0);
+  const decoys = DEC.map((e, i) => ({ e, az: (i * 90 + 30 + Math.random() * 30) * rad, el: (Math.random() * 30 - 8) * rad, d: 1.0 + Math.random() * .4 }));
   const decor = Array.from({ length: 16 }, (_, i) => ({ e: W0.decor[i % W0.decor.length], az: (i * 22.5 + Math.random() * 14) * rad, el: (Math.random() * 30 - 14) * rad, d: 1.3 + Math.random() * 1.4 }));
   const proj = (az, el) => { let x = Math.cos(el) * Math.sin(az), y = Math.sin(el), z = Math.cos(el) * Math.cos(az); const cy = Math.cos(-yaw), sy = Math.sin(-yaw); let x2 = x * cy + z * sy, z2 = -x * sy + z * cy; const cp = Math.cos(-pitch), sp = Math.sin(-pitch); const y2 = y * cp - z2 * sp, z3 = y * sp + z2 * cp; return z3 > .12 ? { x: Wd / 2 + x2 / z3 * F, y: H / 2 - y2 / z3 * F, z: z3 } : null; };
   const stop = () => { if (window.__funRaf) { cancelAnimationFrame(window.__funRaf); window.__funRaf = 0; } };
@@ -1739,6 +1787,7 @@ function funWorld(area, g, pickId) {
     cx.textAlign = 'center'; cx.textBaseline = 'middle';
     decor.map(o => ({ o, p: sprite(o, 54) })).filter(x => x.p).sort((a, b) => a.p.z - b.p.z).forEach(({ o, p }) => { cx.globalAlpha = .8; cx.font = `${Math.round(p.s)}px serif`; cx.fillText(o.e, p.x, p.y); });
     cx.globalAlpha = 1;
+    decoys.forEach(o => { const p = sprite(o, 50); if (!p) return; cx.font = `${Math.round(p.s)}px serif`; cx.fillText(o.e, p.x, p.y); o._p = p; });
     spots.forEach((o, i) => { const p = sprite(o, 58); if (!p) return; const ok = found.has(i); cx.globalAlpha = ok ? .35 : 1; const sz = p.s * (ok ? 1 : 1 + Math.sin(pulse + i) * .06); cx.font = `${Math.round(sz)}px serif`; cx.fillText(o.e, p.x, p.y); if (ok) { cx.globalAlpha = 1; cx.font = `${Math.round(sz * .5)}px serif`; cx.fillText('✅', p.x + sz * .3, p.y - sz * .3); } o._p = p; });
     cx.globalAlpha = 1; cx.font = '46px serif'; cx.fillText(W0.em, Wd / 2, H - 34);
     window.__funRaf = requestAnimationFrame(loop);
@@ -1747,14 +1796,18 @@ function funWorld(area, g, pickId) {
   cv.onpointerdown = e => { drag = { x: e.clientX, y: e.clientY }; moved = false; cv.setPointerCapture && cv.setPointerCapture(e.pointerId); };
   cv.onpointermove = e => { if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y; if (Math.abs(dx) + Math.abs(dy) > 4) moved = true; yaw += dx * .006; pitch = Math.max(-.5, Math.min(.5, pitch + dy * .003)); drag = { x: e.clientX, y: e.clientY }; };
   cv.onpointerup = e => {
-    const tap = drag && !moved; drag = null; if (!tap) return; const m = pos(e);
+    const tap = drag && !moved; drag = null; if (!tap || over) return; const m = pos(e);
+    const bad = decoys.find(o => o._p && Math.hypot(o._p.x - m.x, o._p.y - m.y) <= o._p.s * .7 + 6);
+    if (bad) { TL = Math.max(0, TL - 10); funSnd('crash'); funBuzz(60); $('#wt').textContent = TL; $('#wmsg').innerHTML = `<span class="bad">${bad.e} That does not belong in ${esc(W0.name)}’s story! −10 seconds.</span>`; if (TL <= 0) endWorld(); return; }
     const hit = spots.map((o, i) => ({ o, i })).filter(({ o, i }) => o._p && !found.has(i) && Math.hypot(o._p.x - m.x, o._p.y - m.y) <= o._p.s * .7 + 6)[0]; if (!hit) return;
     found.add(hit.i); funSnd('coin'); funBuzz(20); $('#wf').textContent = found.size;
     $('#wmsg').innerHTML = `<b>${hit.o.e} ${esc(hit.o.n)}</b><br>${esc(hit.o.t)} <span class="muted">(${esc(hit.o.r)})</span>`;
-    if (found.size === 6) { funWin(area); $('#wmsg').innerHTML += `<br><br><b class="good">🎉 You found everything in ${esc(W0.name)}’s story! Try another character.</b>`; }
+    if (found.size === 6) { over = true; if (clock) clearInterval(clock); funWin(area); $('#wmsg').innerHTML += `<br><br><b class="good">🎉 You found everything in ${esc(W0.name)}’s story! Try another character.</b>`; }
   };
+  const endWorld = () => { over = true; if (clock) clearInterval(clock); $('#wmsg').innerHTML = `<b class="bad">⏰ Time is up! You found ${found.size} of 6.</b> <button class="btn small" id="wretry">Try again</button>`; $('#wretry').onclick = () => { stop(); funWorld(area, g, pickId); }; funSnd('crash'); };
+  if (youth) clock = setInterval(() => { if (!cv.isConnected || G !== window.__funGen) return clearInterval(clock); if (over) return; TL--; const el = $('#wt'); if (el) el.textContent = Math.max(0, TL); if (TL <= 0) endWorld(); }, 1000);
   $('#wl').onclick = () => { yaw += .5; }; $('#wr').onclick = () => { yaw -= .5; };
-  $('#wb').onclick = () => { stop(); funWorld(area, g); };
+  $('#wb').onclick = () => { stop(); if (clock) clearInterval(clock); funWorld(area, g); };
   loop();
 }
 /* ---------- Simon Pattern: each colour plays a note ---------- */
