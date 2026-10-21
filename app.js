@@ -1375,7 +1375,7 @@ async function afterGate() {
 /* ---------- Fun Zone: earn stars by learning verses, spend them on a timed play session ---------- */
 const FUNCFG = g => Object.assign({ cost: g === 'youth' ? 40 : 50, minutes: 30 }, ((CFG.fun || {})[g]) || {});
 let FUNT = null;
-const FUNPREM = [{ k: 'asmr', title: '🫧 3D Calm Bubbles', blurb: 'A slow, relaxing 3D game: float through soft glowing bubbles and pop them with gentle sounds.', get fn() { return funAsmr; } }, { k: 'world', title: '🌍 Bible Worlds', blurb: 'Pick a Bible character and explore their 3D world. Look all around and find things from their story!', get fn() { return funWorld; } }];
+const FUNPREM = [{ k: 'asmr', title: '🫧 3D Calm Bubbles', blurb: 'A slow, relaxing 3D game: float through soft glowing bubbles and pop them with gentle sounds.', get fn() { return funAsmr; } }, { k: 'studio', title: '🧰 3D Workshop', blurb: 'Build with 3D bricks, find places on a map of the Holy Land, explore the planets and stack a math tower.', get fn() { return funStudio; } }, { k: 'world', title: '🌍 Bible Worlds', blurb: 'Pick a Bible character and explore their 3D world. Look all around and find things from their story!', get fn() { return funWorld; } }];
 const FUNGAMES = [['race', '🛻 Truck Race'], ['catch', '⭐ Star Catch'], ['ttt', '⭕ Tic-Tac-Toe'], ['scramble', '🔤 Word Scramble'], ['simon', '🎵 Simon Pattern'], ['puzzle', '🧩 Puzzle'], ['memory', '🃏 Memory Match'], ['quiz', '❓ Quiz Rush'], ['dove', '🕊️ Dove Tap']];
 const monthKey = () => todayKey().slice(0, 7);
 const spentNow = p => (p.spentWk && String(p.spentWk.wk).startsWith(monthKey()) ? p.spentWk.n : 0);
@@ -1876,6 +1876,157 @@ function funWorld(area, g, pickId) {
   $('#wl').onclick = () => { yaw += .5; }; $('#wr').onclick = () => { yaw -= .5; };
   $('#wb').onclick = () => { stop(); if (clock) clearInterval(clock); funWorld(area, g); };
   loop();
+}
+/* ---------- 3D Workshop: build with bricks, explore the Holy Land map and the planets, stack a math tower ---------- */
+function ptIn(poly, x, y) { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const [xi, yi] = poly[i], [xj, yj] = poly[j]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c; } return c; }
+function shade(hex, f) { const n = parseInt(hex.slice(1), 16); const c = k => Math.max(0, Math.min(255, Math.round(((n >> k) & 255) * f))); return `rgb(${c(16)},${c(8)},${c(0)})`; }
+// Draws one cube (x,y,z are cell coordinates) viewed from a corner that turns with yaw. Returns its screen polygons.
+function drawCube(cx, x, y, z, col, yaw, S, ox, oy, mid, top) {
+  const c = Math.cos(yaw), s = Math.sin(yaw), P = (px, py, pz) => { const dx = px - mid, dy = py - mid, rx = dx * c - dy * s, ry = dx * s + dy * c; return [ox + (rx - ry) * S * .866, oy + (rx + ry) * S * .5 - pz * S * .95]; };
+  const h = top === undefined ? 1 : top, p = [[x, y], [x + 1, y], [x + 1, y + 1], [x, y + 1]], B = p.map(([a, b]) => P(a, b, z)), T = p.map(([a, b]) => P(a, b, z + h)), polys = [];
+  const nrm = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+  for (let k = 0; k < 4 && h > 0; k++) { const [nx, ny] = nrm[k], rx = nx * c - ny * s, ry = nx * s + ny * c; if (rx + ry > .01) { const q = [B[k], B[(k + 1) % 4], T[(k + 1) % 4], T[k]]; cx.fillStyle = shade(col, rx > ry ? .62 : .8); cx.beginPath(); q.forEach(([a, b], i) => i ? cx.lineTo(a, b) : cx.moveTo(a, b)); cx.closePath(); cx.fill(); cx.strokeStyle = 'rgba(0,0,0,.35)'; cx.lineWidth = 1; cx.stroke(); polys.push(q); } }
+  cx.fillStyle = shade(col, 1.05); cx.beginPath(); T.forEach(([a, b], i) => i ? cx.lineTo(a, b) : cx.moveTo(a, b)); cx.closePath(); cx.fill(); cx.strokeStyle = 'rgba(0,0,0,.35)'; cx.stroke(); polys.push(T);
+  if (h >= 1) { const [sx, sy] = P(x + .5, y + .5, z + h); cx.fillStyle = shade(col, 1.2); cx.beginPath(); cx.ellipse(sx, sy - 2, S * .26, S * .14, 0, 0, 6.283); cx.fill(); cx.fillStyle = shade(col, .8); cx.beginPath(); cx.ellipse(sx, sy, S * .26, S * .14, 0, 0, 3.14); cx.fill(); }
+  return polys;
+}
+const BRICKCOL = ['#e53935', '#fb8c00', '#fdd835', '#43a047', '#1e88e5', '#8e24aa', '#f5f5f5', '#6d4c41'];
+const BLUEPRINTS = [
+  { n: 'Noah’s Ark', t: 'Build a big boat with 3 levels, like the ark.', r: 'Genesis 6:14-16', min: 16, hi: 3 },
+  { n: 'Wall of Jericho', t: 'Build a strong wall, then imagine it falling down!', r: 'Joshua 6:20', min: 14, hi: 3 },
+  { n: 'Tower of Babel', t: 'Build a very tall tower.', r: 'Genesis 11:4', min: 12, hi: 6 },
+  { n: 'An altar of stones', t: 'Build a small altar to thank God, like Noah did.', r: 'Genesis 8:20', min: 6, hi: 2 },
+  { n: 'Nehemiah’s wall', t: 'Rebuild the wall around the city, brick by brick.', r: 'Nehemiah 6:15', min: 18, hi: 2 },
+  { n: 'Solomon’s Temple', t: 'Build a great house for the Lord with a tall front.', r: '1 Kings 6:1', min: 22, hi: 4 }
+];
+function funBricks(area, g) {
+  const G = window.__funGen, N = g === 'youth' ? 8 : 6, MAXH = 8, S = g === 'youth' ? 24 : 30, Wd = 340, H = 360, ox = Wd / 2, oy = 150, mid = N / 2;
+  const H2 = () => Array.from({ length: N }, () => Array(N).fill(0)), col = Array.from({ length: N }, () => Array.from({ length: N }, () => [])); let hist = [], yaw = .6, cur = 0, mode = 'add', drag = null, moved = false, bp = BLUEPRINTS[0], polys = [], msg = '';
+  const total = () => col.reduce((a, r) => a + r.reduce((b, c) => b + c.length, 0), 0), tall = () => Math.max(0, ...col.map(r => Math.max(0, ...r.map(c => c.length))));
+  area.innerHTML = `<p>Tap a spot to add a brick. Drag to turn your build around. Pick a challenge, then press <b>Check</b>.</p><div class="bubs" id="bcol" style="grid-template-columns:repeat(8,1fr)">${BRICKCOL.map((c, i) => `<button class="bub ${i ? '' : 'on'}" data-c="${i}" style="min-height:34px;background:${c}" aria-label="colour ${i + 1}"></button>`).join('')}</div>
+    <canvas id="bc" width="${Wd}" height="${H}" style="width:100%;max-width:${Wd}px;border-radius:14px;touch-action:none;display:block;margin:auto;background:linear-gradient(#bfe3ff,#eef8ff)"></canvas>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin:8px 0"><button class="btn small" id="bm">➕ Adding</button><button class="btn small ghost" id="bu">↩ Undo</button><button class="btn small ghost" id="bcl">🗑 Clear</button><button class="btn small ghost" id="br1">↶</button><button class="btn small ghost" id="br2">↷</button></div>
+    <div class="card"><b>Challenge:</b> <select id="bsel" style="font:inherit;padding:6px;border-radius:8px">${BLUEPRINTS.map((b, i) => `<option value="${i}">${esc(b.n)}</option>`).join('')}</select><p id="bt" class="muted" style="margin:6px 0"></p><button class="btn" id="bk">Check my build</button><div id="bmsg" style="min-height:24px;margin-top:6px"></div></div>`;
+  const cv = $('#bc'), cx = cv.getContext('2d'), setBt = () => { $('#bt').textContent = `${bp.t} (${bp.r}) — use at least ${bp.min} bricks and build ${bp.hi} levels high.`; }; setBt();
+  const draw = () => {
+    cx.clearRect(0, 0, Wd, H); const items = [];
+    for (let x = 0; x < N; x++) for (let y = 0; y < N; y++) { items.push({ x, y, z: 0, g: 1 }); col[x][y].forEach((c, k) => items.push({ x, y, z: k, c })); }
+    const c = Math.cos(yaw), s = Math.sin(yaw), key = o => { const dx = o.x + .5 - mid, dy = o.y + .5 - mid; return (dx * c - dy * s + dx * s + dy * c) * 100 + o.z; };
+    items.sort((a, b) => (a.g ? -1e9 : 0) - (b.g ? -1e9 : 0) || key(a) - key(b)); polys = [];
+    items.forEach(o => { const ps = o.g ? drawCube(cx, o.x, o.y, 0, (o.x + o.y) % 2 ? '#8bc34a' : '#9ccc65', yaw, S, ox, oy, mid, 0) : drawCube(cx, o.x, o.y, o.z, BRICKCOL[o.c], yaw, S, ox, oy, mid); polys.push({ o, ps }); });
+  };
+  const pos = e => { const q = cv.getBoundingClientRect(); return [(e.clientX - q.left) * Wd / q.width, (e.clientY - q.top) * H / q.height]; };
+  const add = (x, y) => { if (col[x][y].length >= MAXH) { msg = 'That is as high as it can go!'; return; } col[x][y].push(cur); hist.push([x, y, 'a']); funSnd('coin'); funBuzz(10); };
+  const del = (x, y) => { if (!col[x][y].length) return; const c = col[x][y].pop(); hist.push([x, y, 'r', c]); funSnd('tick'); };
+  cv.onpointerdown = e => { drag = e.clientX; moved = false; cv.setPointerCapture && cv.setPointerCapture(e.pointerId); };
+  cv.onpointermove = e => { if (drag === null) return; const dx = e.clientX - drag; if (Math.abs(dx) > 3) moved = true; yaw += dx * .01; drag = e.clientX; draw(); };
+  cv.onpointerup = e => { const tap = drag !== null && !moved; drag = null; if (!tap) return; const [px, py] = pos(e); for (let i = polys.length - 1; i >= 0; i--) { const { o, ps } = polys[i]; if (ps.some(q => ptIn(q, px, py))) { mode === 'add' ? add(o.x, o.y) : del(o.x, o.y); draw(); return; } } };
+  area.querySelectorAll('[data-c]').forEach(b => b.onclick = () => { cur = +b.dataset.c; area.querySelectorAll('[data-c]').forEach(x => x.classList.toggle('on', x === b)); });
+  $('#bm').onclick = e => { mode = mode === 'add' ? 'del' : 'add'; e.target.textContent = mode === 'add' ? '➕ Adding' : '➖ Removing'; };
+  $('#bu').onclick = () => { const h = hist.pop(); if (!h) return; if (h[2] === 'a') col[h[0]][h[1]].pop(); else col[h[0]][h[1]].push(h[3]); draw(); };
+  $('#bcl').onclick = () => { col.forEach(r => r.forEach(c => c.length = 0)); hist = []; draw(); };
+  $('#br1').onclick = () => { yaw -= Math.PI / 2; draw(); }; $('#br2').onclick = () => { yaw += Math.PI / 2; draw(); };
+  $('#bsel').onchange = e => { bp = BLUEPRINTS[+e.target.value]; setBt(); $('#bmsg').textContent = ''; };
+  $('#bk').onclick = () => { const n = total(), t = tall(); if (n >= bp.min && t >= bp.hi) { $('#bmsg').innerHTML = `<span class="good"><b>🎉 You built ${esc(bp.n)}!</b> ${esc(bp.r)}</span>`; funWin(area); } else $('#bmsg').innerHTML = `<span class="bad">Keep building: ${n} of ${bp.min} bricks, ${t} of ${bp.hi} levels high.</span>`; };
+  draw();
+}
+const HLAND = { lon: [34.2, 36.0], lat: [31.0, 33.2],
+  coast: [[34.27, 31.0], [34.27, 31.3], [34.5, 31.8], [34.75, 32.05], [34.85, 32.5], [35.0, 32.8], [35.1, 33.2]],
+  places: [
+    { n: 'Jerusalem', lon: 35.22, lat: 31.78, t: 'Solomon built the temple here.', r: '2 Chronicles 3:1' },
+    { n: 'Bethlehem', lon: 35.20, lat: 31.70, t: 'Jesus was born here.', r: 'Luke 2:4-7' },
+    { n: 'Nazareth', lon: 35.30, lat: 32.70, t: 'Jesus grew up in Nazareth.', r: 'Luke 2:39' },
+    { n: 'Sea of Galilee', lon: 35.62, lat: 32.76, t: 'Jesus called fishermen here to follow Him.', r: 'Matthew 4:18-19' },
+    { n: 'Jericho', lon: 35.46, lat: 31.86, t: 'The walls of Jericho fell down.', r: 'Joshua 6:20' },
+    { n: 'Capernaum', lon: 35.57, lat: 32.9, t: 'Jesus lived in Capernaum.', r: 'Matthew 4:13' },
+    { n: 'Dead Sea', lon: 35.5, lat: 31.45, t: 'The Bible also calls it the Salt Sea.', r: 'Genesis 14:3' },
+    { n: 'Joppa', lon: 34.75, lat: 32.05, t: 'Jonah went down to Joppa to run away from God.', r: 'Jonah 1:3' },
+    { n: 'Hebron', lon: 35.10, lat: 31.53, t: 'Abraham buried Sarah near Hebron.', r: 'Genesis 23:19' },
+    { n: 'Beersheba', lon: 34.79, lat: 31.25, t: 'Abraham planted a tree in Beersheba and called on the Lord.', r: 'Genesis 21:33' }] };
+function funMap(area, g) {
+  const G = window.__funGen, Wd = 340, H = 380, youth = g === 'youth', L = HLAND, pl = L.places.slice(0, youth ? 10 : 5), rad = Math.PI / 180;
+  let yaw = 0, tilt = .95, V = { lon: 35.1, lat: 32.1, k: 1 }, drag = null, moved = false, round = 0, score = 0, target, order, tm = 90, clock = null, over = false, flash = null;
+  const next = () => { target = order[round % order.length]; };
+  order = pl.slice().sort(() => Math.random() - .5);
+  const proj = (lon, lat, h) => { let x = (lon - V.lon) / 0.9 * 130 * V.k, y = -(lat - V.lat) / 1.1 * 150 * V.k; const c = Math.cos(yaw), s = Math.sin(yaw), rx = x * c - y * s, ry = x * s + y * c, k = 1 + ry / 900; return [Wd / 2 + rx * k, 215 + ry * tilt * k - (h || 0)]; };
+  area.innerHTML = `<p id="mq"></p><canvas id="mc" width="${Wd}" height="${H}" style="width:100%;max-width:${Wd}px;border-radius:14px;touch-action:none;display:block;margin:auto;background:#bfe3ff"></canvas><div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"><button class="btn small ghost" id="ml">↶ Turn</button><button class="btn small ghost" id="mr">Turn ↷</button><button class="btn small ghost" id="mt">Tilt</button><button class="btn small ghost" id="mz">🔍 Zoom</button></div><div id="mmsg" class="card" style="min-height:48px;margin-top:8px">Look at the map of the Holy Land. Tap the place you are asked to find. Use Zoom to see places that are close together.</div>`;
+  const cv = $('#mc'), cx = cv.getContext('2d');
+  const ask = () => { if (over) return; $('#mq').innerHTML = `Find <b>${esc(target.n)}</b>!  Found: <b>${score}</b>${youth ? ` · ⏱ <b id="mt2">${tm}</b>s` : ''}`; };
+  const draw = () => {
+    cx.fillStyle = '#7ec3f0'; cx.fillRect(0, 0, Wd, H);
+    const poly = (pts, fill, h, line) => { cx.beginPath(); pts.forEach(([lo, la], i) => { const [x, y] = proj(lo, la, h); i ? cx.lineTo(x, y) : cx.moveTo(x, y); }); cx.closePath(); cx.fillStyle = fill; cx.fill(); if (line) { cx.strokeStyle = line; cx.lineWidth = 1.5; cx.stroke(); } };
+    const land = [...L.coast, [36.0, 33.2], [36.0, 31.0]];
+    poly(land, '#6b4f2a', -14); poly(land, '#c9b46a', 0, '#7a6a2e');
+    poly(land.map(([a, b]) => [a, b]), 'rgba(120,160,70,.35)', 0);
+    const ell = (lon, lat, rx, ry, col) => { cx.beginPath(); for (let i = 0; i <= 24; i++) { const a = i / 24 * 6.283, [x, y] = proj(lon + Math.cos(a) * rx, lat + Math.sin(a) * ry, 0); i ? cx.lineTo(x, y) : cx.moveTo(x, y); } cx.fillStyle = col; cx.fill(); };
+    ell(35.58, 32.82, .1, .1, '#3d8fd6'); ell(35.5, 31.5, .09, .33, '#2f78b8');
+    cx.strokeStyle = '#3d8fd6'; cx.lineWidth = 3; cx.beginPath(); [[35.57, 32.72], [35.56, 32.4], [35.5, 32.0], [35.5, 31.8]].forEach(([a, b], i) => { const [x, y] = proj(a, b, 0); i ? cx.lineTo(x, y) : cx.moveTo(x, y); }); cx.stroke();
+    cx.fillStyle = '#2f5d8a'; cx.font = 'bold 12px sans-serif'; cx.textAlign = 'center'; const [mx, my] = proj(34.5, 32.1, 0); cx.fillText('Mediterranean Sea', mx, my);
+    pl.map(p => ({ p, q: proj(p.lon, p.lat, 0) })).sort((a, b) => a.q[1] - b.q[1]).forEach(({ p, q }) => { const hit = flash && flash.n === p.n; cx.fillStyle = hit ? flash.col : '#c62828'; cx.beginPath(); cx.arc(q[0], q[1] - 16, 8, 0, 6.283); cx.fill(); cx.beginPath(); cx.moveTo(q[0] - 4, q[1] - 11); cx.lineTo(q[0], q[1]); cx.lineTo(q[0] + 4, q[1] - 11); cx.fill(); cx.fillStyle = '#fff'; cx.beginPath(); cx.arc(q[0], q[1] - 16, 3, 0, 6.283); cx.fill(); p._q = [q[0], q[1] - 12]; });
+    window.__funRaf = requestAnimationFrame(() => { if (cv.isConnected && G === window.__funGen) draw(); });
+  };
+  const win = () => { over = true; if (clock) clearInterval(clock); funWin(area); $('#mq').innerHTML = `<b class="good">🎉 You found them all!</b> Score: ${score}`; };
+  const stop = () => { if (window.__funRaf) cancelAnimationFrame(window.__funRaf); window.__funRaf = 0; };
+  cv.onpointerdown = e => { drag = [e.clientX, e.clientY]; moved = false; cv.setPointerCapture && cv.setPointerCapture(e.pointerId); };
+  cv.onpointermove = e => { if (!drag) return; const dx = e.clientX - drag[0], dy = e.clientY - drag[1]; if (Math.abs(dx) + Math.abs(dy) > 4) moved = true; yaw += dx * .008; tilt = Math.max(.35, Math.min(1.1, tilt + dy * .004)); drag = [e.clientX, e.clientY]; };
+  cv.onpointerup = e => {
+    const tap = drag && !moved; drag = null; if (!tap || over) return; const q = cv.getBoundingClientRect(), mx = (e.clientX - q.left) * Wd / q.width, my = (e.clientY - q.top) * H / q.height;
+    const hit = pl.filter(p => p._q && Math.hypot(p._q[0] - mx, p._q[1] - 4 - my) < 26).sort((a, b) => Math.hypot(a._q[0] - mx, a._q[1] - my) - Math.hypot(b._q[0] - mx, b._q[1] - my))[0]; if (!hit) return;
+    if (hit.n === target.n) { score++; funSnd('coin'); funBuzz(15); flash = { n: hit.n, col: '#2e7d32' }; $('#mmsg').innerHTML = `<b>📍 ${esc(hit.n)}</b><br>${esc(hit.t)} <span class="muted">(${esc(hit.r)})</span>`; round++; if (round >= order.length) return win(); next(); ask(); setTimeout(() => { flash = null; }, 700); }
+    else { funSnd('crash'); if (youth) tm = Math.max(0, tm - 5); flash = { n: hit.n, col: '#ef6c00' }; $('#mmsg').innerHTML = `<span class="bad">That is ${esc(hit.n)}. Look for <b>${esc(target.n)}</b>.${youth ? ' −5 seconds' : ''}</span>`; setTimeout(() => { flash = null; }, 500); }
+  };
+  $('#ml').onclick = () => { yaw -= .4; }; $('#mr').onclick = () => { yaw += .4; }; $('#mt').onclick = () => { tilt = tilt > .7 ? .4 : 1; }; $('#mz').onclick = () => { V = V.k > 1 ? { lon: 35.1, lat: 32.1, k: 1 } : { lon: 35.15, lat: 31.8, k: 2.3 }; };
+  if (youth) clock = setInterval(() => { if (!cv.isConnected || G !== window.__funGen) return clearInterval(clock); if (over) return; tm--; const el = $('#mt2'); if (el) el.textContent = Math.max(0, tm); if (tm <= 0) { over = true; clearInterval(clock); $('#mq').innerHTML = `<b class="bad">⏰ Time is up!</b> You found ${score} of ${order.length}. <button class="btn small" id="mre">Try again</button>`; $('#mre').onclick = () => { stop(); funMap(area, g); }; funSnd('crash'); } }, 1000);
+  next(); ask(); draw();
+}
+const PLANETS = [
+  { n: 'Mercury', c: '#b0a79b', r: 5, t: 'Mercury is the closest planet to the Sun.' }, { n: 'Venus', c: '#e8c27a', r: 8, t: 'Venus is the hottest planet.' },
+  { n: 'Earth', c: '#3d8fd6', r: 8.5, t: 'Earth is our home. “In the beginning God created the heavens and the earth.” (Genesis 1:1)' }, { n: 'Mars', c: '#c8553d', r: 6.5, t: 'Mars is called the red planet.' },
+  { n: 'Jupiter', c: '#d9a066', r: 17, t: 'Jupiter is the biggest planet of all.' }, { n: 'Saturn', c: '#e3cf95', r: 14, t: 'Saturn has bright rings around it.' },
+  { n: 'Uranus', c: '#8fd8e0', r: 10, t: 'Uranus is tipped over on its side.' }, { n: 'Neptune', c: '#3f5fd0', r: 10, t: 'Neptune is the farthest planet from the Sun.' }];
+function funPlanets(area, g) {
+  const G = window.__funGen, Wd = 340, H = 380, youth = g === 'youth'; let yaw = 0, tilt = .5, drag = null, moved = false, round = 0, score = 0, target, order = PLANETS.slice().sort(() => Math.random() - .5).slice(0, youth ? 8 : 5), mode = 'find', t0 = 0;
+  const q = () => youth && round % 2 ? { text: `Which planet is number <b>${PLANETS.indexOf(target) + 1}</b> from the Sun?` } : { text: `Find <b>${esc(target.n)}</b>!` };
+  area.innerHTML = `<p id="pq"></p><canvas id="pc" width="${Wd}" height="${H}" style="width:100%;max-width:${Wd}px;border-radius:14px;touch-action:none;display:block;margin:auto;background:#070b1f"></canvas><div id="pmsg" class="card" style="min-height:48px;margin-top:8px">Drag to turn the solar system around. God made the sun, moon and stars (Genesis 1:16).</div>`;
+  const cv = $('#pc'), cx = cv.getContext('2d'), stars = Array.from({ length: 70 }, () => [Math.random() * Wd, Math.random() * H, Math.random() * 1.5 + .3]);
+  const next = () => { target = order[round]; $('#pq').innerHTML = `${q().text}  Found: <b>${score}</b> of ${order.length}`; }; next();
+  const pos = (p, i, t) => { const a = t * (1.2 / (i + 1.5)) + i * 1.3, d = 38 + i * 19, x = Math.cos(a) * d, z = Math.sin(a) * d, c = Math.cos(yaw), s = Math.sin(yaw), rx = x * c - z * s, rz = x * s + z * c; return { sx: Wd / 2 + rx, sy: H / 2 + rz * tilt, sc: 1 + rz / 400, z: rz, d }; };
+  const loop = () => {
+    if (!cv.isConnected || G !== window.__funGen) return; t0 += .012; cx.fillStyle = '#070b1f'; cx.fillRect(0, 0, Wd, H); cx.fillStyle = '#fff'; stars.forEach(([x, y, r]) => { cx.globalAlpha = .6; cx.fillRect(x, y, r, r); }); cx.globalAlpha = 1;
+    PLANETS.forEach((p, i) => { cx.strokeStyle = 'rgba(255,255,255,.12)'; cx.beginPath(); cx.ellipse(Wd / 2, H / 2, 38 + i * 19, (38 + i * 19) * tilt, 0, 0, 6.283); cx.stroke(); });
+    const items = PLANETS.map((p, i) => ({ p, i, o: pos(p, i, t0) })).concat([{ sun: 1, o: { sx: Wd / 2, sy: H / 2, sc: 1, z: 0 } }]).sort((a, b) => a.o.z - b.o.z);
+    items.forEach(({ p, o, sun }) => { if (sun) { const gr = cx.createRadialGradient(o.sx, o.sy, 2, o.sx, o.sy, 26); gr.addColorStop(0, '#fff6b0'); gr.addColorStop(.5, '#ffb300'); gr.addColorStop(1, 'rgba(255,140,0,0)'); cx.fillStyle = gr; cx.beginPath(); cx.arc(o.sx, o.sy, 26, 0, 6.283); cx.fill(); return; }
+      const r = p.r * .8 * o.sc, gr = cx.createRadialGradient(o.sx - r * .3, o.sy - r * .3, r * .1, o.sx, o.sy, r); gr.addColorStop(0, '#fff'); gr.addColorStop(.25, p.c); gr.addColorStop(1, shade(p.c, .35)); cx.fillStyle = gr; cx.beginPath(); cx.arc(o.sx, o.sy, r, 0, 6.283); cx.fill();
+      if (p.n === 'Saturn') { cx.strokeStyle = 'rgba(230,210,150,.85)'; cx.lineWidth = 2.5; cx.beginPath(); cx.ellipse(o.sx, o.sy, r * 1.8, r * .55, -.3, 0, 6.283); cx.stroke(); } p._o = { x: o.sx, y: o.sy, r }; });
+    window.__funRaf = requestAnimationFrame(loop);
+  };
+  cv.onpointerdown = e => { drag = [e.clientX, e.clientY]; moved = false; cv.setPointerCapture && cv.setPointerCapture(e.pointerId); };
+  cv.onpointermove = e => { if (!drag) return; const dx = e.clientX - drag[0], dy = e.clientY - drag[1]; if (Math.abs(dx) + Math.abs(dy) > 4) moved = true; yaw += dx * .01; tilt = Math.max(.25, Math.min(1, tilt + dy * .004)); drag = [e.clientX, e.clientY]; };
+  cv.onpointerup = e => {
+    const tap = drag && !moved; drag = null; if (!tap || round >= order.length) return; const b = cv.getBoundingClientRect(), mx = (e.clientX - b.left) * Wd / b.width, my = (e.clientY - b.top) * H / b.height;
+    const hit = PLANETS.filter(p => p._o && Math.hypot(p._o.x - mx, p._o.y - my) < Math.max(18, p._o.r + 8)).sort((a, c) => Math.hypot(a._o.x - mx, a._o.y - my) - Math.hypot(c._o.x - mx, c._o.y - my))[0]; if (!hit) return;
+    if (hit === target) { score++; round++; funSnd('coin'); funBuzz(15); $('#pmsg').innerHTML = `<b>🪐 ${esc(hit.n)}</b><br>${esc(hit.t)}`; if (round >= order.length) { funWin(area); $('#pq').innerHTML = `<b class="good">🎉 You found every planet!</b> <button class="btn small" id="pre">Play again</button>`; $('#pre').onclick = () => { if (window.__funRaf) cancelAnimationFrame(window.__funRaf); funPlanets(area, g); }; } else next(); }
+    else { funSnd('crash'); $('#pmsg').innerHTML = `<span class="bad">That is ${esc(hit.n)}. Try to find <b>${esc(target.n)}</b>.</span>`; }
+  };
+  loop();
+}
+function funMath(area, g) {
+  const G = window.__funGen, youth = g === 'youth', Wd = 300, H = 330, GOAL = youth ? 12 : 8; let h = 0, q, streak = 0, miss = 0, yaw = .6;
+  area.innerHTML = `<p>Answer to add a block to your tower. Reach <b>${GOAL}</b> blocks! A wrong answer knocks one off.</p><canvas id="tc" width="${Wd}" height="${H}" style="width:100%;max-width:${Wd}px;border-radius:14px;display:block;margin:auto;background:linear-gradient(#cfe9ff,#f2f9ff)"></canvas><div class="card gold" style="margin-top:8px"><p class="bigword" id="tq"></p><div id="to"></div><div id="tm" style="min-height:24px"></div></div>`;
+  const cv = $('#tc'), cx = cv.getContext('2d'), draw = () => { cx.clearRect(0, 0, Wd, H); for (let x = 0; x < 3; x++) for (let y = 0; y < 3; y++) drawCube(cx, x, y, 0, '#8bc34a', yaw, 26, Wd / 2, 270, 1.5, 0); for (let k = 0; k < h; k++) drawCube(cx, 1, 1, k, BRICKCOL[k % BRICKCOL.length], yaw, 26, Wd / 2, 270, 1.5); };
+  const make = () => { const r = n => Math.floor(Math.random() * n); let a, b, ans, txt;
+    if (!youth) { a = 2 + r(9); b = 2 + r(9 - 0); if (r(2)) { ans = a + b; txt = `${a} + ${b}`; } else { if (b > a) [a, b] = [b, a]; ans = a - b; txt = `${a} − ${b}`; } }
+    else { const k = r(3); if (k === 0) { a = 3 + r(10); b = 3 + r(10); ans = a * b; txt = `${a} × ${b}`; } else if (k === 1) { a = 20 + r(70); b = 11 + r(40); ans = a + b; txt = `${a} + ${b}`; } else { b = 3 + r(9); ans = 3 + r(12); a = b * ans; txt = `${a} ÷ ${b}`; } }
+    const set = new Set([ans]); while (set.size < 4) { const d = ans + (r(2) ? 1 : -1) * (1 + r(youth ? 12 : 5)); if (d >= 0) set.add(d); } q = { txt, ans, opts: [...set].sort(() => Math.random() - .5) }; };
+  const show = () => { make(); $('#tq').textContent = q.txt + ' = ?'; $('#to').innerHTML = q.opts.map(o => `<button class="btn ghost" data-a="${o}" style="min-width:64px;margin:4px">${o}</button>`).join(''); $('#to').querySelectorAll('[data-a]').forEach(b => b.onclick = () => { if (h >= GOAL) return; if (+b.dataset.a === q.ans) { h++; streak++; funSnd(streak % 3 === 0 ? 'level' : 'coin'); $('#tm').innerHTML = '<span class="good">Yes! ⬆ A block goes on.</span>'; draw(); if (h >= GOAL) { funWin(area); $('#tm').innerHTML = '<b class="good">🎉 Your tower is finished!</b> <button class="btn small" id="tre">Build another</button>'; $('#tre').onclick = () => funMath(area, g); return; } show(); } else { streak = 0; if (h > 0) h--; funSnd('crash'); $('#tm').innerHTML = `<span class="bad">Not quite. It was ${q.ans}.${h >= 0 ? ' A block fell off.' : ''}</span>`; draw(); show(); } }); };
+  draw(); show();
+}
+const STUDIO = [['bricks', '🧱', 'Brick Builder', funBricks], ['map', '🗺️', 'Holy Land Map', funMap], ['planets', '🪐', 'Planet Explorer', funPlanets], ['math', '🧮', 'Math Tower', funMath]];
+function funStudio(area, g, pick) {
+  window.__funGen = (window.__funGen || 0) + 1; if (window.__funRaf) { cancelAnimationFrame(window.__funRaf); window.__funRaf = 0; }
+  area.innerHTML = `<div class="bubs">${STUDIO.map(([k, em, n]) => `<button class="bub ${pick === k ? 'on' : ''}" data-st="${k}"><span class="bi">${em}</span><span class="bn">${n}</span></button>`).join('')}</div><div id="stg">${pick ? '' : '<p class="muted">Pick a 3D game: build with bricks, find places on a map of the Holy Land, explore the planets, or stack a math tower. 🧰</p>'}</div>`;
+  area.querySelectorAll('[data-st]').forEach(b => b.onclick = () => funStudio(area, g, b.dataset.st));
+  if (pick) { window.__funGen++; const gg = window.__funGen; STUDIO.find(x => x[0] === pick)[3]($('#stg'), g); }
 }
 /* ---------- Simon Pattern: each colour plays a note ---------- */
 function funSimon(area, g) {

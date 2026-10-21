@@ -109,3 +109,6 @@ The Home card shows the title and Scripture for the coming Sunday (today, if it 
 
 ### Youth games
 Youth Shine has a Games tab with nine games that earn stars, harder than the Kids versions and paying one more star: Verse Builder, Name That Verse, Missing Word (five choices), Type the Word (no choices), Verse Rush (60 seconds), Who Am I (five names), Books in Order (six books), Which Section and Memory Match (five pairs). Game verses for Youth are in `data/shine.json` under `youth.gameVerses`. A wrong answer costs 1 star, once per question.
+
+### 3D Workshop
+A special Fun Zone game (100 stars for 30 minutes, same as Calm Bubbles and Bible Worlds; change in `data/config.json` under `fun.studio`) with four 3D games for Kids and Youth: Brick Builder (Lego-style building with Bible challenges such as Noah's Ark and the Wall of Jericho), Holy Land Map (find places on a tilting 3D map; Youth have a clock and ten places), Planet Explorer (find the planets in a turning solar system) and Math Tower (answer sums to stack a 3D tower; Youth get multiplication and division).
