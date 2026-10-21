@@ -84,6 +84,16 @@ t('families: one phone cannot flood the list', () => {
   Object.keys(env.cache).filter(k => k.startsWith('fm:')).forEach(k => delete env.cache[k]);
   post({ action: 'famList', token: A.token }).rows.filter(r => /^fl\d/.test(r.id)).forEach(r => post({ action: 'famRemove', token: A.token, id: r.id }));
 });
+t('alert emails: a leader posting emails the owner (titles only); the admin posting does not; capped', () => {
+  const before = env.mails.length;
+  const an = post({ action: 'annSave', token: A.token, scope: 'all', titleEn: 'Admin note' }); assert.strictEqual(env.mails.length, before, 'admin posts must not email');
+  const r = post({ action: 'annSave', token: T1.token, scope: 'worship', titleEn: 'Choir moved to 6pm', bodyEn: 'SECRET BODY' }); assert(r.ok);
+  const m = env.mails[env.mails.length - 1]; assert.strictEqual(env.mails.length, before + 1); assert.strictEqual(m.to, 'owner@example.org'); assert(/Rabin posted an announcement \(worship\)/.test(m.subject) && m.body.includes('Choir moved to 6pm') && !m.body.includes('SECRET BODY'));
+  assert(post({ action: 'annSave', token: T1.token, scope: 'kids', titleEn: 'nope' }).error, 'a refused post must not email'); assert.strictEqual(env.mails.length, before + 1);
+  for (let i = 0; i < 20; i++) env.call('alert_', 'Flood ' + i, ['x']);
+  assert(env.mails.length - before <= 15, 'alerts are capped'); delete env.cache['alert:n'];
+  post({ action: 'annDelete', token: A.token, id: an.id }); post({ action: 'annDelete', token: A.token, id: r.id });
+});
 t('weekly verse and lesson: only the matching area posts; newest shows in the public feed', () => {
   assert(/access/i.test(post({ action: 'weeklySave', token: T1.token, group: 'kids', verse: 'John 3:16' }).error));
   assert(post({ action: 'weeklySave', token: A.token, group: 'kids', verse: 'Psalm 23:1', lessonEn: 'The Lord is my shepherd.' }).ok);

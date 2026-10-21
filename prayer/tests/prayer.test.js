@@ -44,4 +44,12 @@ t('admin can dismiss a request', () => {
   assert.strictEqual(post({ action: 'pending', pin: PIN }).pending.length, n - 1);
   assert(/admin PIN/i.test(post({ action: 'dismiss', pin: 'x', id: p[1].id }).error));
 });
+t('alert email: first request emails the owner without the request text; more within the hour do not; admin can still see all', () => {
+  const env2 = env; const before = env2.mails.length;
+  Object.keys(env2.cache).filter(k => k.startsWith('alert:')).forEach(k => delete env2.cache[k]);
+  assert(post({ action: 'submit', text: 'Private health matter for Sam', deviceId: 'dev-al1' }).ok);
+  assert.strictEqual(env2.mails.length, before + 1); const m = env2.mails[env2.mails.length - 1];
+  assert(/new prayer request/i.test(m.subject) && !/Private health|Sam/.test(m.subject + m.body) && m.to === 'owner@example.org');
+  assert(post({ action: 'submit', text: 'Another one', deviceId: 'dev-al2' }).ok); assert.strictEqual(env2.mails.length, before + 1, 'throttled within the hour');
+});
 console.log(`\n${pass} passed`);

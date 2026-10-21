@@ -33,6 +33,9 @@ var CONFIG = {
   KEEP_EVENTS_DAYS: 400,       // events (by date)
   KEEP_ANN_DAYS: 400,          // announcements (pinned ones stay)
   KEEP_WEEKLY_DAYS: 800,       // old weekly verses/lessons (the newest per group always stays)
+  ALERTS: true,                // email the owner when a leader posts something (set false to turn off)
+  ALERTS_PER_WINDOW: 15,       // most alert emails in any 6 hours, so a mistake can never flood the inbox
+  APP_URL: 'https://santoshsarah09-hub.github.io/agc-connect/',
   STALE_POST_DAYS: 14          // the monthly email warns when a group has no new weekly verse/lesson for this long
 };
 
@@ -122,6 +125,7 @@ function doPost(e) {
     if (!fn) throw new Error('Unknown action');
     lock.waitLock(15000);
     var res = fn(body);
+    notify_(body, res);
     if (['progSend', 'progForget', 'famRegister', 'famForget'].indexOf(body.action) < 0) dropFeedCache_();
     return json_(res);
   } catch (err) {
@@ -582,6 +586,26 @@ function famRemove_(b) {
   var S = sheets_(), r = findById_(S.fam, b.id);
   if (r) S.fam.deleteRow(r.row);
   return { ok: true };
+}
+/* Alert emails: the owner hears when a LEADER posts. Titles only, never children's data; the owner's own posts do not email. */
+var NOTIFY = { annSave: 'an announcement', asgSave: 'an assignment', weeklySave: 'the weekly verse and lesson', songSave: 'a song', eventSave: 'an event' };
+function alert_(subject, lines) {
+  try {
+    if (!CONFIG.ALERTS) return;
+    var cache = CacheService.getScriptCache(), n = Number(cache.get('alert:n')) || 0;
+    if (n >= CONFIG.ALERTS_PER_WINDOW) return;
+    cache.put('alert:n', String(n + 1), 21600);
+    MailApp.sendEmail(adminEmail_(), subject, lines.join('\n') + '\n\nOpen AGC Connect: ' + CONFIG.APP_URL + '\n(To stop these emails, set ALERTS to false at the top of the Hub script.)');
+  } catch (e) { /* an alert must never break a post */ }
+}
+function notify_(b, res) {
+  try {
+    var what = NOTIFY[b.action]; if (!what || !res || !res.ok) return;
+    var w = who_(b); if (w.admin) return;
+    var area = b.action === 'songSave' ? 'worship' : (b.action === 'asgSave' || b.action === 'weeklySave') ? (b.group === 'youth' ? 'youth' : 'kids') : (b.scope || b.area || 'all');
+    var title = txt_(b.title || b.titleEn || b.titleNe || b.verse || '', 80);
+    alert_('AGC Connect: ' + w.name + (b.id ? ' updated ' : ' posted ') + what + ' (' + area + ')', ['Who: ' + w.name + (w.role ? ' (' + w.role + ')' : ''), 'Where: ' + area, 'What: ' + what + (title ? ': ' + title : '')]);
+  } catch (e) { /* ignore */ }
 }
 function logout_(b) { try { CacheService.getScriptCache().remove('tok:' + String(b.token || '')); } catch (e) { /* gone */ } return { ok: true }; }
 

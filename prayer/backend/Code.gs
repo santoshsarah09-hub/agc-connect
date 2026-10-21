@@ -425,6 +425,17 @@ function saveRequests_(body) {
 function plainRequest_(t) {
   return cleanText_(t).replace(/<[^>]*>/g, ' ').replace(/(https?:\/\/|www\.)\S+/gi, '[link removed]').replace(/\s+/g, ' ').trim().slice(0, 300);
 }
+// Emails the owner that a request is waiting. The request itself is never put in the email (it may be private).
+// At most one email per hour, and 10 per day, so a busy time never floods the inbox.
+function alertNew_() {
+  try {
+    var cache = CacheService.getScriptCache();
+    if (cache.get('alert:sub') || (Number(cache.get('alert:subn')) || 0) >= 10) return;
+    cache.put('alert:sub', '1', 3600); cache.put('alert:subn', String((Number(cache.get('alert:subn')) || 0) + 1), 21600);
+    MailApp.sendEmail(Session.getEffectiveUser().getEmail(), 'AGC Prayer Chain: a new prayer request is waiting',
+      'Someone sent a prayer request. It is not on the list until you approve it.\n\nOpen AGC Connect > Prayer > Requests > the gear icon (Admin), enter your PIN, and look under "Waiting".\nAGC Connect: https://santoshsarah09-hub.github.io/agc-connect/\n\n(The request itself is not in this email, to keep it private. More requests in the next hour will not send another email; they will be in the same waiting list.)');
+  } catch (e) { /* the alert is a courtesy */ }
+}
 function submit_(body) {
   var text = plainRequest_(body.text);
   if (!text) throw new Error('Please type your request.');
@@ -437,6 +448,7 @@ function submit_(body) {
   if (a >= SUB_ALL) throw new Error('Many requests were sent today. Please try again later.');
   cache.put(dk, String(d + 1), 21600); cache.put(ak, String(a + 1), 21600);
   appendText_(liveSheets_().subs, [Utilities.getUuid(), nowParts_().month, name, text, anon, 'pending', new Date().toISOString(), device]);
+  alertNew_();
   return { ok: true };
 }
 function pending_() {

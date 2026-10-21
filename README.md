@@ -93,3 +93,8 @@ With the Hub connected, teachers post assignments in Kids/Youth > Teacher. No fi
 ## Family registration
 
 On Kids and Youth > Me, a parent can register a child: the child's first name (from the profile), last initial, parent email and phone, with a consent box. It is stored in the Hub sheet tab **Families** and shown only to the admin (Leaders > Families). Teachers cannot see it, and it never appears in the public feed. A parent can remove it any time; the admin can remove any row. Limits: 10 registrations per phone per hour. Contacts stay until removed (they are not part of the monthly cleanup). Backup copies of the sheet also contain them, so keep the AGC Connect Drive folder private.
+
+## Alert emails
+
+- **Hub:** when a *leader* (not the admin) posts an announcement, assignment, weekly verse/lesson, song or event, the owner gets an email with who, where and the title only. At most 15 per 6 hours. Turn off with `ALERTS: false` at the top of `hub/Code.gs`.
+- **Prayer:** when someone sends a prayer request, the owner gets an email that one is waiting (never the request text). At most one per hour and 10 per day. Needs the new `prayer/backend/Code.gs` deployed.
