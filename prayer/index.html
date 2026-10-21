@@ -537,7 +537,7 @@ const Demo = {
     } else if (b.action === 'weeklySet') {
       pinOk();
       if (!b.on) { d.weekly = null; Demo.save(d); return { ok: true, weekly: null, created: 0 }; }
-      const w = { dow: Number(b.dow), time: b.time, dur: Math.max(15, Math.min(240, Number(b.dur) || 60)), en: b.en || '', ne: b.ne || '', link: b.link || '', req: !!b.req };
+      const w = { dow: Number(b.dow), time: b.time, dur: Math.max(15, Math.min(240, Number(b.dur) || 60)), en: b.en || '', ne: b.ne || '', link: b.link || '', req: false };
       if (!(w.en || w.ne)) throw new Error('Please give the weekly prayer a title.');
       d.weekly = w; let made = 0;
       Demo.months().forEach((m) => {
@@ -865,7 +865,11 @@ function mineHtml() {
 }
 
 function togetherHtml() {
-  const list = (S.data && S.data.sessions) || [];
+  // Show only the next upcoming session of each series (e.g. this Friday); later weeks and past ones stay hidden.
+  const seen = new Set(), list = ((S.data && S.data.sessions) || []).filter((q) => {
+    if (Date.now() >= sessionTimes(q).end) return false;
+    const k = (q.en || '') + '|' + (q.ne || ''); if (seen.has(k)) return false; seen.add(k); return true;
+  });
   let html = cols(`<span class="h2">${esc(I.tabTogether[0])}</span>`, `<span class="h2">${esc(I.tabTogether[1])}</span>`);
   html += `<p class="muted">${esc(I.togetherIntro[0])}<br><span lang="ne">${esc(I.togetherIntro[1])}</span></p>`;
   if (!list.length) return html + `<div class="empty">${esc(I.noSessions[0])}<br><span lang="ne">${esc(I.noSessions[1])}</span></div>`;
@@ -915,7 +919,6 @@ function weeklyCardHtml() {
       <div class="two"><input type="text" maxlength="120" id="wkEn" placeholder="${esc(I.english[0])}" value="${esc(w.en)}"><input type="text" lang="ne" maxlength="120" id="wkNe" placeholder="${esc(I.nepali[1])}" value="${esc(w.ne)}"></div>
       <div class="two"><div><label class="f" for="wkDur">${lab('fMinutes')}</label><select class="fld" id="wkDur">${durs.map((m) => `<option value="${m}" ${Number(w.dur) === m ? 'selected' : ''}>${m}</option>`).join('')}</select></div>
         <div><label class="f" for="wkLink">${lab('fLink')}</label><input type="url" inputmode="url" maxlength="300" id="wkLink" value="${esc(w.link)}" placeholder="https://"></div></div>
-      <label class="chk" style="margin-top:8px"><input type="checkbox" id="wkReq" ${w.req ? 'checked' : ''}> ${lab('wkReq')}</label>
       <button class="btn gold block" style="margin-top:10px" data-act="wkSave">${bi('wkSave')}</button></div>`;
 }
 async function loadWeekly() {
@@ -1193,7 +1196,7 @@ async function onAct(act, el, ev) {
     case 'delSes': S.sdraft.splice(Number(el.dataset.si), 1); render(); break;
     case 'wkSave': await run(async () => {
       const on = $('#wkOn').checked;
-      const r = await post({ action: 'weeklySet', pin: S.pin, on, dow: $('#wkDow').value, time: $('#wkT').value, dur: $('#wkDur').value, en: $('#wkEn').value, ne: $('#wkNe').value, link: $('#wkLink').value, req: $('#wkReq').checked });
+      const r = await post({ action: 'weeklySet', pin: S.pin, on, dow: $('#wkDow').value, time: $('#wkT').value, dur: $('#wkDur').value, en: $('#wkEn').value, ne: $('#wkNe').value, link: $('#wkLink').value });
       S.wk = r.weekly || null; toast('wkSaved'); S.sdraftMonth = null; await load(true); startSesDraft();
     }); break;
     case 'saveSes': await run(async () => { await post({ action: 'saveSessions', pin: S.pin, sessions: S.sdraft }); toast('saved'); S.sdraftMonth = null; await load(true); startSesDraft(); }); break;

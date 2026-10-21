@@ -563,7 +563,7 @@ function weeklySet_(body) {
   if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) throw new Error('Please choose a start time.');
   var en = cleanText_(body.en).slice(0, 120), ne = cleanText_(body.ne).slice(0, 120);
   if (!en && !ne) throw new Error('Please give the weekly prayer a title.');
-  var w = { dow: dow, time: time, dur: Math.max(15, Math.min(240, Math.round(Number(body.dur)) || 60)), en: en, ne: ne, link: cleanLink_(body.link), req: !!body.req };
+  var w = { dow: dow, time: time, dur: Math.max(15, Math.min(240, Math.round(Number(body.dur)) || 60)), en: en, ne: ne, link: cleanLink_(body.link), req: false };  // requests are never carried to other weeks; the admin turns them on per session
   props.setProperty('WEEKLY', JSON.stringify(w)); props.setProperty('WEEKLY_DONE', '[]');
   var made = ensureWeekly_(); dropStateCache_();
   return { ok: true, weekly: w, created: made };
