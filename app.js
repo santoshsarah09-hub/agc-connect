@@ -1320,6 +1320,18 @@ function funView(v, g) {
   stopFun();
   const p = needProfile(v, g); if (!p) return;
   const C = FUNCFG(g), now = Date.now(), left = (p.funUntil || 0) - now, bal = starBal(p);
+  const A = Object.assign({ cost: 100, minutes: 30 }, ((CFG.fun || {}).asmr) || {}), aleft = (p.asmrUntil || 0) - now;
+  if (aleft > 0 && left <= 0) {
+    v.innerHTML = profileBar(g) + `<div class="card gold"><h2>🫧 3D Calm Bubbles</h2><p>Time left: <b id="funclock">${fmtClock(aleft)}</b></p><p class="muted">⭐ ${p.asmrCost || A.cost} stars were used for this ${A.minutes}-minute session. Stars left this month: ${bal}</p><button class="btn small ghost" id="funmute">${FUNMUTE() ? '🔇 Sound off' : '🔊 Sound on'}</button></div><div class="card"><div id="funarea"></div></div>`;
+    wireBar(g); $('#funmute').onclick = e => { lsSet('agc.mute', FUNMUTE() ? '' : '1'); e.target.textContent = FUNMUTE() ? '🔇 Sound off' : '🔊 Sound on'; funSnd('ok'); };
+    window.__funGen = (window.__funGen || 0) + 1; funAsmr($('#funarea'), g);
+    FUNT = setInterval(() => {
+      if (!v.isConnected || !$('#funclock')) return stopFun();
+      const l = (p.asmrUntil || 0) - Date.now();
+      if (l <= 0) { stopFun(); window.__funGen++; funView(v, g); applyLang(); } else $('#funclock').textContent = fmtClock(l);
+    }, 1000);
+    return;
+  }
   if (left > 0) {
     v.innerHTML = profileBar(g) + `<div class="card gold"><h2>🎮 Fun Zone</h2><p>Time left: <b id="funclock">${fmtClock(left)}</b></p><p class="muted">⭐ ${C.cost} stars were used to unlock this ${C.minutes}-minute session. Stars left this month: ${bal}</p><button class="btn small ghost" id="funmute">${FUNMUTE() ? '🔇 Sound off' : '🔊 Sound on'}</button></div>
       <div class="card"><div class="tabs2">${FUNGAMES.map(([k, n]) => `<button class="btn small ${k === 'race' ? '' : 'ghost'}" data-fg="${k}">${n}</button>`).join(' ')}</div><div id="funarea"></div></div>`;
@@ -1341,8 +1353,10 @@ function funView(v, g) {
     <p>Your stars this month: <b>⭐ ${bal}</b> of ${C.cost}</p><p class="muted">Your stars stay with you all month and start again on the 1st.</p>
     <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="${C.cost}" aria-valuenow="${Math.min(bal, C.cost)}" style="background:#e3e8ef;border-radius:8px;height:12px;overflow:hidden"><div style="background:var(--gold);height:100%;width:${Math.min(100, Math.round(bal / C.cost * 100))}%"></div></div>
     ${p.funUntil ? `<p class="good"><b>Play time is over.</b> ${p.funCost || C.cost} stars were used for that session. Stars left this month: ${bal}</p>` : ''}
-    <button class="btn" id="funstart" ${ok ? '' : 'disabled'} style="margin-top:12px">${ok ? 'Unlock ' + C.minutes + ' minutes' : 'Keep learning verses to unlock'}</button></div>`;
+    <button class="btn" id="funstart" ${ok ? '' : 'disabled'} style="margin-top:12px">${ok ? 'Unlock ' + C.minutes + ' minutes' : 'Keep learning verses to unlock'}</button></div>
+    <div class="card gold"><h2>🫧 3D Calm Bubbles</h2><p>A slow, relaxing 3D game: float through soft glowing bubbles and pop them with gentle sounds. Costs <b>${A.cost} stars</b> for <b>${A.minutes} minutes</b>.</p><p>Your stars this month: <b>⭐ ${bal}</b> of ${A.cost}</p><button class="btn" id="asmrstart" ${bal >= A.cost ? '' : 'disabled'}>${bal >= A.cost ? 'Unlock ' + A.minutes + ' minutes' : 'Keep earning stars to unlock'}</button></div>`;
   wireBar(g);
+  $('#asmrstart').onclick = () => { if (starBal(p) < A.cost) return; p.spentWk = { wk: monthKey(), n: spentNow(p) + A.cost }; p.asmrUntil = Date.now() + A.minutes * 60000; p.asmrCost = A.cost; save(); funView(v, g); applyLang(); };
   $('#funstart').onclick = () => { if (starBal(p) < C.cost) return; p.spentWk = { wk: monthKey(), n: spentNow(p) + C.cost }; p.funUntil = Date.now() + C.minutes * 60000; p.funCost = C.cost; save(); funView(v, g); applyLang(); };
 }
 function funPuzzle(area, g) {
@@ -1610,6 +1624,54 @@ function funDove(area, g) {
   timer = setInterval(() => { if (!alive() || over) return stop(); left--; const el = area.querySelector('b:nth-of-type(2)'); if (left <= 0) end(); else if (el) el.textContent = left; }, 1000);
 }
 
+/* ---------- 3D Calm Bubbles: slow floating bubbles in 3D; drag to look around, tap to pop with a soft sound ---------- */
+function funPop() {
+  if (FUNMUTE()) return;
+  try {
+    FUNAC = FUNAC || new (window.AudioContext || window.webkitAudioContext)(); if (FUNAC.state === 'suspended') FUNAC.resume();
+    const t = FUNAC.currentTime, n = FUNAC.createBuffer(1, Math.floor(FUNAC.sampleRate * .12), FUNAC.sampleRate), d = n.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 3);
+    const s = FUNAC.createBufferSource(), f = FUNAC.createBiquadFilter(), v = FUNAC.createGain(), o = FUNAC.createOscillator(), ov = FUNAC.createGain();
+    s.buffer = n; f.type = 'bandpass'; f.frequency.value = 900 + Math.random() * 700; f.Q.value = 1.2; v.gain.setValueAtTime(.22, t); v.gain.exponentialRampToValueAtTime(.001, t + .12);
+    s.connect(f); f.connect(v); v.connect(FUNAC.destination); s.start(t);
+    o.type = 'sine'; o.frequency.setValueAtTime(420 + Math.random() * 260, t); o.frequency.exponentialRampToValueAtTime(160, t + .14); ov.gain.setValueAtTime(.07, t); ov.gain.exponentialRampToValueAtTime(.001, t + .16); o.connect(ov); ov.connect(FUNAC.destination); o.start(t); o.stop(t + .18);
+  } catch (e) {}
+}
+function funAsmr(area, g) {
+  const W = 340, H = 420, G = window.__funGen, F = 260, hues = [200, 280, 170, 320, 45, 220];
+  area.innerHTML = `<p class="muted">Drag to look around. Tap a bubble to pop it. Take slow breaths. 🫧</p><canvas id="ac" width="${W}" height="${H}" style="width:100%;max-width:${W}px;border-radius:14px;touch-action:none;display:block;margin:auto"></canvas><p>Popped: <b id="apc">0</b></p>`;
+  const cv = $('#ac'), cx = cv.getContext('2d'); let yaw = 0, pitch = 0, vyaw = .0016, popped = 0, rings = [], drag = null, moved = false;
+  const mk = (far) => ({ x: (Math.random() - .5) * 360, y: (Math.random() - .5) * 420, z: far ? 320 + Math.random() * 120 : Math.random() * 440 - 120, r: 22 + Math.random() * 30, vx: (Math.random() - .5) * .25, vy: -.12 - Math.random() * .3, vz: (Math.random() - .5) * .15, h: hues[Math.floor(Math.random() * hues.length)], ph: Math.random() * 6.28 });
+  const B = Array.from({ length: 22 }, () => mk(false));
+  const proj = b => { const cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch); let x = b.x * cy - b.z * sy, z = b.x * sy + b.z * cy, y = b.y * cp - z * sp; z = b.y * sp + z * cp; const k = F / (F + z + 160); return { sx: W / 2 + x * k, sy: H / 2 + y * k, k, z }; };
+  const stopAll = () => { if (window.__funRaf) { cancelAnimationFrame(window.__funRaf); window.__funRaf = 0; } };
+  const loop = () => {
+    if (!cv.isConnected || G !== window.__funGen) return stopAll();
+    if (!drag) yaw += vyaw;
+    const gr = cx.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, '#0b1230'); gr.addColorStop(1, '#2b1b4d'); cx.fillStyle = gr; cx.fillRect(0, 0, W, H);
+    B.forEach((b, i) => { b.x += b.vx + Math.sin(performance.now() / 2200 + b.ph) * .12; b.y += b.vy; b.z += b.vz; if (b.y < -260) Object.assign(b, mk(true), { y: 260 }); });
+    const L = B.map(b => ({ b, p: proj(b) })).sort((a, c) => c.p.z - a.p.z);
+    L.forEach(({ b, p }) => {
+      const r = b.r * p.k * 1.6; if (r < 2) return;
+      const gg = cx.createRadialGradient(p.sx - r * .3, p.sy - r * .35, r * .1, p.sx, p.sy, r);
+      gg.addColorStop(0, `hsla(${b.h},90%,92%,.55)`); gg.addColorStop(.6, `hsla(${b.h},80%,65%,.22)`); gg.addColorStop(1, `hsla(${b.h},90%,70%,.5)`);
+      cx.fillStyle = gg; cx.beginPath(); cx.arc(p.sx, p.sy, r, 0, 6.283); cx.fill();
+      cx.strokeStyle = `hsla(${b.h},90%,85%,.55)`; cx.lineWidth = 1.5; cx.stroke();
+      cx.fillStyle = 'rgba(255,255,255,.7)'; cx.beginPath(); cx.ellipse(p.sx - r * .35, p.sy - r * .4, r * .18, r * .1, -.6, 0, 6.283); cx.fill();
+    });
+    rings = rings.filter(r => r.a > 0); rings.forEach(r => { r.r += 2.2; r.a -= .03; cx.strokeStyle = `hsla(${r.h},90%,85%,${Math.max(0, r.a)})`; cx.lineWidth = 2; cx.beginPath(); cx.arc(r.x, r.y, r.r, 0, 6.283); cx.stroke(); });
+    window.__funRaf = requestAnimationFrame(loop);
+  };
+  const pos = e => { const q = cv.getBoundingClientRect(); return { x: (e.clientX - q.left) * W / q.width, y: (e.clientY - q.top) * H / q.height }; };
+  cv.onpointerdown = e => { drag = { x: e.clientX, y: e.clientY }; moved = false; cv.setPointerCapture && cv.setPointerCapture(e.pointerId); };
+  cv.onpointermove = e => { if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y; if (Math.abs(dx) + Math.abs(dy) > 4) moved = true; yaw += dx * .006; pitch = Math.max(-.6, Math.min(.6, pitch + dy * .004)); drag = { x: e.clientX, y: e.clientY }; };
+  cv.onpointerup = e => {
+    const wasTap = drag && !moved; drag = null; if (!wasTap) return;
+    const m = pos(e); const hit = B.map((b, i) => ({ b, i, p: proj(b) })).filter(o => Math.hypot(o.p.sx - m.x, o.p.sy - m.y) <= o.b.r * o.p.k * 1.6 + 6).sort((a, c) => a.p.z - c.p.z)[0];
+    if (hit) { rings.push({ x: hit.p.sx, y: hit.p.sy, r: hit.b.r * hit.p.k * 1.6, a: .9, h: hit.b.h }); Object.assign(hit.b, mk(true)); popped++; $('#apc').textContent = popped; funPop(); funBuzz(15); }
+  };
+  loop();
+}
 /* ---------- Simon Pattern: each colour plays a note ---------- */
 function funSimon(area, g) {
   const hard = g === 'youth', cols = ['#e53935', '#43a047', '#1e88e5', '#fdd835'], snd = ['c', 'd', 'e', 'f'], seq = [], G = window.__funGen, alive = () => area.isConnected && G === window.__funGen; let pos = 0, busy = true, best = funBest('simon', g);
