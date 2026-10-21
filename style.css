@@ -37,7 +37,7 @@ textarea{min-height:140px}label{font-weight:700;font-size:15px}
 #auth .btn.small{margin:0 6px 8px 0}
 .chk{display:flex;gap:8px;text-align:left;font-weight:600;font-size:14px;margin:8px 0}.chk input{width:auto;margin:3px 0 0}
 /* Home showcase: bright slides that fade in and out */
-.showcase{position:relative;min-height:380px;border-radius:26px;overflow:hidden;color:#fff;margin-bottom:14px;cursor:pointer;
+.showcase{position:relative;min-height:270px;border-radius:26px;overflow:hidden;color:#fff;margin-bottom:14px;cursor:pointer;
   background:linear-gradient(125deg,#001f3f,#14589c,#7a1020,#0a3a6e,#001f3f);background-size:320% 320%;animation:bgshift 20s ease infinite;
   border-bottom:6px solid var(--gold);box-shadow:0 12px 30px rgba(0,31,63,.35)}
 .showcase::before{content:"";position:absolute;inset:-30%;background:radial-gradient(circle at 30% 20%,rgba(255,193,7,.35),transparent 40%),radial-gradient(circle at 80% 80%,rgba(255,255,255,.18),transparent 35%);animation:glow 9s ease-in-out infinite alternate;pointer-events:none}
@@ -142,3 +142,8 @@ img,iframe,video,table{max-width:100%}
 .bub:disabled,.bub.lock{opacity:.55;cursor:not-allowed}
 .bub:focus-visible{outline:3px solid #f5b800;outline-offset:2px}
 @media (min-width:560px){.bubs{grid-template-columns:repeat(4,1fr)}}
+
+details.card>summary{cursor:pointer;list-style:none;font-size:18px;padding:2px 0;display:flex;justify-content:space-between;align-items:center}
+details.card>summary::-webkit-details-marker{display:none}
+details.card>summary::after{content:"▾";color:var(--muted);margin-left:8px}
+details.card[open]>summary::after{content:"▴"}

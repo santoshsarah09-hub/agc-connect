@@ -1,0 +1,118 @@
+{
+ "focus": [
+  {
+   "title": "A servant heart",
+   "ref": "Mark 10:45",
+   "ask": "Whose load could you make lighter this week?",
+   "act": "Do one quiet act of service that nobody will thank you for."
+  },
+  {
+   "title": "Time with God",
+   "ref": "Luke 5:16",
+   "ask": "When and where do you pray alone? What gets in the way?",
+   "act": "Set a fixed 10 minutes a day this week for prayer, and keep it."
+  },
+  {
+   "title": "Integrity",
+   "ref": "Proverbs 11:3",
+   "ask": "Where is the gap between what you say and what you do?",
+   "act": "Finish one thing you promised, and tell the truth where it is uncomfortable."
+  },
+  {
+   "title": "Listening first",
+   "ref": "James 1:19",
+   "ask": "Who needs you to listen more than talk?",
+   "act": "In your next conversation, ask one more question before you give advice."
+  },
+  {
+   "title": "Encouragement",
+   "ref": "1 Thessalonians 5:11",
+   "ask": "Who on your team has not been thanked lately?",
+   "act": "Send two short messages of thanks to people who serve with you."
+  },
+  {
+   "title": "Humility",
+   "ref": "Philippians 2:3-4",
+   "ask": "Where do you need to put someone else’s need before your own?",
+   "act": "Let someone else take the credit for something this week."
+  },
+  {
+   "title": "Vision",
+   "ref": "Proverbs 29:18",
+   "ask": "What is God asking your ministry to become in a year?",
+   "act": "Write one sentence about where your team is going and share it with them."
+  },
+  {
+   "title": "Teamwork",
+   "ref": "Ecclesiastes 4:9-10",
+   "ask": "Who is working alone who needs a partner?",
+   "act": "Invite someone to serve beside you in one task."
+  },
+  {
+   "title": "Courage",
+   "ref": "Joshua 1:9",
+   "ask": "What have you been avoiding because you are afraid?",
+   "act": "Take one small step toward it, and pray before you do."
+  },
+  {
+   "title": "Forgiveness",
+   "ref": "Colossians 3:13",
+   "ask": "Is there anyone you need to forgive, or ask to forgive you?",
+   "act": "Make the first move toward peace with one person."
+  },
+  {
+   "title": "Faithfulness",
+   "ref": "1 Corinthians 4:2",
+   "ask": "What small thing has God trusted you with?",
+   "act": "Do your assigned task early and well this week."
+  },
+  {
+   "title": "Wisdom",
+   "ref": "James 1:5",
+   "ask": "What decision are you facing that needs God’s wisdom?",
+   "act": "Ask God for wisdom about it each morning, then talk with a wise person."
+  }
+ ],
+ "links": [
+  {
+   "group": "Grow in the Word",
+   "items": [
+    {
+     "title": "BibleProject",
+     "desc": "Short videos and study guides that show how the whole Bible fits together.",
+     "url": "https://bibleproject.com"
+    },
+    {
+     "title": "Bible Gateway",
+     "desc": "Read and search many Bible translations, including NASB 1995.",
+     "url": "https://www.biblegateway.com"
+    },
+    {
+     "title": "The Gospel Coalition",
+     "desc": "Articles and resources for church leaders.",
+     "url": "https://www.thegospelcoalition.org"
+    }
+   ]
+  },
+  {
+   "group": "Grow as a leader",
+   "items": [
+    {
+     "title": "John Maxwell",
+     "desc": "Free leadership lessons and resources.",
+     "url": "https://www.johnmaxwell.com"
+    },
+    {
+     "title": "Global Leadership Network",
+     "desc": "Leadership talks and articles for churches and ministries.",
+     "url": "https://globalleadership.org"
+    },
+    {
+     "title": "Ligonier Ministries",
+     "desc": "Teaching series and articles to deepen your understanding of the faith.",
+     "url": "https://www.ligonier.org"
+    }
+   ]
+  }
+ ]
+}

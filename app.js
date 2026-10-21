@@ -115,7 +115,7 @@ const SECTIONS = {
   kids:   { label: 'Kids Shine',  icon: '🧒', tabs: [['verse', 'Memory Verse'], ['games', 'Games'], ['fun', 'Fun Zone'], ['lesson', 'Lesson'], ['hw', 'Assignments'], ['chat', 'Chat'], ['news', 'Announcements'], ['me', 'My Kids'], ['teach', 'Teacher']] },
   youth:  { label: 'Youth Shine', icon: '🔥', tabs: [['verse', 'Memory Verse'], ['games', 'Games'], ['fun', 'Fun Zone'], ['lesson', 'Teaching'], ['hw', 'Assignments'], ['notes', 'Notes'], ['chat', 'Chat'], ['news', 'Announcements'], ['me', 'My Profile'], ['teach', 'Teacher']] },
   bible:  { label: 'Bible',       icon: '📖', tabs: [['read', 'Read'], ['find', 'Find a Verse'], ['notes', 'My Notes']] },
-  leaders: { label: 'Leaders',    icon: '🛡️', tabs: [['post', 'Post'], ['res', 'Resources'], ['lboard', 'Leader Board'], ['team', 'Team'], ['fam', 'Families']] }
+  leaders: { label: 'Leaders',    icon: '🛡️', tabs: [['post', 'Post'], ['growth', 'Growth'], ['res', 'Resources'], ['lboard', 'Leader Board'], ['team', 'Team', 'admin'], ['fam', 'Families', 'admin']] }
 };
 let sec = 'home';
 const tabOf = { home: 'today', prayer: 'chain', worship: 'songs', kids: 'verse', youth: 'verse', bible: 'read', leaders: 'post' };
@@ -126,10 +126,12 @@ function render() {
   clearTimeout(showTimer); if (typeof stopFun === 'function') stopFun();
   $('#homebtn').hidden = (sec === 'home' && tabOf.home === 'today');
   $('#tabs').innerHTML = Object.entries(SECTIONS).map(([k, s]) => `<button data-s="${k}" class="${k === sec ? 'on' : ''}"><span>${s.icon}</span>${s.label}</button>`).join('');
-  $('#inner').innerHTML = SECTIONS[sec].tabs.map(([k, l]) => `<button data-t="${k}" class="${k === tabOf[sec] ? 'on' : ''}">${l}</button>`).join('');
+  const shownTabs = SECTIONS[sec].tabs.filter(t => t[2] !== 'admin' || (HUB.me && HUB.me.admin));
+  if (!shownTabs.some(t => t[0] === tabOf[sec])) tabOf[sec] = shownTabs[0][0];
+  $('#inner').innerHTML = shownTabs.map(([k, l]) => `<button data-t="${k}" class="${k === tabOf[sec] ? 'on' : ''}">${l}</button>`).join('');
   $('#tabs').querySelectorAll('button').forEach(b => b.onclick = () => { sec = b.dataset.s; render(); window.scrollTo(0, 0); });
   $('#inner').querySelectorAll('button').forEach(b => b.onclick = () => { tabOf[sec] = b.dataset.t; render(); });
-  $('#inner').hidden = SECTIONS[sec].tabs.length < 2;
+  $('#inner').hidden = shownTabs.length < 2;
   const v = $('#view'); v.innerHTML = ''; v.classList.toggle('flush', sec === 'prayer'); document.body.classList.toggle('flushpage', sec === 'prayer');
   const fn = VIEWS[sec + '.' + tabOf[sec]];
   fn ? fn(v) : (v.innerHTML = '<div class="card">Coming soon.</div>');
@@ -1170,7 +1172,7 @@ async function leaderGate(v, then) {
 const AREA_NAME = { kids: 'Kids', youth: 'Youth', worship: 'Worship' };
 const areaList = m => m.admin ? 'All areas' : ((m.areas || []).map(a => AREA_NAME[a]).join(', ') || 'No area yet');
 const myArea = a => !!(HUB.me && (HUB.me.admin || (HUB.me.areas || []).includes(a)));
-const meBar = () => `<div class="pbar"><b>${esc(HUB.me.name)}</b><span class="muted">${esc(HUB.me.role || '')} · ${esc(areaList(HUB.me))}</span><button class="btn small ghost" id="lout">Sign out</button></div>`;
+const meBar = () => `<div class="pbar"><b>${esc(HUB.me.name)}</b><span class="muted">${HUB.me.role && HUB.me.role !== HUB.me.name ? esc(HUB.me.role) + ' · ' : ''}${esc(areaList(HUB.me))}</span><button class="btn small ghost" id="lout">Sign out</button></div>`;
 function wireOut() { const b = $('#lout'); if (b) b.onclick = async () => { try { await hubCall({ action: 'logout' }); } catch (e) {} hubLocalLogout(); render(); }; }
 async function leaderLoad(v) { try { return await hubCall({ action: 'leaderData' }); } catch (e) { v.innerHTML = `<div class="card"><span class="bad">${esc(e.message)}</span></div>`; return null; } }
 const act = (v, body, again) => async () => { try { await hubCall(body); await hubFeed(true); await again(); } catch (e) { alert(e.message); } };
@@ -1240,13 +1242,30 @@ function leadersBoard(v) {
     applyLang();
   });
 }
+/* ---------- Leader Growth: for every leader (elders, deacons, helpers, team leads), whatever their area ---------- */
+const bgLink = ref => 'https://www.biblegateway.com/passage/?search=' + encodeURIComponent(ref) + '&version=NASB1995';
+function leadersGrowth(v) {
+  leaderGate(v, async () => {
+    v.innerHTML = '<div class="card">Loading…</div>';
+    const G = (await getJson('data/leader-growth.json')) || { focus: [], links: [] }, d = await leaderLoad(v); if (!d) return;
+    const wk = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 1)) / 6048e5), f = G.focus.length ? G.focus[wk % G.focus.length] : null;
+    const notes = (d.announcements || []).filter(a => a.scope === 'leaders').slice(0, 3);
+    v.innerHTML = `${meBar()}
+    <div class="card gold"><h2>🌱 Leadership growth</h2><p>For every leader at AGC: elders, deacons, team leads, helpers and ministry partners. Take a few quiet minutes each week to grow in the Word, in prayer and in serving.</p></div>
+    ${f ? `<div class="card"><h2>This week’s focus: ${esc(f.title)}</h2><p><b>Read:</b> <a href="${esc(bgLink(f.ref))}" target="_blank" rel="noopener">${esc(f.ref)}</a> <span class="muted">(opens the passage in NASB 1995)</span></p><p><b>Think about it:</b> ${esc(f.ask)}</p><p><b>Try this week:</b> ${esc(f.act)}</p></div>` : ''}
+    ${notes.length ? `<div class="card"><h2>From the pastor</h2>${notes.map(a => `<div class="slot"><div class="t">${esc(a.en || a.ne)}<div class="muted">${esc(a.bodyEn || a.body || '')}</div></div></div>`).join('')}</div>` : ''}
+    ${G.links.map(gp => `<div class="card"><h2>${esc(gp.group)}</h2>${(gp.items || []).map(it => `<div class="slot"><div class="t">${esc(it.title)}<div class="muted">${esc(it.desc || '')}</div></div>${linkBtn(it.url, 'Open')}</div>`).join('')}</div>`).join('')}
+    <div class="card"><h2>More for you</h2><p class="muted">Files and links from the pastor are under <b>Resources</b>. Share an idea or a prayer need with the other leaders on the <b>Leader Board</b>.</p><div class="seg"><button class="btn small ghost" id="gres">Resources</button><button class="btn small ghost" id="glb">Leader Board</button></div></div>`;
+    wireOut(); $('#gres').onclick = () => { tabOf.leaders = 'res'; render(); }; $('#glb').onclick = () => { tabOf.leaders = 'lboard'; render(); }; applyLang();
+  });
+}
 function leadersTeam(v) {
   leaderGate(v, async () => {
     if (!HUB.me.admin) { v.innerHTML = meBar() + '<div class="card"><h2>Team</h2><p>Only the pastor (admin) can add leaders and give out PINs.</p></div>'; wireOut(); return; }
     v.innerHTML = '<div class="card">Loading…</div>';
     const d = await leaderLoad(v); if (!d) return;
     const pinHtml = v.__pin ? `<div class="card red"><h2>PIN for ${esc(v.__pin.name)}</h2><div class="bigpin" data-keep>${esc(v.__pin.pin)}</div><p>This is shown only once. Write it down now.</p></div>` : '';
-    v.innerHTML = `${meBar()}${pinHtml}<div class="card gold"><h2>Add a leader</h2><p class="muted">Each leader gets their own 6-digit PIN. It is shown once. Write it down and give it to them in person or by a private message.</p>${fld('tn', 'First name', 'maxlength="20"')}${fld('tr', 'Role (Sunday school teacher, Youth leader…)', 'maxlength="40"')}<p class="muted">Give access to:</p><div class="row">${['kids', 'youth', 'worship'].map(a => `<label class="chk"><input type="checkbox" class="tar" value="${a}"> ${AREA_NAME[a]}</label>`).join('')}</div><button class="btn" id="tadd">Add leader</button><div id="tmsg"></div></div>
+    v.innerHTML = `${meBar()}${pinHtml}<div class="card gold"><h2>Add a leader</h2><p class="muted">Each leader gets their own 6-digit PIN. It is shown once. Write it down and give it to them in person or by a private message.</p>${fld('tn', 'First name', 'maxlength="20"')}${fld('tr', 'Role (pick a suggestion or type your own)', 'maxlength="40" list="troles" placeholder="Ministry Leader"')}<datalist id="troles">${['Ministry Leader', 'Elder', 'Deacon', 'Team Lead', 'Hospitality Team', 'Outreach Team', 'Prayer Team', 'Media Team', 'Sunday School Teacher', 'Youth Leader', 'Worship Leader'].map(r => `<option value="${r}">`).join('')}</datalist><p class="muted">Not in Kids, Youth or Worship? Choose <b>Ministry Leader</b> and leave every box below empty. They sign in with their own PIN and see the Growth tab, All Leaders files, the Leader Board and leaders-only announcements.</p><p class="muted">Give access to:</p><div class="row">${['kids', 'youth', 'worship'].map(a => `<label class="chk"><input type="checkbox" class="tar" value="${a}"> ${AREA_NAME[a]}</label>`).join('')}</div><button class="btn" id="tadd">Add leader</button><div id="tmsg"></div></div>
     <div class="card"><h2>Leaders</h2>${d.team.length ? d.team.map(t => `<div class="slot"><div class="t">${esc(t.name)} <span class="muted">${esc(t.role)}${t.active ? '' : ' · removed'}</span>${t.active ? `<div class="row">${['kids', 'youth', 'worship'].map(a => `<label class="chk"><input type="checkbox" data-ta="${esc(t.id)}" value="${a}" ${t.areas.includes(a) ? 'checked' : ''}> ${AREA_NAME[a]}</label>`).join('')}</div>` : ''}</div>${t.active ? `<button class="btn small ghost" data-tr="${esc(t.id)}">New PIN</button><button class="btn small ghost" data-tx="${esc(t.id)}">Remove</button>` : ''}</div>`).join('') : '<p class="muted">No leaders yet. You are signed in as admin.</p>'}</div>`;
     wireOut();
     const showPin = (name, pin) => { v.__pin = { name, pin }; leadersTeam(v); window.scrollTo(0, 0); };
@@ -1267,7 +1286,7 @@ function famCard(list) {
     <p class="muted">So the church knows who has joined and can reach you about your child's classes and events.</p>
     ${done.map(p => `<div class="slot"><div class="t">✅ ${esc(firstWord(p.name))} ${esc(p.fam.li)}. <span class="muted">is registered</span></div><button class="btn small ghost" data-fx="${p.id}">Remove</button></div>`).join('')}
     ${todo.length ? `<label for="fc">Child</label><select id="fc">${todo.map(p => `<option value="${p.id}">${esc(firstWord(p.name))}</option>`).join('')}</select>
-      <label for="fl">Last name starts with (one letter)</label><input id="fl" maxlength="1" autocomplete="off" style="max-width:80px;text-transform:uppercase">
+      <label for="fl">Last name starts with (one letter)</label><input id="fl" maxlength="1" autocomplete="off" style="display:block;max-width:80px;text-transform:uppercase">
       <label for="fe">Parent or guardian email</label><input id="fe" type="email" autocomplete="email" maxlength="100" value="${esc(last.e || '')}">
       <label for="fp">Parent or guardian phone</label><input id="fp" type="tel" autocomplete="tel" maxlength="20" value="${esc(last.p || '')}">
       <label class="chk"><input type="checkbox" id="fk"> I am this child's parent or guardian. I agree to share my email and phone number with Awakening Generations Church leaders so they can contact me. Only the church admin can see them, and I can remove them here at any time.</label>
@@ -1322,10 +1341,25 @@ $('#view').addEventListener('click', e => {
   if (btn.dataset.k === 'g') window.open(gcalUrl(ev), '_blank', 'noopener'); else downloadIcs(ev);
 });
 
+/* ---------- Tidy long screens: fold the rarely used cards into tap-to-open sections ---------- */
+const FOLDS = {
+  'kids.me': /^(Share progress|Add a child)/, 'youth.me': /^(Share progress|Add a (child|profile|youth))/,
+  'worship.songs': /^More Nepali songs/, 'leaders.res': /^Bible study and preaching tools/, 'leaders.post': /^(Posted announcements|Events$|Songs$|Fellowship posts)/
+};
+function foldCards() {
+  const v = $('#view'); if (!v) return; const re = FOLDS[sec + '.' + tabOf[sec]]; if (!re) return;
+  const cards = [...v.children].filter(c => c.classList && c.classList.contains('card')); if (cards.length < 3) return;
+  cards.forEach(c => {
+    const h = c.querySelector(':scope > h2'); if (!h || !re.test(h.textContent.trim()) || c.dataset.folded) return;
+    const d = document.createElement('details'); d.className = c.className; d.dataset.folded = '1'; const sm = document.createElement('summary'); sm.innerHTML = '<b>' + h.innerHTML + '</b>'; d.appendChild(sm);
+    h.remove(); while (c.firstChild) d.appendChild(c.firstChild); c.replaceWith(d);
+  });
+}
+{ let ft = 0; new MutationObserver(() => { clearTimeout(ft); ft = setTimeout(foldCards, 30); }).observe(document.getElementById('view'), { childList: true }); }
 const VIEWS = {
   'home.today': homeToday, 'home.mv': homeMV, 'home.e4': homeE4,
   'prayer.chain': prayerEmbed, 'worship.songs': worshipSongs, 'worship.news': worshipNews, 'worship.cal': worshipCal, 'worship.fellow': worshipFellow,
-  'leaders.post': leadersPost, 'leaders.res': leadersRes, 'leaders.lboard': leadersBoard, 'leaders.team': leadersTeam, 'leaders.fam': leadersFam,
+  'leaders.post': leadersPost, 'leaders.growth': leadersGrowth, 'leaders.res': leadersRes, 'leaders.lboard': leadersBoard, 'leaders.team': leadersTeam, 'leaders.fam': leadersFam,
   'kids.verse': v => memorize(v, 'kids'), 'kids.games': kidsGames, 'kids.fun': v => funView(v, 'kids'), 'youth.fun': v => funView(v, 'youth'), 'youth.games': youthGames, 'kids.lesson': shineText('kids', 'lesson', DEFAULT_LESSON.kids), 'kids.hw': v => assignView(v, 'kids'), 'kids.teach': v => teacherView(v, 'kids'),
   'kids.chat': v => chatView(v, 'kids'), 'kids.news': v => groupNews(v, 'kids'), 'kids.me': v => profilesTab(v, 'kids'),
   'youth.verse': v => memorize(v, 'youth'), 'youth.lesson': shineText('youth', 'lesson', DEFAULT_LESSON.youth), 'youth.hw': v => assignView(v, 'youth'), 'youth.teach': v => teacherView(v, 'youth'), 'youth.notes': v => notesView(v, 'youth'),
