@@ -548,8 +548,8 @@ function gamesView(v, g) {
   if (gG !== g) { gG = g; gMode = null; gs = null; }
   if (!needProfile(v, g)) return;
   if (!gMode) {
-    v.innerHTML = profileBar(g) + (g === 'youth' ? YOUTH_GAME_LIST : GAME_LIST).map(([k, i, n, d]) => `<div class="card gold"><h2>${i} ${n}</h2><p>${d}</p><button class="btn" data-g="${k}">Play</button></div>`).join('') + '<p class="muted">Verse games use the public-domain World English Bible.</p>';
-    wireBar(g); v.querySelectorAll('[data-g]').forEach(b => b.onclick = () => { gMode = b.dataset.g; gs = null; render(); });
+    v.innerHTML = profileBar(g) + '<div class="card gold"><h2>Pick a game</h2><div class="bubs">' + (g === 'youth' ? YOUTH_GAME_LIST : GAME_LIST).map(([k, i, n, d]) => `<button class="bub" data-g="${k}" title="${esc(d)}"><span class="bi">${i}</span><span class="bn">${n}</span></button>`).join('') + '</div><p class="muted" id="gdesc">Tap a bubble to play.</p></div>' + '<p class="muted">Verse games use the public-domain World English Bible.</p>';
+    wireBar(g); const GL = g === 'youth' ? YOUTH_GAME_LIST : GAME_LIST; v.querySelectorAll('[data-g]').forEach(b => { b.onfocus = b.onmouseenter = () => { const e = GL.find(x => x[0] === b.dataset.g); if (e && $('#gdesc')) $('#gdesc').textContent = e[2] + ': ' + e[3]; }; b.onclick = () => { gMode = b.dataset.g; gs = null; render(); }; });
     return;
   }
   v.innerHTML = '<div class="card">Loading…</div>';
@@ -1402,10 +1402,10 @@ function funView(v, g) {
   }
   if (left > 0) {
     v.innerHTML = profileBar(g) + `<div class="card gold"><h2>🎮 Fun Zone</h2><p>Time left: <b id="funclock">${fmtClock(left)}</b></p><p class="muted">⭐ ${C.cost} stars were used to unlock this ${C.minutes}-minute session. Stars left this month: ${bal}</p><button class="btn small ghost" id="funmute">${FUNMUTE() ? '🔇 Sound off' : '🔊 Sound on'}</button></div>
-      <div class="card"><div class="tabs2">${FUNGAMES.map(([k, n]) => `<button class="btn small ${k === 'race' ? '' : 'ghost'}" data-fg="${k}">${n}</button>`).join(' ')}</div><div id="funarea"></div></div>`;
+      <div class="card"><div class="bubs">${FUNGAMES.map(([k, n]) => { const [em, ...rest] = n.split(' '); return `<button class="bub ${k === 'race' ? 'on' : ''}" data-fg="${k}"><span class="bi">${em}</span><span class="bn">${rest.join(' ')}</span></button>`; }).join('')}</div><div id="funarea"></div></div>`;
     wireBar(g); $('#funmute').onclick = e => { lsSet('agc.mute', FUNMUTE() ? '' : '1'); e.target.textContent = FUNMUTE() ? '🔇 Sound off' : '🔊 Sound on'; funSnd('ok'); };
     const area = $('#funarea'); let cur = 'race';
-    const open = k => { window.__funGen = (window.__funGen || 0) + 1; cur = k; v.querySelectorAll('[data-fg]').forEach(b => b.classList.toggle('ghost', b.dataset.fg !== k)); window.__funRaf && cancelAnimationFrame(window.__funRaf); window.__funRaf = 0; ({ race: funRace, catch: funCatch, ttt: funTtt, scramble: funScramble, simon: funSimon, puzzle: funPuzzle, memory: funMemory, quiz: funQuiz, dove: funDove })[k](area, g); applyLang(); if (k === 'race' || k === 'catch') setTimeout(() => { const c = area.querySelector('canvas'); if (c && c.scrollIntoView) c.scrollIntoView({ block: 'center', behavior: 'smooth' }); }, 60); };
+    const open = k => { window.__funGen = (window.__funGen || 0) + 1; cur = k; v.querySelectorAll('[data-fg]').forEach(b => b.classList.toggle('on', b.dataset.fg === k)); window.__funRaf && cancelAnimationFrame(window.__funRaf); window.__funRaf = 0; ({ race: funRace, catch: funCatch, ttt: funTtt, scramble: funScramble, simon: funSimon, puzzle: funPuzzle, memory: funMemory, quiz: funQuiz, dove: funDove })[k](area, g); applyLang(); if (k === 'race' || k === 'catch') setTimeout(() => { const c = area.querySelector('canvas'); if (c && c.scrollIntoView) c.scrollIntoView({ block: 'center', behavior: 'smooth' }); }, 60); };
     v.querySelectorAll('[data-fg]').forEach(b => b.onclick = () => open(b.dataset.fg));
     open(cur);
     FUNT = setInterval(() => {
@@ -1422,7 +1422,8 @@ function funView(v, g) {
     <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="${C.cost}" aria-valuenow="${Math.min(bal, C.cost)}" style="background:#e3e8ef;border-radius:8px;height:12px;overflow:hidden"><div style="background:var(--gold);height:100%;width:${Math.min(100, Math.round(bal / C.cost * 100))}%"></div></div>
     ${p.funUntil ? `<p class="good"><b>Play time is over.</b> ${p.funCost || C.cost} stars were used for that session. Stars left this month: ${bal}</p>` : ''}
     <button class="btn" id="funstart" ${ok ? '' : 'disabled'} style="margin-top:12px">${ok ? 'Unlock ' + C.minutes + ' minutes' : 'Keep learning verses to unlock'}</button></div>
-    ${PR.map(P => `<div class="card gold"><h2>${P.title}</h2><p>${P.blurb} Costs <b>${P.A.cost} stars</b> for <b>${P.A.minutes} minutes</b>.</p><p>Your stars this month: <b>⭐ ${bal}</b> of ${P.A.cost}</p><button class="btn" data-prem="${P.k}" ${bal >= P.A.cost ? '' : 'disabled'}>${bal >= P.A.cost ? 'Unlock ' + P.A.minutes + ' minutes' : 'Keep earning stars to unlock'}</button></div>`).join('')}`;
+    <div class="card gold"><h2>✨ Special games</h2><div class="bubs">${PR.map(P => { const [em, ...rest] = P.title.split(' '); return `<button class="bub ${bal >= P.A.cost ? '' : 'lock'}" data-prem="${P.k}" ${bal >= P.A.cost ? '' : 'disabled'}><span class="bi">${em}</span><span class="bn">${rest.join(' ')}</span><span class="bc">${P.A.cost} ⭐</span></button>`; }).join('')}</div>
+      <p class="muted">${PR.map(P => `${P.title}: ${P.blurb}`).join(' ')} Each costs ${PR[0].A.cost} stars for ${PR[0].A.minutes} minutes. Your stars this month: ⭐ ${bal}.${bal < PR[0].A.cost ? ' Keep earning stars to unlock them.' : ' Tap one to unlock it.'}</p></div>`;
   wireBar(g);
   v.querySelectorAll('[data-prem]').forEach(b => b.onclick = () => { const P = PR.find(x => x.k === b.dataset.prem); if (starBal(p) < P.A.cost) return; p.spentWk = { wk: monthKey(), n: spentNow(p) + P.A.cost }; p[P.k + 'Until'] = Date.now() + P.A.minutes * 60000; p[P.k + 'Cost'] = P.A.cost; save(); funView(v, g); applyLang(); });
   $('#funstart').onclick = () => { if (starBal(p) < C.cost) return; p.spentWk = { wk: monthKey(), n: spentNow(p) + C.cost }; p.funUntil = Date.now() + C.minutes * 60000; p.funCost = C.cost; save(); funView(v, g); applyLang(); };
