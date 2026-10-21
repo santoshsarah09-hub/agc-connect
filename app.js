@@ -166,11 +166,20 @@ async function webText(ref) {
   return t;
 }
 const REF_ALIAS = { Psalm: 'Psalms', 'Song of Songs': 'Song of Solomon', 'Song of Solomon': 'Song of Solomon' };
+function bookIdx(raw) { // "Gen", "1 Cor", "Matt", "Psalm" ... -> index in BOOKS (or -1)
+  const l = String(raw).replace(/\./g, '').replace(/\s+/g, ' ').trim().toLowerCase(), low = BOOKS.map(b => b.toLowerCase());
+  let i = low.indexOf(l); if (i >= 0) return i;
+  const al = REF_ALIAS[String(raw).trim()]; if (al) return BOOKS.indexOf(al);
+  const SP = { phil: 'Philippians', php: 'Philippians', phm: 'Philemon', phlm: 'Philemon', ps: 'Psalms', pss: 'Psalms', song: 'Song of Solomon', sos: 'Song of Solomon', jas: 'James', jn: 'John', mt: 'Matthew', mk: 'Mark', lk: 'Luke', ex: 'Exodus', exo: 'Exodus', jud: 'Judges', jdg: 'Judges' };
+  if (SP[l]) return BOOKS.indexOf(SP[l]);
+  const hits = low.map((b, k) => b.startsWith(l) ? k : -1).filter(k => k >= 0);
+  return hits.length === 1 ? hits[0] : -1;
+}
 function yvUrl(ref, v) {
   const base = 'https://www.bible.com/bible/' + v.yv + '/';
-  const m = String(ref).trim().match(/^(.+?)\s+(\d+)(?::(\d+)(?:\s*[-–]\s*(\d+))?)?$/);
+  const m = String(ref).trim().match(/^(.+?)\s+(\d+)(?::(\d+)(?:\s*[-–]\s*(\d+))?)?(?:\s*,.*)?$/);
   if (!m) return base + 'JHN.1.' + v.abbr;
-  const name = REF_ALIAS[m[1].trim()] || m[1].trim(), i = BOOKS.indexOf(name);
+  const i = bookIdx(m[1]);
   if (i < 0) return base + 'JHN.1.' + v.abbr;
   return base + USFM[i] + '.' + m[2] + (m[3] ? '.' + m[3] + (m[4] ? '-' + m[4] : '') : '') + '.' + v.abbr;
 }
@@ -275,20 +284,27 @@ function wireShowcase(v) {
   box.onkeydown = e => { if (e.key === 'ArrowRight') show(i + 1); else if (e.key === 'ArrowLeft') show(i - 1); };
   queue();
 }
+async function weeklyScripture() {
+  const now = new Date(), dow = now.getDay(), sun = dateKey(addDays(now, dow ? 7 - dow : 0));
+  let list = []; try { const f = await hubFeed(); if (f && f.preaching && f.preaching.length) list = f.preaching; } catch (e) { list = []; }
+  if (!list.length) { const j = await getJson('data/preaching.json'); list = (j && j.weeks) || []; }
+  return list.find(x => x.date === sun) || null;
+}
 async function homeToday(v) {
   v.innerHTML = `${showcaseHTML()}${tilesHTML()}
-    <div class="card votd"><div class="muted">Verse of the Day</div><div class="ref" id="vref" style="font-size:22px">Loading…</div>
+    <div class="card votd"><div class="muted" id="vhead">Verse of the Day</div><div class="ref" id="vref" style="font-size:22px">Loading…</div><div id="vtitle"></div>
       <div class="votd-lang">English</div><div id="ven"></div>
       <div class="votd-lang">नेपाली</div><div id="vne"></div>
       <p class="muted" id="vsrc"></p></div>`;
   wireShowcase(v); fillNews();
-  const ref = await votdRef();
+  const wk = await weeklyScripture(), ref = wk ? wk.ref : await votdRef();
   if (!ref) { $('#vref').textContent = '—'; return; }
+  if (wk) { $('#vhead').textContent = "This Sunday's Scripture"; $('#vtitle').innerHTML = `<p><b>${esc(wk.title)}</b>${wk.theme ? ` <span class="muted">· ${esc(wk.theme)}</span>` : ''}</p>`; applyLang(); }
   $('#vref').textContent = ref;
   const en = usableVer('en'), ne = usableVer('ne');
   showPassage($('#ven'), ref, en.v);
   showPassage($('#vne'), ref, ne.v).then(() => { if (ne.note) $('#vne').insertAdjacentHTML('afterbegin', `<p class="muted">${esc(ne.note)}</p>`); });
-  $('#vsrc').textContent = (CFG.youversion || {}).appKey ? 'Passage chosen by YouVersion.' : 'Today\'s passage is picked from the church list.';
+  $('#vsrc').textContent = wk ? 'From the church preaching calendar. The sermon is on this Sunday.' : (CFG.youversion || {}).appKey ? 'Passage chosen by YouVersion.' : 'Today\'s passage is picked from the church list.';
 }
 function ref2chips(refs) { return refs.map(r => `<span class="refchip" data-r="${esc(r)}">${esc(r)}</span>`).join(''); }
 function wireChips(el, out) {

@@ -271,6 +271,56 @@ function admin_(b) { var w = who_(b); if (!w.admin) throw new Error('Only the ad
 
 function dropFeedCache_() { try { CacheService.getScriptCache().remove('feed'); } catch (e) { /* optimization only */ } }
 
+/* ------------------------------------------ preaching calendar (follows your Drive document) */
+// Reads the Google Doc named like "2026 Preaching Calendar" and shares each Sunday's title and Scripture on the Home page.
+// Week 1 to 4 in the calendar means the 1st to 4th Sunday of that month (a 5th Sunday has no entry).
+function nthSunday_(year, month, n) {
+  var first = (7 - new Date(Date.UTC(year, month - 1, 1)).getUTCDay()) % 7 + 1, day = first + (n - 1) * 7;
+  if (n < 1 || day > new Date(Date.UTC(year, month, 0)).getUTCDate()) return '';
+  return year + '-' + (month < 10 ? '0' : '') + month + '-' + (day < 10 ? '0' : '') + day;
+}
+function parsePreaching_(rows, year) {
+  var MON = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 }, out = [];
+  rows.forEach(function (c) {
+    var m = MON[String(c[0] || '').replace(/[^A-Za-z]/g, '').slice(0, 3).toLowerCase()];
+    if (!m || c.length < 2) return;
+    var theme = txt_(c[1], 80), text = String(c[c.length - 1] || ''), re = /Wk\s*(\d)\s*:\s*([^\n(]+?)\s*\(([^)\n]+)\)/g, x;
+    while ((x = re.exec(text))) {
+      var d = nthSunday_(year, m, Number(x[1]));
+      if (d) out.push({ date: d, month: m, theme: theme, title: txt_(x[2], 100), ref: txt_(x[3], 40) });
+    }
+  });
+  return out;
+}
+function findPreachingFile_(year) {
+  var it = DriveApp.searchFiles("title contains 'Preaching Cal' and mimeType = 'application/vnd.google-apps.document' and trashed = false"), best = null;
+  while (it.hasNext()) { var f = it.next(); if (f.getName().indexOf(String(year)) >= 0 && (!best || f.getLastUpdated() > best.getLastUpdated())) best = f; }
+  return best;
+}
+function preachingFromDrive_() {
+  var cache = CacheService.getScriptCache(), hit = cache.get('preach');
+  if (hit) return JSON.parse(hit);
+  var out = [];
+  try {
+    var year = Number(Utilities.formatDate(new Date(), CONFIG.TZ, 'yyyy')), f = findPreachingFile_(year), rows = [];
+    if (f) {
+      DocumentApp.openById(f.getId()).getBody().getTables().forEach(function (t) {
+        for (var r = 0; r < t.getNumRows(); r++) { var row = t.getRow(r), cells = []; for (var c = 0; c < row.getNumCells(); c++) cells.push(row.getCell(c).getText()); rows.push(cells); }
+      });
+      out = parsePreaching_(rows, year);
+    }
+  } catch (e) { out = []; }
+  try { cache.put('preach', JSON.stringify(out), out.length ? 21600 : 600); } catch (e) { /* ignore */ }
+  return out;
+}
+// Run this once from the editor to approve the new permission and to see what the Hub found.
+function checkPreachingCalendar() {
+  cacheClearPreach_();
+  var list = preachingFromDrive_();
+  Logger.log(list.length ? 'Found ' + list.length + ' Sundays in your preaching calendar. First: ' + list[0].date + ' ' + list[0].title + ' (' + list[0].ref + ')' : 'No preaching calendar found. Check that a Google Doc with "Preaching Cal" and this year in its name is in your Drive.');
+}
+function cacheClearPreach_() { try { CacheService.getScriptCache().remove('preach'); CacheService.getScriptCache().remove('feed'); } catch (e) { /* ignore */ } }
+
 function getFeed_() {
   var cache = CacheService.getScriptCache(), hit = cache.get('feed');
   if (hit) return JSON.parse(hit);
@@ -289,7 +339,7 @@ function getFeed_() {
   var asg = rows_(S.asg).filter(function (r) { return r.due === '' || String(r.due) >= addDays_(today, -30); }).map(function (r) { return { id: r.id, group: r.grp, title: r.title, title_ne: r.titleNe, detail: r.detail, detail_ne: r.detailNe, due: r.due, ref: r.ref }; });
   var weekly = {};
   rows_(S.weekly).sort(function (a, c) { return a.created < c.created ? -1 : 1; }).forEach(function (r) { weekly[r.grp] = { id: r.id, verse: r.verse, verseEn: r.verseEn, verseNe: r.verseNe, lessonEn: r.lessonEn, lessonNe: r.lessonNe, created: r.created, by: r.by }; });
-  var out = { ok: true, weekly: weekly, assignments: asg, announcements: ann, songs: songs, events: events, board: board.slice(0, CONFIG.BOARD_KEEP), leaders: leaders, now: nowIso_() };
+  var out = { ok: true, weekly: weekly, assignments: asg, announcements: ann, songs: songs, events: events, board: board.slice(0, CONFIG.BOARD_KEEP), leaders: leaders, preaching: preachingFromDrive_(), now: nowIso_() };
   try { cache.put('feed', JSON.stringify(out), CONFIG.FEED_CACHE_SECONDS); } catch (e) { /* too big to cache */ }
   return out;
 }

@@ -102,3 +102,7 @@ On Kids and Youth > Me, a parent can register a child: the child's first name (f
 ## Weekly group prayer (Pray Together)
 
 In the Prayer section > gear (Admin) > **Weekly group prayer**: tick *Repeat every week*, pick the day, time and length, give it a title (defaults: Friday 12:00 for 60 minutes, "Weekly Fasting Prayer"), and Save. The Prayer script then creates that group time on every matching date for this month and next, and again on the 1st of each new month (or the next time the admin opens that screen). A single date can still be edited or deleted; it is not brought back. Each group time also has an optional box, **off by default**, that adds a "Pray with this month's requests" button to that session; the monthly requests are never copied into the weekly prayer.
+
+## Home: this Sunday's Scripture (from your preaching calendar)
+
+The Home card shows the title and Scripture for the coming Sunday (today, if it is Sunday). The Hub script reads your Google Doc named like "2026 Preaching Calendar" (any doc with "Preaching Cal" and the year in its name; it picks the newest) and treats Week 1-4 as the 1st to 4th Sunday of each month. If you edit the calendar in Drive, the app follows within about 6 hours. A 5th Sunday has no entry, so Home shows the usual Verse of the Day. If the Hub cannot read the doc, the app falls back to `data/preaching.json` (a copy of the 2026 calendar). Run `checkPreachingCalendar` once in the Hub editor to approve the permission and see what it found.

@@ -1,0 +1,342 @@
+{
+ "_note": "From the 2026 Preaching Calendar in Drive (Wk 1-4 = the 1st to 4th Sunday of each month). The Hub script reads the live Drive calendar when connected; this file is the fallback. A 5th Sunday has no entry, so Home shows the Verse of the Day.",
+ "year": 2026,
+ "weeks": [
+  {
+   "date": "2026-01-04",
+   "month": 1,
+   "theme": "Creation & Imago Dei",
+   "title": "Order from Chaos",
+   "ref": "Gen 1:1-5"
+  },
+  {
+   "date": "2026-01-11",
+   "month": 1,
+   "theme": "Creation & Imago Dei",
+   "title": "The Divine Masterpiece",
+   "ref": "Gen 1:26-27"
+  },
+  {
+   "date": "2026-01-18",
+   "month": 1,
+   "theme": "Creation & Imago Dei",
+   "title": "Dignity in the Image",
+   "ref": "Psalm 8:1-9"
+  },
+  {
+   "date": "2026-01-25",
+   "month": 1,
+   "theme": "Creation & Imago Dei",
+   "title": "Stewarding Your Garden",
+   "ref": "Gen 2:15"
+  },
+  {
+   "date": "2026-02-01",
+   "month": 2,
+   "theme": "The Fall & Sin",
+   "title": "The Great Fracture",
+   "ref": "Gen 3:1-13"
+  },
+  {
+   "date": "2026-02-08",
+   "month": 2,
+   "theme": "The Fall & Sin",
+   "title": "Why the World is Broken",
+   "ref": "Rom 8:20-22"
+  },
+  {
+   "date": "2026-02-15",
+   "month": 2,
+   "theme": "The Fall & Sin",
+   "title": "The Universal Shortfall",
+   "ref": "Rom 3:23"
+  },
+  {
+   "date": "2026-02-22",
+   "month": 2,
+   "theme": "The Fall & Sin",
+   "title": "The Price of Independence",
+   "ref": "Rom 6:23"
+  },
+  {
+   "date": "2026-03-01",
+   "month": 3,
+   "theme": "Covenant",
+   "title": "The God Who Keeps His Word",
+   "ref": "Gen 9:12-16"
+  },
+  {
+   "date": "2026-03-08",
+   "month": 3,
+   "theme": "Covenant",
+   "title": "Stepping Out in Faith",
+   "ref": "Gen 12:1-4"
+  },
+  {
+   "date": "2026-03-15",
+   "month": 3,
+   "theme": "Covenant",
+   "title": "A Heart for the Kingdom",
+   "ref": "2 Sam 7:12-16"
+  },
+  {
+   "date": "2026-03-22",
+   "month": 3,
+   "theme": "Covenant",
+   "title": "The Unbreakable Bond",
+   "ref": "Jer 31:31-34"
+  },
+  {
+   "date": "2026-04-05",
+   "month": 4,
+   "theme": "Law & Holiness",
+   "title": "The Blueprint for Living",
+   "ref": "Ex 20:1-17"
+  },
+  {
+   "date": "2026-04-12",
+   "month": 4,
+   "theme": "Law & Holiness",
+   "title": "Holy as He is Holy",
+   "ref": "1 Peter 1:13-16"
+  },
+  {
+   "date": "2026-04-19",
+   "month": 4,
+   "theme": "Law & Holiness",
+   "title": "The Mirror of the Law",
+   "ref": "Rom 3:19-20"
+  },
+  {
+   "date": "2026-04-26",
+   "month": 4,
+   "theme": "Law & Holiness",
+   "title": "Grace Within the Commands",
+   "ref": "Matt 5:17-20"
+  },
+  {
+   "date": "2026-05-03",
+   "month": 5,
+   "theme": "Sacrifice & Atonement",
+   "title": "The Cost of Forgiveness",
+   "ref": "Heb 9:22"
+  },
+  {
+   "date": "2026-05-10",
+   "month": 5,
+   "theme": "Sacrifice & Atonement",
+   "title": "The Lamb of God",
+   "ref": "John 1:29"
+  },
+  {
+   "date": "2026-05-17",
+   "month": 5,
+   "theme": "Sacrifice & Atonement",
+   "title": "Our Great High Priest",
+   "ref": "Heb 4:12-16"
+  },
+  {
+   "date": "2026-05-24",
+   "month": 5,
+   "theme": "Sacrifice & Atonement",
+   "title": "The Blood That Speaks",
+   "ref": "Heb 12:24"
+  },
+  {
+   "date": "2026-06-07",
+   "month": 6,
+   "theme": "The Kingdom of God",
+   "title": "The Arrival of the King",
+   "ref": "Mark 1:14-15"
+  },
+  {
+   "date": "2026-06-14",
+   "month": 6,
+   "theme": "The Kingdom of God",
+   "title": "Upside Down Values",
+   "ref": "Matt 5:1-12"
+  },
+  {
+   "date": "2026-06-21",
+   "month": 6,
+   "theme": "The Kingdom of God",
+   "title": "Your Role in the Kingdom",
+   "ref": "Matt 6:33"
+  },
+  {
+   "date": "2026-06-28",
+   "month": 6,
+   "theme": "The Kingdom of God",
+   "title": "The Kingdom Within You",
+   "ref": "Luke 17:20-21"
+  },
+  {
+   "date": "2026-07-05",
+   "month": 7,
+   "theme": "The Incarnation",
+   "title": "The Word Made Flesh",
+   "ref": "John 1:1-14"
+  },
+  {
+   "date": "2026-07-12",
+   "month": 7,
+   "theme": "The Incarnation",
+   "title": "God in the Midst",
+   "ref": "Matt 1:23"
+  },
+  {
+   "date": "2026-07-19",
+   "month": 7,
+   "theme": "The Incarnation",
+   "title": "The Humility of the King",
+   "ref": "Phil 2:5-11"
+  },
+  {
+   "date": "2026-07-26",
+   "month": 7,
+   "theme": "The Incarnation",
+   "title": "A Sympathetic High Priest",
+   "ref": "Heb 2:14-18"
+  },
+  {
+   "date": "2026-08-02",
+   "month": 8,
+   "theme": "Grace & Redemption",
+   "title": "Bought with a Price",
+   "ref": "1 Cor 6:19-20"
+  },
+  {
+   "date": "2026-08-09",
+   "month": 8,
+   "theme": "Grace & Redemption",
+   "title": "The Gift You Can't Earn",
+   "ref": "Eph 2:8-9"
+  },
+  {
+   "date": "2026-08-16",
+   "month": 8,
+   "theme": "Grace & Redemption",
+   "title": "From Slaves to Sons",
+   "ref": "Gal 4:4-7"
+  },
+  {
+   "date": "2026-08-23",
+   "month": 8,
+   "theme": "Grace & Redemption",
+   "title": "Freedom for a Purpose",
+   "ref": "Gal 5:1, 13"
+  },
+  {
+   "date": "2026-09-06",
+   "month": 9,
+   "theme": "Cross & Resurrection",
+   "title": "The Victory of the Cross",
+   "ref": "Col 2:13-15"
+  },
+  {
+   "date": "2026-09-13",
+   "month": 9,
+   "theme": "Cross & Resurrection",
+   "title": "The Empty Tomb",
+   "ref": "1 Cor 15:3-4"
+  },
+  {
+   "date": "2026-09-20",
+   "month": 9,
+   "theme": "Cross & Resurrection",
+   "title": "Death Swallowed Up",
+   "ref": "1 Cor 15:54-57"
+  },
+  {
+   "date": "2026-09-27",
+   "month": 9,
+   "theme": "Cross & Resurrection",
+   "title": "Resurrection Power",
+   "ref": "Rom 6:4-11"
+  },
+  {
+   "date": "2026-10-04",
+   "month": 10,
+   "theme": "Spirit & Church",
+   "title": "Wind and Fire",
+   "ref": "Acts 2:1-4"
+  },
+  {
+   "date": "2026-10-11",
+   "month": 10,
+   "theme": "Spirit & Church",
+   "title": "One Body, Many Parts",
+   "ref": "1 Cor 12:12-27"
+  },
+  {
+   "date": "2026-10-18",
+   "month": 10,
+   "theme": "Spirit & Church",
+   "title": "Gifts for the Common Good",
+   "ref": "Eph 4:11-13"
+  },
+  {
+   "date": "2026-10-25",
+   "month": 10,
+   "theme": "Spirit & Church",
+   "title": "The Living Temple",
+   "ref": "1 Peter 2:4-10"
+  },
+  {
+   "date": "2026-11-01",
+   "month": 11,
+   "theme": "Mission & Discipleship",
+   "title": "The Great Mandate",
+   "ref": "Matt 28:18-20"
+  },
+  {
+   "date": "2026-11-08",
+   "month": 11,
+   "theme": "Mission & Discipleship",
+   "title": "Salt and Light",
+   "ref": "Matt 5:13-16"
+  },
+  {
+   "date": "2026-11-15",
+   "month": 11,
+   "theme": "Mission & Discipleship",
+   "title": "The Power of One",
+   "ref": "2 Tim 2:2"
+  },
+  {
+   "date": "2026-11-22",
+   "month": 11,
+   "theme": "Mission & Discipleship",
+   "title": "To the Ends of the Earth",
+   "ref": "Acts 1:8"
+  },
+  {
+   "date": "2026-12-06",
+   "month": 12,
+   "theme": "New Creation",
+   "title": "The Hope of All Things New",
+   "ref": "Rev 21:1-5"
+  },
+  {
+   "date": "2026-12-13",
+   "month": 12,
+   "theme": "New Creation",
+   "title": "No More Tears",
+   "ref": "Rev 21:4"
+  },
+  {
+   "date": "2026-12-20",
+   "month": 12,
+   "theme": "New Creation",
+   "title": "The King’s Return",
+   "ref": "Rev 22:12-13"
+  },
+  {
+   "date": "2026-12-27",
+   "month": 12,
+   "theme": "New Creation",
+   "title": "The Eternal City",
+   "ref": "Rev 22:1-5"
+  }
+ ]
+}

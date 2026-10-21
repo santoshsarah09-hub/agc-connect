@@ -22,11 +22,12 @@ function makeHub(srcPath) {
   const root = new Folder('My Drive'); const folders = {}; const reg = f => { folders[f.id] = f; f.kids.forEach(reg); };
   const props = {}, cache = {}; const moved = [];
   const addFile = (folder, name) => folder.files.push({ getName: () => name, getUrl: () => 'https://drive/' + name, getMimeType: () => 'application/pdf', getLastUpdated: () => new Date('2026-10-01T00:00:00Z') });
-  const mails = [], triggers = [];
+  const mails = [], triggers = [], docTables = {}, driveDocs = [];
   const sb = {
     console,
     SpreadsheetApp: { create: n => new SS(n), openById: id => sheetsById[id] },
-    DriveApp: { getRootFolder: () => root, getFileById: id => ({ moveTo: f => moved.push({ id, folder: f.name }), makeCopy: (name, folder) => { const f = { getName: () => name, getUrl: () => 'https://drive/' + name, getMimeType: () => 'application/vnd.google-apps.spreadsheet', getLastUpdated: () => new Date(), setTrashed: () => { const i = folder.files.indexOf(f); if (i >= 0) folder.files.splice(i, 1); env.trashed.push(name); } }; folder.files.push(f); env.copies.push(name); return f; } }), getFolderById: id => { reg(root); return folders[id]; } },
+    DocumentApp: { openById: id => { if (!docTables[id]) throw new Error('no doc'); const tables = docTables[id].map(rows => ({ getNumRows: () => rows.length, getRow: r => ({ getNumCells: () => rows[r].length, getCell: c => ({ getText: () => rows[r][c] }) }) })); return { getBody: () => ({ getTables: () => tables }) }; } },
+    DriveApp: { searchFiles: () => { const l = driveDocs.slice(); let i = 0; return { hasNext: () => i < l.length, next: () => l[i++] }; }, getRootFolder: () => root, getFileById: id => ({ moveTo: f => moved.push({ id, folder: f.name }), makeCopy: (name, folder) => { const f = { getName: () => name, getUrl: () => 'https://drive/' + name, getMimeType: () => 'application/vnd.google-apps.spreadsheet', getLastUpdated: () => new Date(), setTrashed: () => { const i = folder.files.indexOf(f); if (i >= 0) folder.files.splice(i, 1); env.trashed.push(name); } }; folder.files.push(f); env.copies.push(name); return f; } }), getFolderById: id => { reg(root); return folders[id]; } },
     PropertiesService: { getScriptProperties: () => ({ getProperty: k => (k in props ? props[k] : null), setProperty: (k, v) => { props[k] = v; }, deleteProperty: k => { delete props[k]; } }) },
     LanguageApp: { translate: (t, f, to) => '[' + to + '] ' + t },
     LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
@@ -45,7 +46,7 @@ function makeHub(srcPath) {
   };
   const ctx = vm.createContext(sb); vm.runInContext(src, ctx);
   const call = (fn, ...a) => vm.runInContext(fn, ctx)(...a);
-  const env = { props, cache, sheetsById, root, moved, addFile, call, mails, triggers, copies: [], trashed: [] };
+  const env = { addDoc: (id, name, tables) => { docTables[id] = tables; driveDocs.push({ getId: () => id, getName: () => name, getLastUpdated: () => new Date() }); }, props, cache, sheetsById, root, moved, addFile, call, mails, triggers, copies: [], trashed: [] };
   env.post = b => JSON.parse(call('doPost', { postData: { contents: JSON.stringify(b) } }).getContent());
   env.feed = () => JSON.parse(call('doGet', { parameter: { action: 'hub' } }).getContent());
   return env;

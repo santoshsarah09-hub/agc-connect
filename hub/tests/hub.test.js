@@ -94,6 +94,19 @@ t('alert emails: a leader posting emails the owner (titles only); the admin post
   assert(env.mails.length - before <= 15, 'alerts are capped'); delete env.cache['alert:n'];
   post({ action: 'annDelete', token: A.token, id: an.id }); post({ action: 'annDelete', token: A.token, id: r.id });
 });
+t('preaching calendar: the Hub reads the Drive document, week n = nth Sunday, and the public feed carries titles and Scripture only', () => {
+  const rows = [['Month', 'Theme', 'Vision', 'Weekly Titles & Scriptures'], ['Oct', 'Spirit & Church', 'EDIFY', 'Wk 1: Wind and Fire (Acts 2:1-4)\nWk 2: One Body, Many Parts (1 Cor 12:12-27)\nWk 3: Gifts for the Common Good (Eph 4:11-13)\nWk 4: The Living Temple (1 Peter 2:4-10)'], ['Aug', 'Grace', 'EQUIP', 'Wk 4: Freedom for a Purpose (Gal 5:1, 13)']];
+  const yr = new Date().getFullYear(); env.addDoc('doc1', yr + ' Preaching Callender ', [rows]); env.addDoc('doc2', (yr - 1) + ' Preaching Callender', [[['Jan', 'Old', '', 'Wk 1: Old (Gen 1:1)']]]);
+  delete env.cache.preach; delete env.cache.feed;
+  const f = env.feed(); const p = f.preaching; assert(p.length === 5, JSON.stringify(p));
+  const oct = p.filter(x => x.month === 10); assert.deepStrictEqual(oct.map(x => x.title), ['Wind and Fire', 'One Body, Many Parts', 'Gifts for the Common Good', 'The Living Temple']);
+  oct.forEach(x => assert.strictEqual(new Date(x.date + 'T12:00:00Z').getUTCDay(), 0, 'Sunday')); assert.strictEqual(oct[0].ref, 'Acts 2:1-4'); assert.strictEqual(oct[0].theme, 'Spirit & Church');
+  assert(p.some(x => x.ref === 'Gal 5:1, 13') && !p.some(x => x.title === 'Old'), 'this year only');
+  assert.strictEqual(env.call('nthSunday_', 2026, 10, 1), '2026-10-04'); assert.strictEqual(env.call('nthSunday_', 2026, 10, 4), '2026-10-25'); assert.strictEqual(env.call('nthSunday_', 2026, 2, 5), '', 'no fifth Sunday in Feb 2026');
+});
+t('preaching calendar: a missing or unreadable document leaves the feed working with an empty list', () => {
+  delete env.cache.preach; delete env.cache.feed; env.call('findPreachingFile_', 2000); const f = env.feed(); assert(Array.isArray(f.preaching));
+});
 t('weekly verse and lesson: only the matching area posts; newest shows in the public feed', () => {
   assert(/access/i.test(post({ action: 'weeklySave', token: T1.token, group: 'kids', verse: 'John 3:16' }).error));
   assert(post({ action: 'weeklySave', token: A.token, group: 'kids', verse: 'Psalm 23:1', lessonEn: 'The Lord is my shepherd.' }).ok);
