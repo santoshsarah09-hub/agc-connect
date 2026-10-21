@@ -720,7 +720,7 @@ const weekStartOf = d => addDays(new Date(d.getFullYear(), d.getMonth(), d.getDa
 const parseKey = k => { const [y, m, d] = String(k).split('-').map(Number); return new Date(y, m - 1, d); };
 const fmtDay = d => (typeof d === 'string' ? parseKey(d) : d).toLocaleDateString(LANG === 'ne' ? 'ne-NP' : 'en-US', { month: 'short', day: 'numeric' });
 const weekLabel = k => { const ws = parseKey(k); return 'Sun ' + fmtDay(ws) + ' – Sat ' + fmtDay(addDays(ws, 6)); };
-function logAct(p, k, t, n) { p.log = Array.isArray(p.log) ? p.log : []; p.log.push({ d: todayKey(), k, t: String(t || '').slice(0, 40), n: n || 0 }); if (p.log.length > 400) p.log = p.log.slice(-400); }
+function logAct(p, k, t, n) { p.log = Array.isArray(p.log) ? p.log : []; p.log.push({ d: todayKey(), k, t: String(t || '').slice(0, 40), n: n || 0 }); if (p.log.length > 1500) p.log = p.log.slice(-1500); }
 function hwForWeek(g, wk) { const s = wk, e = dateKey(addDays(parseKey(wk), 6)); return asgList(g).filter(x => x.due && x.due >= s && x.due <= e); }
 function weekStats(p, wk) {
   const e = dateKey(addDays(parseKey(wk), 6)), L = (Array.isArray(p.log) ? p.log : []).filter(x => x.d >= wk && x.d <= e), hw = hwForWeek(p.group, wk);
@@ -1307,11 +1307,13 @@ async function afterGate() {
 })();
 
 /* ---------- Fun Zone: earn stars by learning verses, spend them on a timed play session ---------- */
-const FUNCFG = g => Object.assign({ cost: g === 'youth' ? 40 : 20, minutes: 30 }, ((CFG.fun || {})[g]) || {});
+const FUNCFG = g => Object.assign({ cost: g === 'youth' ? 40 : 50, minutes: 30 }, ((CFG.fun || {})[g]) || {});
 let FUNT = null;
 const FUNGAMES = [['race', '🛻 Truck Race'], ['catch', '⭐ Star Catch'], ['ttt', '⭕ Tic-Tac-Toe'], ['scramble', '🔤 Word Scramble'], ['simon', '🎵 Simon Pattern'], ['puzzle', '🧩 Puzzle'], ['memory', '🃏 Memory Match']];
-const spentNow = p => (p.spentWk && p.spentWk.wk === thisWeek() ? p.spentWk.n : 0);
-const starBal = p => Math.max(0, weekStats(p, thisWeek()).stars - spentNow(p)); // points reset every Sunday
+const monthKey = () => todayKey().slice(0, 7);
+const spentNow = p => (p.spentWk && String(p.spentWk.wk).startsWith(monthKey()) ? p.spentWk.n : 0);
+const monthStars = p => Math.max(0, (Array.isArray(p.log) ? p.log : []).filter(x => String(x.d).startsWith(monthKey())).reduce((a, x) => a + (x.n || 0), 0));
+const starBal = p => Math.max(0, monthStars(p) - spentNow(p)); // points stay all month and start again on the 1st
 const fmtClock = ms => { const s = Math.max(0, Math.ceil(ms / 1000)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
 function stopFun() { if (FUNT) { clearInterval(FUNT); FUNT = null; } if (window.__funRaf) { cancelAnimationFrame(window.__funRaf); window.__funRaf = 0; } }
 function funView(v, g) {
@@ -1319,7 +1321,7 @@ function funView(v, g) {
   const p = needProfile(v, g); if (!p) return;
   const C = FUNCFG(g), now = Date.now(), left = (p.funUntil || 0) - now, bal = starBal(p);
   if (left > 0) {
-    v.innerHTML = profileBar(g) + `<div class="card gold"><h2>🎮 Fun Zone</h2><p>Time left: <b id="funclock">${fmtClock(left)}</b></p><p class="muted">⭐ ${C.cost} stars were used to unlock this ${C.minutes}-minute session. Stars left this week: ${bal}</p><button class="btn small ghost" id="funmute">${FUNMUTE() ? '🔇 Sound off' : '🔊 Sound on'}</button></div>
+    v.innerHTML = profileBar(g) + `<div class="card gold"><h2>🎮 Fun Zone</h2><p>Time left: <b id="funclock">${fmtClock(left)}</b></p><p class="muted">⭐ ${C.cost} stars were used to unlock this ${C.minutes}-minute session. Stars left this month: ${bal}</p><button class="btn small ghost" id="funmute">${FUNMUTE() ? '🔇 Sound off' : '🔊 Sound on'}</button></div>
       <div class="card"><div class="tabs2">${FUNGAMES.map(([k, n]) => `<button class="btn small ${k === 'race' ? '' : 'ghost'}" data-fg="${k}">${n}</button>`).join(' ')}</div><div id="funarea"></div></div>`;
     wireBar(g); $('#funmute').onclick = e => { lsSet('agc.mute', FUNMUTE() ? '' : '1'); e.target.textContent = FUNMUTE() ? '🔇 Sound off' : '🔊 Sound on'; funSnd('ok'); };
     const area = $('#funarea'); let cur = 'race';
@@ -1336,12 +1338,12 @@ function funView(v, g) {
   const ok = bal >= C.cost;
   v.innerHTML = profileBar(g) + `<div class="card gold"><h2>🎮 Fun Zone</h2>
     <p>Learn memory verses to earn ⭐ stars. Spend <b>${C.cost} stars</b> to unlock <b>${C.minutes} minutes</b> of fun games: car racing, puzzles and more.</p>
-    <p>Your stars this week: <b>⭐ ${bal}</b> of ${C.cost}</p><p class="muted">Stars start again from zero every Sunday.</p>
+    <p>Your stars this month: <b>⭐ ${bal}</b> of ${C.cost}</p><p class="muted">Your stars stay with you all month and start again on the 1st.</p>
     <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="${C.cost}" aria-valuenow="${Math.min(bal, C.cost)}" style="background:#e3e8ef;border-radius:8px;height:12px;overflow:hidden"><div style="background:var(--gold);height:100%;width:${Math.min(100, Math.round(bal / C.cost * 100))}%"></div></div>
-    ${p.funUntil ? `<p class="good"><b>Play time is over.</b> ${p.funCost || C.cost} stars were used for that session. Stars left this week: ${bal}</p>` : ''}
+    ${p.funUntil ? `<p class="good"><b>Play time is over.</b> ${p.funCost || C.cost} stars were used for that session. Stars left this month: ${bal}</p>` : ''}
     <button class="btn" id="funstart" ${ok ? '' : 'disabled'} style="margin-top:12px">${ok ? 'Unlock ' + C.minutes + ' minutes' : 'Keep learning verses to unlock'}</button></div>`;
   wireBar(g);
-  $('#funstart').onclick = () => { if (starBal(p) < C.cost) return; p.spentWk = { wk: thisWeek(), n: spentNow(p) + C.cost }; p.funUntil = Date.now() + C.minutes * 60000; p.funCost = C.cost; save(); funView(v, g); applyLang(); };
+  $('#funstart').onclick = () => { if (starBal(p) < C.cost) return; p.spentWk = { wk: monthKey(), n: spentNow(p) + C.cost }; p.funUntil = Date.now() + C.minutes * 60000; p.funCost = C.cost; save(); funView(v, g); applyLang(); };
 }
 function funPuzzle(area, g) {
   const n = g === 'youth' ? 4 : 3; let tiles = [...Array(n * n).keys()].map(i => (i + 1) % (n * n)), moves = 0;
