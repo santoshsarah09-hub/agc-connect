@@ -372,6 +372,13 @@ function prayerEmbed(v) {
 const profilesOf = g => S.profiles.filter(p => p.group === g);
 function curProfile(g) { return S.profiles.find(p => p.id === S.cur[g] && p.group === g) || profilesOf(g)[0] || null; }
 function awardStars(g, n) { const p = curProfile(g); if (p) { p.stars += n; logAct(p, 'game', '', n); save(); } }
+// A wrong answer costs 1 star, once per question, and never takes the week's balance below zero.
+function missStar(g, key) {
+  const p = curProfile(g); if (!p || !key) return false;
+  if (missStar.k === key) return false; missStar.k = key;
+  if (typeof starBal !== 'function' || starBal(p) < 1) return false;
+  p.stars = Math.max(0, p.stars - 1); logAct(p, 'miss', '', -1); save(); return true;
+}
 function addForm(g) {
   const kidsG = g === 'kids';
   return `<div class="card gold"><h2>${kidsG ? 'Add a child' : 'Add your profile'}</h2>
@@ -509,7 +516,7 @@ function blanksStep(v, body, note, done) {
       s.filled.push(want); s.used.push(i);
       if (s.filled.length === s.idx.length) { if (s.lvl >= 3) { done(4); return; } m.lvl = s.lvl + 1; m.solve = null; }
       drawSteps(v);
-    } else $('#msg').innerHTML = '<span class="bad">Not that one — try again.</span>';
+    } else $('#msg').innerHTML = '<span class="bad">Not that one — try again.' + (missStar(m.g || 'kids', 'fill|' + m.ref + '|' + s.lvl + '|' + s.filled.length) ? ' −1 ⭐' : '') + '</span>';
   });
 }
 
@@ -562,7 +569,7 @@ async function gameMatch(v, list) {
   $('#gb').onclick = gBack;
   v.querySelectorAll('[data-o]').forEach(b => b.onclick = () => {
     if (gs.ok) return;
-    if (b.dataset.o === gs.ref) { gs.ok = true; awardStars('kids', 1); $('#msg').innerHTML = '<span class="good">Correct! +1 ⭐</span>'; nextBtn(); } else $('#msg').innerHTML = '<span class="bad">Not quite — try again.</span>';
+    if (b.dataset.o === gs.ref) { gs.ok = true; awardStars('kids', 1); $('#msg').innerHTML = '<span class="good">Correct! +1 ⭐</span>'; nextBtn(); } else $('#msg').innerHTML = '<span class="bad">Not quite — try again.' + (missStar('kids', gs) ? ' −1 ⭐' : '') + '</span>';
   });
 }
 async function gameMissing(v, list) {
@@ -581,7 +588,7 @@ async function gameMissing(v, list) {
   $('#gb').onclick = gBack;
   v.querySelectorAll('[data-o]').forEach(b => b.onclick = () => {
     if (gs.ok) return;
-    if (b.dataset.o === gs.ans) { gs.ok = true; awardStars('kids', 1); $('#msg').innerHTML = '<span class="good">Yes! +1 ⭐</span>'; nextBtn(); } else $('#msg').innerHTML = '<span class="bad">Try another word.</span>';
+    if (b.dataset.o === gs.ans) { gs.ok = true; awardStars('kids', 1); $('#msg').innerHTML = '<span class="good">Yes! +1 ⭐</span>'; nextBtn(); } else $('#msg').innerHTML = '<span class="bad">Try another word.' + (missStar('kids', gs) ? ' −1 ⭐' : '') + '</span>';
   });
 }
 async function gameWho(v) {
@@ -592,7 +599,7 @@ async function gameWho(v) {
   $('#gb').onclick = gBack;
   v.querySelectorAll('[data-o]').forEach(b => b.onclick = () => {
     if (gs.ok) return;
-    if (b.dataset.o === gs.q.answer) { gs.ok = true; awardStars('kids', 1); $('#msg').innerHTML = '<span class="good">Yes, it is ' + esc(gs.q.answer) + '! +1 ⭐</span>'; nextBtn(); } else $('#msg').innerHTML = '<span class="bad">Not quite — try again.</span>';
+    if (b.dataset.o === gs.q.answer) { gs.ok = true; awardStars('kids', 1); $('#msg').innerHTML = '<span class="good">Yes, it is ' + esc(gs.q.answer) + '! +1 ⭐</span>'; nextBtn(); } else $('#msg').innerHTML = '<span class="bad">Not quite — try again.' + (missStar('kids', gs) ? ' −1 ⭐' : '') + '</span>';
   });
 }
 async function gameBooks(v) {
@@ -615,7 +622,7 @@ async function gameTestament(v) {
   $('#gb').onclick = gBack;
   v.querySelectorAll('[data-o]').forEach(b => b.onclick = () => {
     if (gs.ok) return;
-    if ((b.dataset.o === 'OT') === ot) { gs.ok = true; awardStars('kids', 1); $('#msg').innerHTML = '<span class="good">Right! +1 ⭐</span>'; nextBtn(); } else $('#msg').innerHTML = '<span class="bad">Not quite — try again.</span>';
+    if ((b.dataset.o === 'OT') === ot) { gs.ok = true; awardStars('kids', 1); $('#msg').innerHTML = '<span class="good">Right! +1 ⭐</span>'; nextBtn(); } else $('#msg').innerHTML = '<span class="bad">Not quite — try again.' + (missStar('kids', gs) ? ' −1 ⭐' : '') + '</span>';
   });
 }
 async function gamePairs(v, list) {
@@ -717,7 +724,7 @@ function logAct(p, k, t, n) { p.log = Array.isArray(p.log) ? p.log : []; p.log.p
 function hwForWeek(g, wk) { const s = wk, e = dateKey(addDays(parseKey(wk), 6)); return asgList(g).filter(x => x.due && x.due >= s && x.due <= e); }
 function weekStats(p, wk) {
   const e = dateKey(addDays(parseKey(wk), 6)), L = (Array.isArray(p.log) ? p.log : []).filter(x => x.d >= wk && x.d <= e), hw = hwForWeek(p.group, wk);
-  return { name: p.name, group: p.group, week: wk, stars: L.reduce((a, x) => a + (x.n || 0), 0), learned: L.filter(x => x.k === 'learned').length, steps: L.filter(x => x.k === 'step').length, games: L.filter(x => x.k === 'game').length, hwDone: hw.filter(x => (p.hw || {})[x.id]).length, hwTotal: hw.length };
+  return { name: p.name, group: p.group, week: wk, stars: Math.max(0, L.reduce((a, x) => a + (x.n || 0), 0)), learned: L.filter(x => x.k === 'learned').length, steps: L.filter(x => x.k === 'step').length, games: L.filter(x => x.k === 'game').length, hwDone: hw.filter(x => (p.hw || {})[x.id]).length, hwTotal: hw.length };
 }
 const thisWeek = () => dateKey(weekStartOf(new Date()));
 function reportText(st) {
