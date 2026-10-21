@@ -98,3 +98,7 @@ On Kids and Youth > Me, a parent can register a child: the child's first name (f
 
 - **Hub:** when a *leader* (not the admin) posts an announcement, assignment, weekly verse/lesson, song or event, the owner gets an email with who, where and the title only. At most 15 per 6 hours. Turn off with `ALERTS: false` at the top of `hub/Code.gs`.
 - **Prayer:** when someone sends a prayer request, the owner gets an email that one is waiting (never the request text). At most one per hour and 10 per day. Needs the new `prayer/backend/Code.gs` deployed.
+
+## Weekly group prayer (Pray Together)
+
+In the Prayer section > gear (Admin) > **Weekly group prayer**: tick *Repeat every week*, pick the day, time and length, give it a title (defaults: Friday 12:00 for 60 minutes, "Weekly Fasting Prayer"), and Save. The Prayer script then creates that group time on every matching date for this month and next, and again on the 1st of each new month (or the next time the admin opens that screen). A single date can still be edited or deleted; it is not brought back. Each group time also has an optional box, **off by default**, that adds a "Pray with this month's requests" button to that session; the monthly requests are never copied into the weekly prayer.

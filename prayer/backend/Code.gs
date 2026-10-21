@@ -26,7 +26,7 @@ var CONFIG = {
 
 var SLOT_HEADERS = ['key', 'month', 'date', 'hour', 'name', 'deviceId', 'claimedAt', 'prayedAt'];
 var REQ_HEADERS = ['id', 'month', 'en', 'ne', 'status', 'order'];
-var SES_HEADERS = ['id', 'month', 'date', 'time', 'duration', 'titleEn', 'titleNe', 'link'];
+var SES_HEADERS = ['id', 'month', 'date', 'time', 'duration', 'titleEn', 'titleNe', 'link', 'showReq'];
 var JOIN_HEADERS = ['sessionId', 'name', 'country', 'deviceId', 'joinedAt'];
 var SUB_HEADERS = ['id', 'month', 'name', 'text', 'anon', 'status', 'created', 'deviceId'];   // prayer requests people send in; the admin decides what goes on the list
 var SUB_PER_DEVICE = 3, SUB_ALL = 30, SUB_KEEP_DAYS = 120;   // per phone and overall, per 6 hours; old rows are removed monthly
@@ -117,6 +117,8 @@ function doPost(e) {
       case 'saveSessions': requireAdmin_(body.pin); res = saveSessions_(body); break;
       case 'submit': res = submit_(body); break;
       case 'pending': requireAdmin_(body.pin); res = pending_(); break;
+      case 'weeklyGet': requireAdmin_(body.pin); ensureWeekly_(); dropStateCache_(); res = weeklyGet_(); break;
+      case 'weeklySet': requireAdmin_(body.pin); res = weeklySet_(body); break;
       case 'dismiss': requireAdmin_(body.pin); res = dismiss_(body); break;
       case 'join': res = join_(body); break;
       case 'leave': res = leave_(body); break;
@@ -297,7 +299,7 @@ function readMonth_(month) {
     var joined = joinRows.filter(function (j) { return j.v[0] === r.v[0]; }).map(function (j) {
       return { n: j.v[1], c: j.v[2], dev: j.v[3] };
     });
-    sessions.push({ id: r.v[0], d: r.v[2], t: r.v[3], dur: Number(r.v[4]) || 60, en: r.v[5], ne: r.v[6], link: r.v[7], joined: joined });
+    sessions.push({ id: r.v[0], d: r.v[2], t: r.v[3], dur: Number(r.v[4]) || 60, en: r.v[5], ne: r.v[6], link: r.v[7], req: r.v[8] === 'yes', joined: joined });
   });
   sessions.sort(function (a, b) { return (a.d + a.t) < (b.d + b.t) ? -1 : 1; });
   return { slots: slots, requests: requests, sessions: sessions };
@@ -318,7 +320,7 @@ function getState_(month, deviceId) {
     slots: raw.slots.map(function (s) { return { d: s.d, h: s.h, n: s.n, m: !!dev && s.dev === dev, p: s.p }; }),
     requests: raw.requests,
     sessions: raw.sessions.map(function (q) {
-      return { id: q.id, d: q.d, t: q.t, dur: q.dur, en: q.en, ne: q.ne, link: q.link,
+      return { id: q.id, d: q.d, t: q.t, dur: q.dur, en: q.en, ne: q.ne, link: q.link, req: !!q.req,
         joined: q.joined.map(function (j) { return { n: j.n, c: j.c, m: !!dev && j.dev === dev }; }) };
     }),
     config: { tz: CONFIG.TZ, startHour: CONFIG.START_HOUR, endHour: CONFIG.END_HOUR, months: allowedMonths_(), nowDate: n.date, nowHour: n.hour,
@@ -531,19 +533,61 @@ function saveSessions_(body) {
     }
     var dur = Math.round(Number(q.dur)) || 60;
     dur = Math.max(15, Math.min(240, dur));
-    clean.push({ id: (q.id && oldIds[q.id]) ? String(q.id) : Utilities.getUuid(), date: date, time: time, dur: dur, en: en, ne: ne, link: cleanLink_(q.link) });
+    clean.push({ id: (q.id && oldIds[q.id]) ? String(q.id) : Utilities.getUuid(), date: date, time: time, dur: dur, en: en, ne: ne, link: cleanLink_(q.link), req: q.req ? 'yes' : '' });
   });
 
   var keep = {};
   clean.forEach(function (c) { keep[c.id] = true; });
   for (var i = old.length - 1; i >= 0; i--) L.sessions.deleteRow(old[i].row);
   clean.forEach(function (c) {
-    appendText_(L.sessions, [c.id, month, c.date, c.time, String(c.dur), c.en, c.ne, c.link]);
+    appendText_(L.sessions, [c.id, month, c.date, c.time, String(c.dur), c.en, c.ne, c.link, c.req]);
   });
   // People who joined a session that was removed go with it.
   var joins = rows_(L.joins).filter(function (j) { return oldIds[j.v[0]] && !keep[j.v[0]]; });
   for (var k = joins.length - 1; k >= 0; k--) L.joins.deleteRow(joins[k].row);
   return { ok: true, saved: clean.length };
+}
+
+/* ------------------------------------------- weekly group prayer (for example Friday fasting prayer) */
+// One standing "template" makes the group time every week by itself, for this month and next, and again each new month.
+// Each date is a normal group time, so the admin can still edit or delete a single day (for example a holiday).
+function weeklyGet_() {
+  var raw = PropertiesService.getScriptProperties().getProperty('WEEKLY');
+  return { ok: true, weekly: raw ? JSON.parse(raw) : null };
+}
+function weeklySet_(body) {
+  var props = PropertiesService.getScriptProperties();
+  if (!body.on) { props.deleteProperty('WEEKLY'); props.deleteProperty('WEEKLY_DONE'); return { ok: true, weekly: null, created: 0 }; }
+  var dow = Math.floor(Number(body.dow)), time = String(body.time || '');
+  if (!(dow >= 0 && dow <= 6)) throw new Error('Please choose a day of the week.');
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) throw new Error('Please choose a start time.');
+  var en = cleanText_(body.en).slice(0, 120), ne = cleanText_(body.ne).slice(0, 120);
+  if (!en && !ne) throw new Error('Please give the weekly prayer a title.');
+  var w = { dow: dow, time: time, dur: Math.max(15, Math.min(240, Math.round(Number(body.dur)) || 60)), en: en, ne: ne, link: cleanLink_(body.link), req: !!body.req };
+  props.setProperty('WEEKLY', JSON.stringify(w)); props.setProperty('WEEKLY_DONE', '[]');
+  var made = ensureWeekly_(); dropStateCache_();
+  return { ok: true, weekly: w, created: made };
+}
+function ensureWeekly_() {
+  var props = PropertiesService.getScriptProperties(), raw = props.getProperty('WEEKLY');
+  if (!raw) return 0;
+  var w = JSON.parse(raw), done = JSON.parse(props.getProperty('WEEKLY_DONE') || '[]'), months = allowedMonths_();
+  if (months.every(function (m) { return done.indexOf(m) >= 0; })) return 0;
+  var L = liveSheets_(), today = nowParts_().date, made = 0;
+  months.forEach(function (m) {
+    if (done.indexOf(m) >= 0) return;
+    var have = rows_(L.sessions).filter(function (r) { return r.v[1] === m; }), n = have.length, y = Number(m.slice(0, 4)), mo = Number(m.slice(5, 7));
+    for (var day = 1; day <= daysInMonth_(m); day++) {
+      var date = m + '-' + pad2_(day);
+      if (date < today || new Date(Date.UTC(y, mo - 1, day)).getUTCDay() !== w.dow || n >= CONFIG.MAX_SESSIONS) continue;
+      if (have.some(function (r) { return r.v[2] === date && r.v[5] === w.en && r.v[6] === w.ne; })) continue;
+      appendText_(L.sessions, [Utilities.getUuid(), m, date, w.time, String(w.dur), w.en, w.ne, w.link, w.req ? 'yes' : '']);
+      n++; made++;
+    }
+    done.push(m);
+  });
+  props.setProperty('WEEKLY_DONE', JSON.stringify(done.slice(-6)));
+  return made;
 }
 
 function join_(body) {
@@ -610,6 +654,7 @@ function monthlyArchive() {
   try {
     lock.waitLock(30000);
     var r = archiveMonth_(prev);
+    try { ensureWeekly_(); } catch (we) { /* the weekly group time can be made again from Admin */ }
     try { purgeSubmitted_(); } catch (pe) { /* housekeeping only */ }
     dropStateCache_();
     subject = 'AGC Prayer Chain: ' + prev + (r.archived ? ' saved to your Drive' : ' - nothing to save');

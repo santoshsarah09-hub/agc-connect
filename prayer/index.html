@@ -249,6 +249,14 @@ const I = {
   installBtn: ['Install the app', 'एप इन्स्टल गर्नुहोस्'],
   tryAgain:   ['Could not load. Check your internet and try again.', 'लोड गर्न सकिएन। इन्टरनेट जाँचेर फेरि प्रयास गर्नुहोस्।'],
   retry:      ['Try again', 'फेरि प्रयास गर्नुहोस्'],
+  wkT:        ['Weekly group prayer', 'साप्ताहिक सामूहिक प्रार्थना'],
+  wkHint:     ['Makes the group time every week by itself, for this month, next month and each new month. You can still change or delete one day below.', 'हरेक हप्ता आफैँ सामूहिक समय बनाउँछ: यो महिना, अर्को महिना र हरेक नयाँ महिनामा। तल कुनै एक दिन परिवर्तन वा हटाउन सकिन्छ।'],
+  wkOn:       ['Repeat every week', 'हरेक हप्ता दोहोर्याउनुहोस्'],
+  wkDay:      ['Day', 'दिन'],
+  wkSave:     ['Save weekly prayer', 'साप्ताहिक प्रार्थना सुरक्षित गर्नुहोस्'],
+  wkSaved:    ['Weekly prayer saved', 'साप्ताहिक प्रार्थना सुरक्षित भयो'],
+  wkReq:      ['Also show this month’s prayer requests with it (optional)', 'यसँगै यस महिनाका प्रार्थना विषयहरू पनि देखाउनुहोस् (ऐच्छिक)'],
+  reqBtn:     ['Pray with this month’s requests', 'यस महिनाका विषयहरूसँग प्रार्थना गर्नुहोस्'],
   fullScr:    ['Full screen', 'पूर्ण स्क्रिन'],
   prevB:      ['Previous', 'अघिल्लो'],
   nextB:      ['Next', 'अर्को'],
@@ -520,10 +528,27 @@ const Demo = {
         if (!/^\d{4}-\d{2}-\d{2}$/.test(q.d || '') || !String(q.d).startsWith(b.month) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(q.t || '')) throw new Error('Each group time needs a date in this month and a start time.');
         if (q.link && !safeLink(q.link)) throw new Error('The meeting link must start with http:// or https://');
       });
-      const next = list.map((q, i) => ({ id: (q.id && oldIds.has(q.id)) ? q.id : 's' + Date.now() + i, d: q.d, t: q.t, dur: Math.max(15, Math.min(240, Math.round(Number(q.dur)) || 60)), en: q.en || '', ne: q.ne || '', link: q.link || '' }));
+      const next = list.map((q, i) => ({ id: (q.id && oldIds.has(q.id)) ? q.id : 's' + Date.now() + i, d: q.d, t: q.t, dur: Math.max(15, Math.min(240, Math.round(Number(q.dur)) || 60)), en: q.en || '', ne: q.ne || '', link: q.link || '', req: !!q.req }));
       const keep = new Set(next.map((q) => q.id));
       d.joins = d.joins.filter((j) => !oldIds.has(j.sid) || keep.has(j.sid));
       d.sessions[b.month] = next;
+    } else if (b.action === 'weeklyGet') {
+      pinOk(); return { ok: true, weekly: d.weekly || null };
+    } else if (b.action === 'weeklySet') {
+      pinOk();
+      if (!b.on) { d.weekly = null; Demo.save(d); return { ok: true, weekly: null, created: 0 }; }
+      const w = { dow: Number(b.dow), time: b.time, dur: Math.max(15, Math.min(240, Number(b.dur) || 60)), en: b.en || '', ne: b.ne || '', link: b.link || '', req: !!b.req };
+      if (!(w.en || w.ne)) throw new Error('Please give the weekly prayer a title.');
+      d.weekly = w; let made = 0;
+      Demo.months().forEach((m) => {
+        const [y, mo] = m.split('-').map(Number), list = d.sessions[m] = d.sessions[m] || [];
+        for (let day = 1; day <= new Date(y, mo, 0).getDate(); day++) {
+          const date = `${m}-${String(day).padStart(2, '0')}`;
+          if (date < n.date || new Date(Date.UTC(y, mo - 1, day)).getUTCDay() !== w.dow || list.some((q) => q.d === date && q.en === w.en)) continue;
+          list.push({ id: 'w' + date, d: date, t: w.time, dur: w.dur, en: w.en, ne: w.ne, link: w.link, req: w.req }); made++;
+        }
+      });
+      Demo.save(d); return { ok: true, weekly: w, created: made };
     } else if (b.action === 'join') {
       const q = (d.sessions[b.month] || []).find((x) => x.id === b.sessionId);
       if (!q) throw new Error('That group time no longer exists.');
@@ -632,7 +657,7 @@ function startReqDraft() {
   S.draftMonth = S.month;
 }
 function startSesDraft() {
-  S.sdraft = (S.data && S.data.sessions ? S.data.sessions : []).map((q) => ({ id: q.id, d: q.d, t: q.t, dur: q.dur, en: q.en, ne: q.ne, link: q.link }));
+  S.sdraft = (S.data && S.data.sessions ? S.data.sessions : []).map((q) => ({ id: q.id, d: q.d, t: q.t, dur: q.dur, en: q.en, ne: q.ne, link: q.link, req: !!q.req }));
   S.sdraftMonth = S.month;
 }
 function startDraft() { startReqDraft(); startSesDraft(); }
@@ -856,6 +881,7 @@ function togetherHtml() {
         ${ended ? `<span class="tag">${esc(I.ended[0])} · <span lang="ne">${esc(I.ended[1])}</span></span>` : me
           ? `<span class="tag ok">${esc(I.joinedTag[0])}</span><button class="btn warn sm" data-act="leaveSes" data-sid="${esc(q.id)}">${bi('leave')}</button><button class="btn ghost sm" data-act="calSes" data-sid="${esc(q.id)}">${bi('addCal')}</button>`
           : `<button class="btn gold sm" data-act="joinPick" data-sid="${esc(q.id)}">${bi('join')}</button>`}
+        ${q.req && !ended ? `<button class="btn ghost sm" data-act="pfull">🙏 ${bi('reqBtn')}</button>` : ''}
         ${link && !ended ? `<a class="btn ghost sm" href="${esc(link)}" target="_blank" rel="noopener noreferrer">${bi('openLink')}</a>` : ''}
       </div></div>`;
   });
@@ -875,6 +901,28 @@ function translateHtml() {
     <p class="muted">${esc(I.trWarn[0])}<br><span lang="ne">${esc(I.trWarn[1])}</span></p>`;
 }
 
+function weeklyCardHtml() {
+  const lab = (k) => `${esc(I[k][0])} · <span lang="ne">${esc(I[k][1])}</span>`;
+  if (S.wk === undefined) { loadWeekly(); return `<hr style="border:0;border-top:1px solid var(--line);margin:18px 0"><p class="muted">…</p>`; }
+  const w = S.wk || { dow: 5, time: '12:00', dur: 60, en: 'Weekly Fasting Prayer', ne: 'साप्ताहिक उपवास प्रार्थना', link: '', req: false }, on = !!S.wk;
+  const durs = [30, 45, 60, 90, 120];
+  return `<hr style="border:0;border-top:1px solid var(--line);margin:18px 0">` + cols(`<span class="h2">${esc(I.wkT[0])}</span>`, `<span class="h2">${esc(I.wkT[1])}</span>`) + `
+    <p class="muted">${esc(I.wkHint[0])}<br><span lang="ne">${esc(I.wkHint[1])}</span></p>
+    <div class="item"><label class="chk"><input type="checkbox" id="wkOn" ${on ? 'checked' : ''}> <b>${lab('wkOn')}</b></label>
+      <div class="two"><div><label class="f" for="wkDow">${lab('wkDay')}</label><select class="fld" id="wkDow">${EN_DAYS.map((d, i) => `<option value="${i}" ${Number(w.dow) === i ? 'selected' : ''}>${d} · ${NE_DAYS[i]}</option>`).join('')}</select></div>
+        <div><label class="f" for="wkT">${lab('fTime')}</label><input type="time" id="wkT" value="${esc(w.time)}"></div></div>
+      <label class="f">${lab('fTitle')}</label>
+      <div class="two"><input type="text" maxlength="120" id="wkEn" placeholder="${esc(I.english[0])}" value="${esc(w.en)}"><input type="text" lang="ne" maxlength="120" id="wkNe" placeholder="${esc(I.nepali[1])}" value="${esc(w.ne)}"></div>
+      <div class="two"><div><label class="f" for="wkDur">${lab('fMinutes')}</label><select class="fld" id="wkDur">${durs.map((m) => `<option value="${m}" ${Number(w.dur) === m ? 'selected' : ''}>${m}</option>`).join('')}</select></div>
+        <div><label class="f" for="wkLink">${lab('fLink')}</label><input type="url" inputmode="url" maxlength="300" id="wkLink" value="${esc(w.link)}" placeholder="https://"></div></div>
+      <label class="chk" style="margin-top:8px"><input type="checkbox" id="wkReq" ${w.req ? 'checked' : ''}> ${lab('wkReq')}</label>
+      <button class="btn gold block" style="margin-top:10px" data-act="wkSave">${bi('wkSave')}</button></div>`;
+}
+async function loadWeekly() {
+  if (S.wkBusy) return; S.wkBusy = true;
+  try { const r = await post({ action: 'weeklyGet', pin: S.pin }); S.wk = r.weekly || null; } catch (e) { S.wk = null; }
+  S.wkBusy = false; if (S.view === 'admin') { await load(true); startSesDraft(); render(); }
+}
 function sessionsEditorHtml() {
   const min = `${S.month}-01`, max = `${S.month}-${pad(daysIn(S.month))}`;
   const lab = (k) => `${esc(I[k][0])} · <span lang="ne">${esc(I[k][1])}</span>`;
@@ -889,6 +937,7 @@ function sessionsEditorHtml() {
         <input type="text" lang="ne" maxlength="120" placeholder="${esc(I.nepali[1])}" data-si="${i}" data-f="ne" value="${esc(q.ne)}"></div>
       <div class="two"><div><label class="f">${lab('fMinutes')}</label><select class="fld" data-si="${i}" data-f="dur">${durs.map((m) => `<option value="${m}" ${Number(q.dur) === m ? 'selected' : ''}>${m}</option>`).join('')}</select></div>
         <div><label class="f">${lab('fLink')}</label><input type="url" inputmode="url" maxlength="300" data-si="${i}" data-f="link" value="${esc(q.link)}" placeholder="https://"></div></div>
+      <label class="chk" style="margin-top:8px"><input type="checkbox" data-sr="${i}" ${q.req ? 'checked' : ''}> ${esc(I.wkReq[0])} · <span lang="ne">${esc(I.wkReq[1])}</span></label>
       <div class="acts" style="margin-top:8px"><button class="btn ghost sm" data-act="trTitle" data-si="${i}">${bi('trDraft')}</button><button class="btn warn sm" data-act="delSes" data-si="${i}">${bi('del')}</button></div></div>`;
   });
   h += `<button class="btn ghost block" data-act="addSes">+ ${bi('addSession')}</button>
@@ -932,7 +981,7 @@ function adminHtml() {
   });
   html += `<button class="btn ghost block" data-act="addReq">+ ${bi('addReq')}</button>
     <button class="btn gold block" style="margin-top:10px" data-act="saveReq">${bi('saveReq')}</button>`;
-  html += sessionsEditorHtml();
+  html += weeklyCardHtml() + sessionsEditorHtml();
   html += `<hr style="border:0;border-top:1px solid var(--line);margin:18px 0">
     <label class="f" for="rmIn">${esc(I.rmName[0])} · <span lang="ne">${esc(I.rmName[1])}</span></label>
     <div class="two"><input id="rmIn" type="text" maxlength="40" autocomplete="off"><button class="btn warn" data-act="rmName">${bi('rmBtn')}</button></div>
@@ -1058,7 +1107,7 @@ async function onAct(act, el, ev) {
       await run(async () => { await post({ action: 'checkPin', pin }); S.pin = pin; try { sessionStorage.setItem('agc_pin', pin); } catch (x) {} startDraft(); render(); });
       break;
     }
-    case 'lock': S.pin = ''; try { sessionStorage.removeItem('agc_pin'); } catch (x) {} S.draft = null; S.draftMonth = null; S.sdraft = null; S.sdraftMonth = null; S.pending = undefined; render(); break;
+    case 'lock': S.pin = ''; S.wk = undefined; try { sessionStorage.removeItem('agc_pin'); } catch (x) {} S.draft = null; S.draftMonth = null; S.sdraft = null; S.sdraftMonth = null; S.pending = undefined; render(); break;
     case 'askSend': {
       const text = (($('#askText') || {}).value || '').trim(), name = (($('#askName') || {}).value || '').trim(), anon = !!($('#askAnon') || {}).checked;
       if (!text) { toast(null, I.askEmpty[0] + ' · ' + I.askEmpty[1]); return; }
@@ -1133,6 +1182,11 @@ async function onAct(act, el, ev) {
     }
     case 'addSes': S.sdraft.push({ id: '', d: (() => { const cd = chainDates(S.month); return cd.includes(S.now.date) ? S.now.date : (cd[0] || `${S.month}-01`); })(), t: '20:00', dur: 60, en: '', ne: '', link: '' }); render(); break;
     case 'delSes': S.sdraft.splice(Number(el.dataset.si), 1); render(); break;
+    case 'wkSave': await run(async () => {
+      const on = $('#wkOn').checked;
+      const r = await post({ action: 'weeklySet', pin: S.pin, on, dow: $('#wkDow').value, time: $('#wkT').value, dur: $('#wkDur').value, en: $('#wkEn').value, ne: $('#wkNe').value, link: $('#wkLink').value, req: $('#wkReq').checked });
+      S.wk = r.weekly || null; toast('wkSaved'); S.sdraftMonth = null; await load(true); startSesDraft();
+    }); break;
     case 'saveSes': await run(async () => { await post({ action: 'saveSessions', pin: S.pin, sessions: S.sdraft }); toast('saved'); S.sdraftMonth = null; await load(true); startSesDraft(); }); break;
     case 'archive': {
       if (!confirm(I.confirmArch[0] + '\n' + I.confirmArch[1])) return;
@@ -1153,6 +1207,7 @@ document.addEventListener('change', (ev) => {
   if (el.matches && el.matches('input[data-act="ans"]')) { S.draft[Number(el.dataset.i)].status = el.checked ? 'answered' : 'active'; }
   if (el.id === 'tz') { S.vtz = validTz(el.value) || S.vtz; LS.set('agc_vtz', S.vtz); render(); }
   if (el.matches && el.matches('select[data-si]')) { S.sdraft[Number(el.dataset.si)].dur = Number(el.value); }
+  if (el.matches && el.matches('input[data-sr]')) { S.sdraft[Number(el.dataset.sr)].req = el.checked; }
 });
 document.addEventListener('input', (ev) => {
   const el = ev.target;

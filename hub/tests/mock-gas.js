@@ -27,7 +27,7 @@ function makeHub(srcPath) {
     console,
     SpreadsheetApp: { create: n => new SS(n), openById: id => sheetsById[id] },
     DriveApp: { getRootFolder: () => root, getFileById: id => ({ moveTo: f => moved.push({ id, folder: f.name }), makeCopy: (name, folder) => { const f = { getName: () => name, getUrl: () => 'https://drive/' + name, getMimeType: () => 'application/vnd.google-apps.spreadsheet', getLastUpdated: () => new Date(), setTrashed: () => { const i = folder.files.indexOf(f); if (i >= 0) folder.files.splice(i, 1); env.trashed.push(name); } }; folder.files.push(f); env.copies.push(name); return f; } }), getFolderById: id => { reg(root); return folders[id]; } },
-    PropertiesService: { getScriptProperties: () => ({ getProperty: k => (k in props ? props[k] : null), setProperty: (k, v) => { props[k] = v; } }) },
+    PropertiesService: { getScriptProperties: () => ({ getProperty: k => (k in props ? props[k] : null), setProperty: (k, v) => { props[k] = v; }, deleteProperty: k => { delete props[k]; } }) },
     LanguageApp: { translate: (t, f, to) => '[' + to + '] ' + t },
     LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
     CacheService: { getScriptCache: () => ({ get: k => (k in cache ? cache[k] : null), put: (k, v) => { cache[k] = v; }, remove: k => { delete cache[k]; }, removeAll: ks => ks.forEach(k => { delete cache[k]; }) }) },

@@ -52,4 +52,20 @@ t('alert email: first request emails the owner without the request text; more wi
   assert(/new prayer request/i.test(m.subject) && !/Private health|Sam/.test(m.subject + m.body) && m.to === 'owner@example.org');
   assert(post({ action: 'submit', text: 'Another one', deviceId: 'dev-al2' }).ok); assert.strictEqual(env2.mails.length, before + 1, 'throttled within the hour');
 });
+t('weekly group prayer: admin sets Friday 12:00 for an hour; this and next month fill in; a deleted day stays gone; off stops it', () => {
+  assert(/admin PIN/i.test(post({ action: 'weeklySet', pin: 'x', on: true, dow: 5, time: '12:00', en: 'Fasting' }).error));
+  assert(/title/i.test(post({ action: 'weeklySet', pin: PIN, on: true, dow: 5, time: '12:00', en: '', ne: '' }).error)); assert(/time/i.test(post({ action: 'weeklySet', pin: PIN, on: true, dow: 5, time: 'noon', en: 'x' }).error)); assert(/day/i.test(post({ action: 'weeklySet', pin: PIN, on: true, dow: 9, time: '12:00', en: 'x' }).error));
+  const r = post({ action: 'weeklySet', pin: PIN, on: true, dow: 5, time: '12:00', dur: 60, en: 'Weekly Fasting Prayer', ne: 'साप्ताहिक उपवास प्रार्थना', req: false }); assert(r.ok && r.created > 3, JSON.stringify(r));
+  const st = state(); const fr = st.sessions.filter(q => q.en === 'Weekly Fasting Prayer'); assert(fr.length >= 1);
+  fr.forEach(q => { assert.strictEqual(new Date(q.d + 'T12:00:00Z').getUTCDay(), 5, 'every date is a Friday'); assert(q.t === '12:00' && q.dur === 60 && q.req === false && q.d >= new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })); });
+  const again = post({ action: 'weeklySet', pin: PIN, on: true, dow: 5, time: '12:00', dur: 60, en: 'Weekly Fasting Prayer', ne: 'साप्ताहिक उपवास प्रार्थना', req: false }); assert.strictEqual(state().sessions.filter(q => q.en === 'Weekly Fasting Prayer').length, fr.length, 'saving again does not duplicate');
+  const keepN = fr.length - 1; const rest = state().sessions.filter(q => q.id !== fr[0].id).map(q => ({ id: q.id, d: q.d, t: q.t, dur: q.dur, en: q.en, ne: q.ne, link: q.link, req: q.req })); assert(post({ action: 'saveSessions', pin: PIN, month, sessions: rest }).ok);
+  assert(post({ action: 'weeklyGet', pin: PIN }).weekly.dow === 5); assert.strictEqual(state().sessions.filter(q => q.en === 'Weekly Fasting Prayer').length, keepN, 'a deleted day is not brought back'); assert(/admin PIN/i.test(post({ action: 'weeklyGet', pin: 'x' }).error));
+  { const off = post({ action: 'weeklySet', pin: PIN, on: false }); assert(off.ok, JSON.stringify(off)); } assert.strictEqual(post({ action: 'weeklyGet', pin: PIN }).weekly, null);
+});
+t('a group time can carry the "show this month\'s prayer requests" option (off by default)', () => {
+  const ses = state().sessions.map(q => ({ id: q.id, d: q.d, t: q.t, dur: q.dur, en: q.en, ne: q.ne, link: q.link, req: q.req }));
+  ses[0].req = true; assert(post({ action: 'saveSessions', pin: PIN, month, sessions: ses }).ok);
+  const s2 = state().sessions; assert.strictEqual(s2[0].req, true); assert(s2.slice(1).every(q => q.req === false));
+});
 console.log(`\n${pass} passed`);
