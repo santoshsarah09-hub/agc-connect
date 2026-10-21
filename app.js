@@ -530,7 +530,12 @@ const GAME_LIST = [
   ['who', '🕵️', 'Who Am I?', 'Guess the Bible person from the clue.'],
   ['books', '📚', 'Books in Order', 'Put Bible books in the right order.'],
   ['testament', '⚖️', 'Old or New?', 'Is the book in the Old or New Testament?'],
-  ['pairs', '🃏', 'Memory Match', 'Match each verse to its reference.']
+  ['pairs', '🃏', 'Memory Match', 'Match each verse to its reference.'],
+  ['count', '🔢', 'Count the Animals', 'Count the animals going into the ark.'],
+  ['tf', '✅', 'True or False', 'Is the Bible fact true or false?'],
+  ['whodid', '🙋', 'Who Did It?', 'Who built the ark? Who met the giant?'],
+  ['picture', '🖼️', 'Picture Story', 'Which Bible story does the picture show?'],
+  ['spell', '🔤', 'Spell It', 'Tap the letters to spell a Bible word.']
 ];
 const kidsGames = v => gamesView(v, 'kids'), youthGames = v => gamesView(v, 'youth');
 const YOUTH_GAME_LIST = [
@@ -554,7 +559,7 @@ function gamesView(v, g) {
   }
   v.innerHTML = '<div class="card">Loading…</div>';
   const list = (SHINE[g] || {}).gameVerses || [];
-  const fn = { order: gameOrder, match: gameMatch, missing: gameMissing, who: gameWho, books: gameBooks, testament: gameTestament, pairs: gamePairs, section: gameSection, rush: gameRush, type: gameType }[gMode];
+  const fn = { order: gameOrder, match: gameMatch, missing: gameMissing, who: gameWho, books: gameBooks, testament: gameTestament, pairs: gamePairs, section: gameSection, rush: gameRush, type: gameType, count: gameCount, tf: gameTF, whodid: gameWhoDid, picture: gamePicture, spell: gameSpell }[gMode];
   fn(v, list).catch(() => { v.innerHTML = `<button class="btn ghost small" id="gb">← Games</button><div class="card">Could not load verses. Check your connection.</div>`; $('#gb').onclick = gBack; });
 }
 const gBack = () => { gMode = null; gs = null; render(); };
@@ -715,6 +720,47 @@ async function gameRush(v, list) {
     tick = setInterval(() => { if (!alive()) return clearInterval(tick); G0.tm--; const el = $('#rt'); if (el) el.textContent = Math.max(0, G0.tm); if (G0.tm <= 0) finish(); }, 1000);
     ask();
   };
+}
+const KTF = [['Noah built an ark.', 1], ['David fought Goliath with a sword.', 0], ['Jesus was born in Bethlehem.', 1], ['Jonah was swallowed by a big fish.', 1], ['God made the world in two days.', 0], ['Moses led God’s people through the Red Sea.', 1],
+  ['Daniel was put in a den of lions.', 1], ['Jesus had twelve disciples.', 1], ['Zacchaeus climbed a tree to see Jesus.', 1], ['Adam was the first man God made.', 1], ['The walls of Jericho were made of ice.', 0], ['Joseph’s father gave him a special coat.', 1],
+  ['A dove brought Noah an olive leaf.', 1], ['Samuel was a king who built the temple.', 0], ['The Bible says to love your neighbor.', 1], ['Jesus was born in a big castle.', 0]];
+const KWHO = [['Who built the ark?', 'Noah', ['Moses', 'David']], ['Who was swallowed by a big fish?', 'Jonah', ['Daniel', 'Samuel']], ['Who defeated Goliath?', 'David', ['Joseph', 'Moses']], ['Who was thrown into the lions’ den?', 'Daniel', ['Jonah', 'Noah']],
+  ['Who led God’s people through the Red Sea?', 'Moses', ['Noah', 'Adam']], ['Who was the first man?', 'Adam', ['Noah', 'David']], ['Who was Jesus’ mother?', 'Mary', ['Ruth', 'Esther']], ['Who climbed a tree to see Jesus?', 'Zacchaeus', ['Daniel', 'Samuel']],
+  ['Who had a special coat from his father?', 'Joseph', ['Moses', 'Jonah']], ['Who became queen and helped save her people?', 'Esther', ['Ruth', 'Mary']], ['Who heard God call his name at night?', 'Samuel', ['David', 'Jonah']], ['Who stayed with Naomi and said “Where you go, I will go”?', 'Ruth', ['Esther', 'Mary']]];
+const KSPELL = ['JESUS', 'NOAH', 'DAVID', 'MOSES', 'JONAH', 'LOVE', 'FAITH', 'GRACE', 'PRAYER', 'BIBLE', 'ANGEL', 'SHEEP', 'DANIEL', 'ARK'];
+async function gameCount(v) {
+  if (!gs) { const em = pick(['🐘', '🦒', '🐑', '🦁', '🐫', '🐢', '🦓', '🐻']), n = 2 + Math.floor(Math.random() * 8), set = new Set([n]); while (set.size < 4) { const x = n + (Math.random() < .5 ? -1 : 1) * (1 + Math.floor(Math.random() * 3)); if (x > 0) set.add(x); } gs = { em, n, opts: shuffle([...set]), ok: false }; }
+  v.innerHTML = `${gTop}<div class="card gold"><h2>How many animals are going into the ark?</h2><p style="font-size:34px;line-height:1.3;margin:6px 0">${gs.em.repeat(gs.n)}</p></div><div class="card">${gs.opts.map(o => `<button class="btn ghost" data-o="${o}" style="min-width:64px;font-size:20px">${o}</button>`).join(' ')}<div id="msg" style="min-height:28px"></div><button class="btn small" id="again" style="display:none">Next</button></div>`;
+  $('#gb').onclick = gBack;
+  v.querySelectorAll('[data-o]').forEach(b => b.onclick = () => { if (gs.ok) return; if (+b.dataset.o === gs.n) { gs.ok = true; awardStars(gG, GP(1)); $('#msg').innerHTML = '<span class="good">Yes, ' + gs.n + '! +' + GP(1) + ' ⭐</span>'; nextBtn(); } else $('#msg').innerHTML = '<span class="bad">Count again!' + (missStar(gG, gs) ? ' −1 ⭐' : '') + '</span>'; });
+}
+async function gameTF(v) {
+  if (!gs) { const [t, a] = pick(KTF); gs = { t, a, ok: false }; }
+  v.innerHTML = `${gTop}<div class="card gold"><h2>True or false?</h2><p class="bigword">${esc(gs.t)}</p></div><div class="card"><button class="btn ghost" data-o="1">✅ True</button><button class="btn ghost" data-o="0">❌ False</button><div id="msg" style="min-height:28px"></div><button class="btn small" id="again" style="display:none">Next</button></div>`;
+  $('#gb').onclick = gBack;
+  v.querySelectorAll('[data-o]').forEach(b => b.onclick = () => { if (gs.ok) return; if (+b.dataset.o === gs.a) { gs.ok = true; awardStars(gG, GP(1)); $('#msg').innerHTML = '<span class="good">Right! +' + GP(1) + ' ⭐</span>'; nextBtn(); } else $('#msg').innerHTML = '<span class="bad">Not quite — try the other one.' + (missStar(gG, gs) ? ' −1 ⭐' : '') + '</span>'; });
+}
+async function gameWhoDid(v) {
+  if (!gs) { const [q, a, o] = pick(KWHO); gs = { q, a, opts: shuffle([a, ...o]), ok: false }; }
+  v.innerHTML = `${gTop}<div class="card gold"><h2>Who did it?</h2><p class="bigword">${esc(gs.q)}</p></div><div class="card">${gs.opts.map(o => `<button class="btn ghost" data-o="${esc(o)}">${esc(o)}</button>`).join('')}<div id="msg" style="min-height:28px"></div><button class="btn small" id="again" style="display:none">Next</button></div>`;
+  $('#gb').onclick = gBack;
+  v.querySelectorAll('[data-o]').forEach(b => b.onclick = () => { if (gs.ok) return; if (b.dataset.o === gs.a) { gs.ok = true; awardStars(gG, GP(1)); $('#msg').innerHTML = '<span class="good">Yes, ' + esc(gs.a) + '! +' + GP(1) + ' ⭐</span>'; nextBtn(); } else $('#msg').innerHTML = '<span class="bad">Not quite — try again.' + (missStar(gG, gs) ? ' −1 ⭐' : '') + '</span>'; });
+}
+async function gamePicture(v) {
+  if (!gs) { const [e, n] = pick(MEMPAIRS), others = shuffle(MEMPAIRS.filter(x => x[1] !== n).filter(x => !/Psalm|Genesis/.test(x[1])).map(x => x[1])).slice(0, 2); gs = { e, n, opts: shuffle([n, ...others]), ok: false }; }
+  v.innerHTML = `${gTop}<div class="card gold"><h2>Which Bible story or person?</h2><p style="font-size:64px;text-align:center;margin:6px 0">${gs.e}</p></div><div class="card">${gs.opts.map(o => `<button class="btn ghost" data-o="${esc(o)}">${esc(o)}</button>`).join('')}<div id="msg" style="min-height:28px"></div><button class="btn small" id="again" style="display:none">Next</button></div>`;
+  $('#gb').onclick = gBack;
+  v.querySelectorAll('[data-o]').forEach(b => b.onclick = () => { if (gs.ok) return; if (b.dataset.o === gs.n) { gs.ok = true; awardStars(gG, GP(1)); $('#msg').innerHTML = '<span class="good">Yes, ' + esc(gs.n) + '! +' + GP(1) + ' ⭐</span>'; nextBtn(); } else $('#msg').innerHTML = '<span class="bad">Not quite — try again.' + (missStar(gG, gs) ? ' −1 ⭐' : '') + '</span>'; });
+}
+async function gameSpell(v) {
+  if (!gs) { const w = pick(KSPELL); gs = { w, bank: shuffle(w.split('').map((c, i) => ({ c, i }))), picked: [] }; }
+  const done = gs.picked.length === gs.w.length;
+  if (done && !gs.paid) { gs.paid = true; awardStars(gG, GP(2)); }
+  v.innerHTML = `${gTop}<div class="card gold"><h2>Spell the Bible word</h2><p class="bigword" style="letter-spacing:8px">${gs.w.split('').map((c, i) => i < gs.picked.length ? esc(c) : '_').join(' ')}</p></div><div class="card">${gs.bank.filter(b => !gs.picked.includes(b)).map(b => `<span class="chip" data-l="${b.i}" style="font-size:22px;padding:10px 16px">${esc(b.c)}</span>`).join('')}<div id="msg" style="min-height:28px">${done ? '<span class="good">You spelled ' + esc(gs.w) + '! +' + GP(2) + ' ⭐</span>' : ''}</div>${done ? '<button class="btn small" id="again">Next word</button>' : '<button class="btn ghost small" id="undo">Undo</button>'}</div>`;
+  $('#gb').onclick = gBack;
+  v.querySelectorAll('[data-l]').forEach(c => c.onclick = () => { const b = gs.bank.find(x => x.i === +c.dataset.l); if (b.c === gs.w[gs.picked.length]) { gs.picked.push(b); gameSpell(v); } else $('#msg').innerHTML = '<span class="bad">Try a different letter.' + (missStar(gG, gs.w + gs.picked.length) ? ' −1 ⭐' : '') + '</span>'; });
+  const u = $('#undo'); if (u) u.onclick = () => { gs.picked.pop(); gameSpell(v); };
+  const a = $('#again'); if (a) a.onclick = () => { gs = null; render(); };
 }
 const gameRedraw = (v, list) => { if (gMode === 'pairs') gamePairs(v, list); };
 
@@ -2021,7 +2067,59 @@ function funMath(area, g) {
   const show = () => { make(); $('#tq').textContent = q.txt + ' = ?'; $('#to').innerHTML = q.opts.map(o => `<button class="btn ghost" data-a="${o}" style="min-width:64px;margin:4px">${o}</button>`).join(''); $('#to').querySelectorAll('[data-a]').forEach(b => b.onclick = () => { if (h >= GOAL) return; if (+b.dataset.a === q.ans) { h++; streak++; funSnd(streak % 3 === 0 ? 'level' : 'coin'); $('#tm').innerHTML = '<span class="good">Yes! ⬆ A block goes on.</span>'; draw(); if (h >= GOAL) { funWin(area); $('#tm').innerHTML = '<b class="good">🎉 Your tower is finished!</b> <button class="btn small" id="tre">Build another</button>'; $('#tre').onclick = () => funMath(area, g); return; } show(); } else { streak = 0; if (h > 0) h--; funSnd('crash'); $('#tm').innerHTML = `<span class="bad">Not quite. It was ${q.ans}.${h >= 0 ? ' A block fell off.' : ''}</span>`; draw(); show(); } }); };
   draw(); show();
 }
-const STUDIO = [['bricks', '🧱', 'Brick Builder', funBricks], ['map', '🗺️', 'Holy Land Map', funMap], ['planets', '🪐', 'Planet Explorer', funPlanets], ['math', '🧮', 'Math Tower', funMath]];
+const CDAYS = [
+  { d: 1, e: '💡', n: 'Light', t: 'God made light and separated it from the darkness.', r: 'Genesis 1:3-5' },
+  { d: 2, e: '☁️', n: 'Sky', t: 'God made the sky between the waters.', r: 'Genesis 1:6-8' },
+  { d: 3, e: '🌱', n: 'Land and plants', t: 'God gathered the waters, made dry land and plants and trees.', r: 'Genesis 1:9-13' },
+  { d: 4, e: '🌙', n: 'Sun, moon and stars', t: 'God made the sun, moon and stars.', r: 'Genesis 1:14-19' },
+  { d: 5, e: '🐟', n: 'Fish and birds', t: 'God filled the waters with fish and the sky with birds.', r: 'Genesis 1:20-23' },
+  { d: 6, e: '🦁', n: 'Animals and people', t: 'God made the animals and then people in His own image.', r: 'Genesis 1:24-31' },
+  { d: 7, e: '😌', n: 'Rest', t: 'God finished His work and rested on the seventh day.', r: 'Genesis 2:2-3' }];
+function funCreation(area, g) {
+  const G = window.__funGen, youth = g === 'youth', Wd = 300, H = 330; let built = [], q, order = youth ? CDAYS.slice().sort(() => Math.random() - .5) : CDAYS.slice(), idx = 0, lives = youth ? 3 : 99, yaw = .6;
+  area.innerHTML = `<p>${youth ? 'On which day did God make each thing? You have 3 tries to spare.' : 'Build the tower of creation. What did God make on each day?'}</p><canvas id="kc" width="${Wd}" height="${H}" style="width:100%;max-width:${Wd}px;border-radius:14px;display:block;margin:auto;background:linear-gradient(#cfe9ff,#f2f9ff)"></canvas><div class="card gold" style="margin-top:8px"><p class="bigword" id="kq"></p><div id="ko"></div><div id="km" style="min-height:24px"></div></div>`;
+  const cv = $('#kc'), cx = cv.getContext('2d'), cols = ['#fdd835', '#64b5f6', '#66bb6a', '#ffb74d', '#4dd0e1', '#ef6c00', '#ba68c8'];
+  const draw = () => { cx.clearRect(0, 0, Wd, H); for (let x = 0; x < 3; x++) for (let y = 0; y < 3; y++) drawCube(cx, x, y, 0, '#8bc34a', yaw, 26, Wd / 2, 285, 1.5, 0); built.slice().sort((a, b) => a - b).forEach((d, k) => { drawCube(cx, 1, 1, k, cols[d - 1], yaw, 26, Wd / 2, 285, 1.5); }); cx.font = '22px serif'; cx.textAlign = 'center'; built.slice().sort((a, b) => a - b).forEach((d, k) => { const c = Math.cos(yaw), s = Math.sin(yaw), dx = 0, rx = dx, sx = Wd / 2, sy = 285 + 0 * 0 - (k + .5) * 26 * .95 + 1.5 * 0; cx.fillText(CDAYS[d - 1].e, sx, sy + 10 - 0); }); };
+  const show = () => { if (idx >= order.length) return; q = order[idx]; const opts = youth ? CDAYS.map(x => ({ v: x.d, l: 'Day ' + x.d })) : CDAYS.map(x => ({ v: x.d, l: x.e + ' ' + x.n })).sort(() => Math.random() - .5).filter((o, i, a) => true);
+    $('#kq').textContent = youth ? `${q.e} ${q.n}: which day?` : `Day ${q.d}: what did God make?`; const shown = youth ? opts : (() => { const o = [q.d, ...CDAYS.filter(x => x.d !== q.d).sort(() => Math.random() - .5).slice(0, 3).map(x => x.d)].sort(() => Math.random() - .5); return o.map(v => ({ v, l: CDAYS[v - 1].e + ' ' + CDAYS[v - 1].n })); })();
+    $('#ko').innerHTML = shown.map(o => `<button class="btn ghost" data-a="${o.v}" style="margin:3px">${esc(o.l)}</button>`).join('');
+    $('#ko').querySelectorAll('[data-a]').forEach(b => b.onclick = () => { if (idx >= order.length || lives <= 0) return; if (+b.dataset.a === q.d) { built.push(q.d); idx++; funSnd('coin'); funBuzz(15); $('#km').innerHTML = `<span class="good"><b>${q.e} Day ${q.d}</b> ${esc(q.t)} (${esc(q.r)})</span>`; draw(); if (idx >= order.length) { funWin(area); $('#kq').textContent = '🎉 Creation is complete!'; $('#ko').innerHTML = '<button class="btn small" id="kre">Build again</button>'; $('#kre').onclick = () => funCreation(area, g); return; } show(); } else { funSnd('crash'); if (youth) { lives--; if (lives <= 0) { $('#km').innerHTML = '<span class="bad">Out of tries. <button class="btn small" id="kre">Try again</button></span>'; $('#kre').onclick = () => funCreation(area, g); return; } } $('#km').innerHTML = `<span class="bad">Not that one. Think about Genesis 1.${youth ? ' Tries left: ' + lives : ''}</span>`; } }); };
+  draw(); show();
+}
+const TAB = [
+  { e: '🔥', n: 'Bronze altar', z: 0, t: 'The bronze altar stood in the courtyard, where sacrifices were offered.', r: 'Exodus 27:1-2' },
+  { e: '🏺', n: 'Bronze basin', z: 0, t: 'The priests washed at the basin in the courtyard.', r: 'Exodus 30:18-19' },
+  { e: '🕯️', n: 'Golden lampstand', z: 1, t: 'The golden lampstand gave light in the Holy Place.', r: 'Exodus 25:31' },
+  { e: '🍞', n: 'Table of bread', z: 1, t: 'Bread was set on the table in the Holy Place.', r: 'Exodus 25:23-30' },
+  { e: '💨', n: 'Altar of incense', z: 1, t: 'Incense was burned on the golden altar in the Holy Place.', r: 'Exodus 30:1' },
+  { e: '📦', n: 'Ark of the Covenant', z: 2, t: 'The ark was placed in the Most Holy Place.', r: 'Exodus 26:33' }];
+const TZONES = ['Courtyard', 'Holy Place', 'Most Holy Place'];
+function funTabernacle(area, g) {
+  const G = window.__funGen, youth = g === 'youth', Wd = 320, H = 280; let placed = [], sel = null, yaw = .7, wrong = 0; const items = TAB.slice().sort(() => Math.random() - .5);
+  area.innerHTML = `<p>Build God’s tent (the Tabernacle). Tap a piece, then tap the place where it belongs.</p><canvas id="tbc" width="${Wd}" height="${H}" style="width:100%;max-width:${Wd}px;border-radius:14px;display:block;margin:auto;background:linear-gradient(#d9ecff,#f7fbff)"></canvas><div class="bubs" id="tbi" style="margin-top:8px"></div><div class="seg" id="tbz"></div><div id="tbm" class="card" style="min-height:44px;margin-top:6px"></div>`;
+  const cv = $('#tbc'), cx = cv.getContext('2d'), zc = ['#d7c29a', '#e6c76a', '#b5a0e0'], zx = [[0, 0, 3, 3], [3, 0, 2, 3], [5, 0, 1, 3]];
+  const draw = () => { cx.clearRect(0, 0, Wd, H); zx.forEach(([x, y, w, h], zi) => { for (let a = 0; a < w; a++) for (let b = 0; b < h; b++) drawCube(cx, x + a, y + b, 0, zc[zi], yaw, 22, Wd / 2, 130, 3, 0); }); placed.forEach(it => { const z = zx[it.z], c = Math.cos(yaw), s = Math.sin(yaw), n = placed.filter(p => p.z === it.z).indexOf(it), cxp = z[0] + (n % z[2]), cyp = z[1] + Math.floor(n / z[2]) % 3; drawCube(cx, cxp, cyp + (it.z === 0 ? 0 : 0), 0, ['#8d6e63', '#ffb300', '#7e57c2'][it.z], yaw, 22, Wd / 2, 130, 3, .8); const dx = cxp + .5 - 3, dy = cyp + .5 - 3, rx = dx * c - dy * s, ry = dx * s + dy * c; cx.font = '20px serif'; cx.textAlign = 'center'; cx.fillText(it.e, Wd / 2 + (rx - ry) * 22 * .866, 130 + (rx + ry) * 22 * .5 - 28); }); };
+  const list = () => { $('#tbi').innerHTML = items.filter(i => !placed.includes(i)).map(i => `<button class="bub ${sel === i ? 'on' : ''}" data-i="${items.indexOf(i)}"><span class="bi">${i.e}</span><span class="bn">${esc(i.n)}</span></button>`).join(''); $('#tbi').querySelectorAll('[data-i]').forEach(b => b.onclick = () => { sel = items[+b.dataset.i]; list(); }); };
+  $('#tbz').innerHTML = TZONES.map((z, i) => `<button class="btn small ghost" data-z="${i}">${z}</button>`).join(''); $('#tbz').style.flexWrap = 'wrap';
+  $('#tbz').querySelectorAll('[data-z]').forEach(b => b.onclick = () => {
+    if (!sel) { $('#tbm').textContent = 'First tap a piece above.'; return; }
+    if (sel.z === +b.dataset.z) { placed.push(sel); funSnd('coin'); funBuzz(15); $('#tbm').innerHTML = `<b>${sel.e} ${esc(sel.n)}</b><br>${esc(sel.t)} <span class="muted">(${esc(sel.r)})</span>`; sel = null; list(); draw(); if (placed.length === items.length) { funWin(area); $('#tbm').innerHTML += `<br><br><b class="good">🎉 The Tabernacle is built!</b> <button class="btn small" id="tbre">Build again</button>`; $('#tbre').onclick = () => funTabernacle(area, g); } }
+    else { wrong++; funSnd('crash'); $('#tbm').innerHTML = `<span class="bad">${esc(sel.n)} does not go in the ${TZONES[+b.dataset.z]}. Try another place.</span>`; }
+  });
+  list(); draw();
+}
+const TLINE = [
+  { n: 'God creates the world', r: 'Genesis 1' }, { n: 'Noah and the flood', r: 'Genesis 7' }, { n: 'God calls Abraham', r: 'Genesis 12' }, { n: 'Joseph rules in Egypt', r: 'Genesis 41' },
+  { n: 'Moses and the Exodus', r: 'Exodus 14' }, { n: 'Walls of Jericho fall', r: 'Joshua 6' }, { n: 'David becomes king', r: '2 Samuel 5' }, { n: 'Solomon builds the temple', r: '1 Kings 6' },
+  { n: 'Daniel in the lions’ den', r: 'Daniel 6' }, { n: 'Jesus is born', r: 'Luke 2' }, { n: 'Jesus rises from the dead', r: 'Luke 24' }, { n: 'The Holy Spirit comes at Pentecost', r: 'Acts 2' }];
+function funTimeline(area, g) {
+  const youth = g === 'youth', G = window.__funGen, Wd = 300, H = 330, evs = youth ? TLINE.slice() : [TLINE[0], TLINE[1], TLINE[4], TLINE[6], TLINE[9], TLINE[10]]; let n = 0, yaw = .6, miss = 0; const bank = evs.map((e, i) => i).sort(() => Math.random() - .5);
+  area.innerHTML = `<p>Tap the events in the order they happened in the Bible. Each right one adds a block to the tower!</p><canvas id="lc" width="${Wd}" height="${H}" style="width:100%;max-width:${Wd}px;border-radius:14px;display:block;margin:auto;background:linear-gradient(#cfe9ff,#f2f9ff)"></canvas><div class="card"><div id="lb"></div><div id="lm" style="min-height:24px;margin-top:6px"></div></div>`;
+  const cv = $('#lc'), cx = cv.getContext('2d'), draw = () => { cx.clearRect(0, 0, Wd, H); for (let x = 0; x < 3; x++) for (let y = 0; y < 3; y++) drawCube(cx, x, y, 0, '#8bc34a', yaw, 24, Wd / 2, 300, 1.5, 0); for (let k = 0; k < n; k++) drawCube(cx, 1, 1, k, BRICKCOL[k % BRICKCOL.length], yaw, 24, Wd / 2, 300, 1.5); };
+  const list = () => { $('#lb').innerHTML = bank.filter(i => i >= n || true).filter(i => i >= n).map(i => `<button class="btn ghost" data-e="${i}" style="display:block;width:100%;margin:4px 0;text-align:left">${esc(evs[i].n)}</button>`).join(''); $('#lb').querySelectorAll('[data-e]').forEach(b => b.onclick = () => { const i = +b.dataset.e; if (i === n) { n++; funSnd('coin'); funBuzz(15); $('#lm').innerHTML = `<span class="good"><b>${esc(evs[i].n)}</b> (${esc(evs[i].r)})</span>`; draw(); if (n >= evs.length) { funWin(area); $('#lb').innerHTML = '<b class="good">🎉 The whole timeline is in order!</b> <button class="btn small" id="lre">Play again</button>'; $('#lre').onclick = () => funTimeline(area, g); } else list(); } else { miss++; funSnd('crash'); $('#lm').innerHTML = '<span class="bad">That one comes later or came before. Think again.</span>'; } }); };
+  draw(); list();
+}
+const STUDIO = [['bricks', '🧱', 'Brick Builder', funBricks], ['map', '🗺️', 'Holy Land Map', funMap], ['planets', '🪐', 'Planet Explorer', funPlanets], ['math', '🧮', 'Math Tower', funMath], ['creation', '🌈', 'Creation Tower', funCreation], ['tab', '⛺', 'Build the Tabernacle', funTabernacle], ['line', '📜', 'Bible Timeline', funTimeline]];
 function funStudio(area, g, pick) {
   window.__funGen = (window.__funGen || 0) + 1; if (window.__funRaf) { cancelAnimationFrame(window.__funRaf); window.__funRaf = 0; }
   area.innerHTML = `<div class="bubs">${STUDIO.map(([k, em, n]) => `<button class="bub ${pick === k ? 'on' : ''}" data-st="${k}"><span class="bi">${em}</span><span class="bn">${n}</span></button>`).join('')}</div><div id="stg">${pick ? '' : '<p class="muted">Pick a 3D game: build with bricks, find places on a map of the Holy Land, explore the planets, or stack a math tower. 🧰</p>'}</div>`;

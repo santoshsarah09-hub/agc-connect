@@ -5,9 +5,9 @@ body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background
 [hidden]{display:none!important}
 .top{background:#001f3f;color:#fff;padding:calc(12px + env(safe-area-inset-top)) 16px 12px;border-bottom:5px solid var(--gold)}
 .brand{font-weight:800;letter-spacing:2px;text-transform:uppercase;font-size:18px}.brand span{color:var(--gold)}
-.inner{display:flex;gap:6px;overflow-x:auto;padding:10px 12px;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:4;scrollbar-width:none}
-.inner button{flex:0 0 auto;border:0;background:transparent;color:var(--muted);padding:10px 16px;border-radius:99px;font:inherit;font-weight:700;font-size:15px;cursor:pointer;min-height:44px}
-.inner button.on{background:var(--blue);color:#fff}
+.inner{display:flex;flex-wrap:wrap;gap:6px;padding:8px 10px;background:var(--card);border-bottom:1px solid var(--line);position:relative;z-index:4}
+.inner button{flex:0 0 auto;border:1.5px solid var(--line);background:transparent;color:var(--muted);padding:6px 13px;border-radius:99px;font:inherit;font-weight:700;font-size:14px;cursor:pointer;min-height:40px}
+.inner button.on{background:var(--blue);color:#fff;border-color:var(--blue)}
 main{max-width:680px;margin:0 auto;padding:16px}
 h1{font-size:24px;margin:4px 0 12px}h2{font-size:19px;margin:0 0 8px}
 .card{background:var(--card);border:1px solid var(--line);border-top:6px solid var(--blue);border-radius:18px;padding:18px;margin-bottom:14px}
@@ -80,7 +80,7 @@ textarea{min-height:140px}label{font-weight:700;font-size:15px}
 .votd-lang{font-weight:800;letter-spacing:1px;text-transform:uppercase;font-size:13px;color:var(--gold);margin:10px 0 4px}
 .refchip{display:inline-block;margin:4px 6px 4px 0;padding:6px 12px;border-radius:99px;background:var(--bg);border:2px solid var(--line);font-weight:700;font-size:14px;cursor:pointer;color:var(--ink)}
 .e4{border-top-width:10px}
-.stepper{display:flex;gap:6px;overflow-x:auto;margin-bottom:12px;scrollbar-width:none}
+.stepper{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
 .stepper button{flex:1 0 auto;border:2px solid var(--line);background:var(--bg);color:var(--ink);border-radius:12px;padding:8px 10px;font:inherit;font-size:14px;font-weight:700;cursor:pointer;min-height:44px}
 .stepper button.on{background:var(--blue);color:#fff;border-color:var(--blue)}
 .stepper button.done{border-color:var(--good)}
