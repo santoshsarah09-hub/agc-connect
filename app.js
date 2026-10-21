@@ -1309,7 +1309,7 @@ async function afterGate() {
 /* ---------- Fun Zone: earn stars by learning verses, spend them on a timed play session ---------- */
 const FUNCFG = g => Object.assign({ cost: g === 'youth' ? 40 : 50, minutes: 30 }, ((CFG.fun || {})[g]) || {});
 let FUNT = null;
-const FUNGAMES = [['race', '🛻 Truck Race'], ['catch', '⭐ Star Catch'], ['ttt', '⭕ Tic-Tac-Toe'], ['scramble', '🔤 Word Scramble'], ['simon', '🎵 Simon Pattern'], ['puzzle', '🧩 Puzzle'], ['memory', '🃏 Memory Match'], ['quiz', '❓ Quiz Rush'], ['dove', '🕊️ Dove Tap']];
+const FUNGAMES = [['race', '🛻 Truck Race'], ['catch', '⭐ Star Catch'], ['ttt', '⭕ Tic-Tac-Toe'], ['scramble', '🔤 Word Scramble'], ['simon', '🎵 Simon Pattern'], ['puzzle', '🧩 Puzzle'], ['memory', '🃏 Memory Match'], ['quiz', '❓ Quiz Rush'], ['dove', '🕊️ Dove Tap'], ['world', '🌍 Bible Worlds']];
 const monthKey = () => todayKey().slice(0, 7);
 const spentNow = p => (p.spentWk && String(p.spentWk.wk).startsWith(monthKey()) ? p.spentWk.n : 0);
 const monthStars = p => Math.max(0, (Array.isArray(p.log) ? p.log : []).filter(x => String(x.d).startsWith(monthKey())).reduce((a, x) => a + (x.n || 0), 0));
@@ -1337,7 +1337,7 @@ function funView(v, g) {
       <div class="card"><div class="tabs2">${FUNGAMES.map(([k, n]) => `<button class="btn small ${k === 'race' ? '' : 'ghost'}" data-fg="${k}">${n}</button>`).join(' ')}</div><div id="funarea"></div></div>`;
     wireBar(g); $('#funmute').onclick = e => { lsSet('agc.mute', FUNMUTE() ? '' : '1'); e.target.textContent = FUNMUTE() ? '🔇 Sound off' : '🔊 Sound on'; funSnd('ok'); };
     const area = $('#funarea'); let cur = 'race';
-    const open = k => { window.__funGen = (window.__funGen || 0) + 1; cur = k; v.querySelectorAll('[data-fg]').forEach(b => b.classList.toggle('ghost', b.dataset.fg !== k)); window.__funRaf && cancelAnimationFrame(window.__funRaf); window.__funRaf = 0; ({ race: funRace, catch: funCatch, ttt: funTtt, scramble: funScramble, simon: funSimon, puzzle: funPuzzle, memory: funMemory, quiz: funQuiz, dove: funDove })[k](area, g); applyLang(); if (k === 'race' || k === 'catch') setTimeout(() => { const c = area.querySelector('canvas'); if (c && c.scrollIntoView) c.scrollIntoView({ block: 'center', behavior: 'smooth' }); }, 60); };
+    const open = k => { window.__funGen = (window.__funGen || 0) + 1; cur = k; v.querySelectorAll('[data-fg]').forEach(b => b.classList.toggle('ghost', b.dataset.fg !== k)); window.__funRaf && cancelAnimationFrame(window.__funRaf); window.__funRaf = 0; ({ race: funRace, catch: funCatch, ttt: funTtt, scramble: funScramble, simon: funSimon, puzzle: funPuzzle, memory: funMemory, quiz: funQuiz, dove: funDove, world: funWorld })[k](area, g); applyLang(); if (k === 'race' || k === 'catch') setTimeout(() => { const c = area.querySelector('canvas'); if (c && c.scrollIntoView) c.scrollIntoView({ block: 'center', behavior: 'smooth' }); }, 60); };
     v.querySelectorAll('[data-fg]').forEach(b => b.onclick = () => open(b.dataset.fg));
     open(cur);
     FUNT = setInterval(() => {
@@ -1670,6 +1670,91 @@ function funAsmr(area, g) {
     const m = pos(e); const hit = B.map((b, i) => ({ b, i, p: proj(b) })).filter(o => Math.hypot(o.p.sx - m.x, o.p.sy - m.y) <= o.b.r * o.p.k * 1.6 + 6).sort((a, c) => a.p.z - c.p.z)[0];
     if (hit) { rings.push({ x: hit.p.sx, y: hit.p.sy, r: hit.b.r * hit.p.k * 1.6, a: .9, h: hit.b.h }); Object.assign(hit.b, mk(true)); popped++; $('#apc').textContent = popped; funPop(); funBuzz(15); }
   };
+  loop();
+}
+/* ---------- Bible Worlds: pick a Bible character and look around 360 degrees in 3D to find things from the story ---------- */
+const BWORLDS = [
+  { id: 'noah', em: '🧔', name: 'Noah', ref: 'Genesis 6–9', sky: ['#7fb8e8', '#cfe9f7'], gr: '#5b8a4a', decor: ['☁️', '🌳', '⛰️', '☁️'], items: [
+    { e: '⛵', n: 'The ark', t: 'God told Noah to build a big boat to keep his family and the animals safe.', r: 'Genesis 6:14' },
+    { e: '🐘', n: 'The animals', t: 'Pairs of animals came to Noah in the ark.', r: 'Genesis 6:19-20' },
+    { e: '🌧️', n: 'The rain', t: 'It rained for forty days and forty nights.', r: 'Genesis 7:12' },
+    { e: '🕊️', n: 'The dove', t: 'The dove came back with a fresh olive leaf in its beak.', r: 'Genesis 8:11' },
+    { e: '🙏', n: 'The thank-you', t: 'Noah built an altar and thanked God.', r: 'Genesis 8:20' },
+    { e: '🌈', n: 'The rainbow', t: 'God put a rainbow in the sky as a promise.', r: 'Genesis 9:13' }] },
+  { id: 'david', em: '🧑‍🦱', name: 'David', ref: '1 Samuel 16–17', sky: ['#8ec5f0', '#e8f4e4'], gr: '#6a9a3f', decor: ['☁️', '🌳', '⛰️', '🌾'], items: [
+    { e: '🐑', n: 'The sheep', t: 'David took care of his father’s sheep and kept them safe.', r: '1 Samuel 17:34-35' },
+    { e: '🎵', n: 'The harp', t: 'David played the harp for King Saul.', r: '1 Samuel 16:23' },
+    { e: '🛡️', n: 'The giant’s armor', t: 'Goliath was a giant, but David trusted the Lord.', r: '1 Samuel 17:45' },
+    { e: '🪨', n: 'Five stones', t: 'David chose five smooth stones from the brook.', r: '1 Samuel 17:40' },
+    { e: '📜', n: 'The psalm', t: 'David wrote songs to God. “The Lord is my shepherd.”', r: 'Psalm 23:1' },
+    { e: '👑', n: 'The crown', t: 'David became king over Israel.', r: '2 Samuel 5:3-4' }] },
+  { id: 'daniel', em: '👳', name: 'Daniel', ref: 'Daniel 6', sky: ['#3a3f6b', '#b9a27a'], gr: '#a98b5a', decor: ['🏛️', '🌴', '⭐', '🏛️'], items: [
+    { e: '🪟', n: 'The window', t: 'Daniel prayed at his open window, facing Jerusalem.', r: 'Daniel 6:10' },
+    { e: '🙏', n: 'Three times a day', t: 'Daniel prayed to God three times a day, even when it was risky.', r: 'Daniel 6:10' },
+    { e: '🦁', n: 'The lions', t: 'Daniel was put into the lions’ den.', r: 'Daniel 6:16' },
+    { e: '😇', n: 'The angel', t: 'God sent His angel and shut the lions’ mouths.', r: 'Daniel 6:22' },
+    { e: '👑', n: 'The king', t: 'King Darius was very glad when Daniel was safe.', r: 'Daniel 6:23' },
+    { e: '📜', n: 'The letter', t: 'The king wrote that everyone should honor the God of Daniel.', r: 'Daniel 6:25-26' }] },
+  { id: 'jonah', em: '🧓', name: 'Jonah', ref: 'Jonah 1–4', sky: ['#2f4a73', '#7aa3c7'], gr: '#2c6a8f', decor: ['☁️', '🌊', '🌊', '⛵'], items: [
+    { e: '⛈️', n: 'The storm', t: 'God sent a great storm on the sea.', r: 'Jonah 1:4' },
+    { e: '🐋', n: 'The big fish', t: 'God sent a big fish to swallow Jonah.', r: 'Jonah 1:17' },
+    { e: '🙏', n: 'The prayer', t: 'Jonah prayed to God from inside the fish.', r: 'Jonah 2:1' },
+    { e: '🏙️', n: 'Nineveh', t: 'Jonah went to Nineveh and gave God’s message.', r: 'Jonah 3:3-4' },
+    { e: '🌿', n: 'The plant', t: 'God made a plant grow to give Jonah shade.', r: 'Jonah 4:6' },
+    { e: '❤️', n: 'God’s care', t: 'God cares about everyone, even the people of Nineveh.', r: 'Jonah 4:11' }] },
+  { id: 'moses', em: '👴', name: 'Moses', ref: 'Exodus 3–20', sky: ['#e8b36b', '#f6e2b3'], gr: '#c9a566', decor: ['☁️', '🌵', '⛰️', '🌵'], items: [
+    { e: '🔥', n: 'The burning bush', t: 'A bush was on fire, but it did not burn up. God spoke to Moses from it.', r: 'Exodus 3:2' },
+    { e: '🐍', n: 'The staff', t: 'God showed Moses a sign with his staff.', r: 'Exodus 4:3' },
+    { e: '☁️', n: 'The cloud', t: 'God led His people with a cloud by day and a fire by night.', r: 'Exodus 13:21' },
+    { e: '🌊', n: 'The Red Sea', t: 'The sea was divided and the people crossed on dry ground.', r: 'Exodus 14:21-22' },
+    { e: '🍞', n: 'The manna', t: 'God gave the people bread from heaven to eat.', r: 'Exodus 16:15' },
+    { e: '📖', n: 'God’s commands', t: 'God gave His people the Ten Commandments.', r: 'Exodus 20:1-17' }] },
+  { id: 'joseph', em: '🧒', name: 'Joseph', ref: 'Genesis 37–45', sky: ['#7bb4d8', '#f2dfae'], gr: '#c2a15e', decor: ['☁️', '🌴', '🔺', '🌴'], items: [
+    { e: '🧥', n: 'The coat', t: 'Joseph’s father gave him a special coat.', r: 'Genesis 37:3' },
+    { e: '💭', n: 'The dreams', t: 'God gave Joseph dreams.', r: 'Genesis 37:5' },
+    { e: '🐪', n: 'The traders', t: 'Joseph was taken by traders to Egypt.', r: 'Genesis 37:28' },
+    { e: '🌾', n: 'The grain', t: 'Joseph stored up lots of grain in the good years.', r: 'Genesis 41:48-49' },
+    { e: '👑', n: 'The ruler', t: 'Pharaoh made Joseph a ruler over Egypt.', r: 'Genesis 41:40-41' },
+    { e: '🤗', n: 'Forgiving', t: 'Joseph forgave his brothers.', r: 'Genesis 45:4-5' }] }
+];
+function funWorld(area, g, pickId) {
+  const G = window.__funGen;
+  if (!pickId) {
+    area.innerHTML = `<p>Choose a Bible character. Then look all around their world and find 6 things from their story! 🌍</p><div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px">${BWORLDS.map(w => `<button class="btn ghost" data-w="${w.id}" style="min-height:72px"><span style="font-size:30px">${w.em}</span><br><b>${esc(w.name)}</b><br><span class="muted" style="font-size:12px">${esc(w.ref)}</span></button>`).join('')}</div>`;
+    area.querySelectorAll('[data-w]').forEach(b => b.onclick = () => funWorld(area, g, b.dataset.w)); return;
+  }
+  const W0 = BWORLDS.find(w => w.id === pickId), Wd = 340, H = 400, F = 300, rad = Math.PI / 180;
+  area.innerHTML = `<p><b>${W0.em} You are ${esc(W0.name)}!</b> Drag to look around. Tap things from the story. Found: <b id="wf">0</b> of 6</p><canvas id="wc" width="${Wd}" height="${H}" style="width:100%;max-width:${Wd}px;border-radius:14px;touch-action:none;display:block;margin:auto"></canvas><div class="seg" style="margin-top:8px"><button class="btn small ghost" id="wl">◀ Look left</button><button class="btn small ghost" id="wr">Look right ▶</button></div><div id="wmsg" class="card" style="min-height:54px;margin-top:8px">Find the things from ${esc(W0.name)}’s story. 👀</div><button class="btn small ghost" id="wb">Choose another character</button>`;
+  const cv = $('#wc'), cx = cv.getContext('2d'); let yaw = 0, pitch = 0, drag = null, moved = false, found = new Set(), pulse = 0;
+  const spots = W0.items.map((it, i) => Object.assign({}, it, { az: (i * 60 + (Math.random() * 24 - 12)) * rad, el: (Math.random() * 36 - 8) * rad, d: .9 + Math.random() * .5 }));
+  const decor = Array.from({ length: 16 }, (_, i) => ({ e: W0.decor[i % W0.decor.length], az: (i * 22.5 + Math.random() * 14) * rad, el: (Math.random() * 30 - 14) * rad, d: 1.3 + Math.random() * 1.4 }));
+  const proj = (az, el) => { let x = Math.cos(el) * Math.sin(az), y = Math.sin(el), z = Math.cos(el) * Math.cos(az); const cy = Math.cos(-yaw), sy = Math.sin(-yaw); let x2 = x * cy + z * sy, z2 = -x * sy + z * cy; const cp = Math.cos(-pitch), sp = Math.sin(-pitch); const y2 = y * cp - z2 * sp, z3 = y * sp + z2 * cp; return z3 > .12 ? { x: Wd / 2 + x2 / z3 * F, y: H / 2 - y2 / z3 * F, z: z3 } : null; };
+  const stop = () => { if (window.__funRaf) { cancelAnimationFrame(window.__funRaf); window.__funRaf = 0; } };
+  const sprite = (o, base) => { const p = proj(o.az, o.el); return p ? Object.assign(p, { s: base / o.d * Math.min(1.6, 1 / p.z) }) : null; };
+  const loop = () => {
+    if (!cv.isConnected || G !== window.__funGen) return stop();
+    if (!drag && !found.size) yaw += .0008; pulse += .05;
+    const hy = H / 2 + Math.tan(pitch) * F, sk = cx.createLinearGradient(0, 0, 0, Math.max(10, hy)); sk.addColorStop(0, W0.sky[0]); sk.addColorStop(1, W0.sky[1]); cx.fillStyle = sk; cx.fillRect(0, 0, Wd, H);
+    cx.fillStyle = W0.gr; cx.fillRect(0, Math.max(0, hy), Wd, H); const sh = cx.createLinearGradient(0, hy, 0, H); sh.addColorStop(0, 'rgba(255,255,255,.18)'); sh.addColorStop(1, 'rgba(0,0,0,.25)'); cx.fillStyle = sh; cx.fillRect(0, Math.max(0, hy), Wd, H);
+    cx.textAlign = 'center'; cx.textBaseline = 'middle';
+    decor.map(o => ({ o, p: sprite(o, 54) })).filter(x => x.p).sort((a, b) => a.p.z - b.p.z).forEach(({ o, p }) => { cx.globalAlpha = .8; cx.font = `${Math.round(p.s)}px serif`; cx.fillText(o.e, p.x, p.y); });
+    cx.globalAlpha = 1;
+    spots.forEach((o, i) => { const p = sprite(o, 58); if (!p) return; const ok = found.has(i); cx.globalAlpha = ok ? .35 : 1; const sz = p.s * (ok ? 1 : 1 + Math.sin(pulse + i) * .06); cx.font = `${Math.round(sz)}px serif`; cx.fillText(o.e, p.x, p.y); if (ok) { cx.globalAlpha = 1; cx.font = `${Math.round(sz * .5)}px serif`; cx.fillText('✅', p.x + sz * .3, p.y - sz * .3); } o._p = p; });
+    cx.globalAlpha = 1; cx.font = '46px serif'; cx.fillText(W0.em, Wd / 2, H - 34);
+    window.__funRaf = requestAnimationFrame(loop);
+  };
+  const pos = e => { const q = cv.getBoundingClientRect(); return { x: (e.clientX - q.left) * Wd / q.width, y: (e.clientY - q.top) * H / q.height }; };
+  cv.onpointerdown = e => { drag = { x: e.clientX, y: e.clientY }; moved = false; cv.setPointerCapture && cv.setPointerCapture(e.pointerId); };
+  cv.onpointermove = e => { if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y; if (Math.abs(dx) + Math.abs(dy) > 4) moved = true; yaw += dx * .006; pitch = Math.max(-.5, Math.min(.5, pitch + dy * .003)); drag = { x: e.clientX, y: e.clientY }; };
+  cv.onpointerup = e => {
+    const tap = drag && !moved; drag = null; if (!tap) return; const m = pos(e);
+    const hit = spots.map((o, i) => ({ o, i })).filter(({ o, i }) => o._p && !found.has(i) && Math.hypot(o._p.x - m.x, o._p.y - m.y) <= o._p.s * .7 + 6)[0]; if (!hit) return;
+    found.add(hit.i); funSnd('coin'); funBuzz(20); $('#wf').textContent = found.size;
+    $('#wmsg').innerHTML = `<b>${hit.o.e} ${esc(hit.o.n)}</b><br>${esc(hit.o.t)} <span class="muted">(${esc(hit.o.r)})</span>`;
+    if (found.size === 6) { funWin(area); $('#wmsg').innerHTML += `<br><br><b class="good">🎉 You found everything in ${esc(W0.name)}’s story! Try another character.</b>`; }
+  };
+  $('#wl').onclick = () => { yaw += .5; }; $('#wr').onclick = () => { yaw -= .5; };
+  $('#wb').onclick = () => { stop(); funWorld(area, g); };
   loop();
 }
 /* ---------- Simon Pattern: each colour plays a note ---------- */
