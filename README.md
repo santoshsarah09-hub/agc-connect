@@ -106,3 +106,6 @@ In the Prayer section > gear (Admin) > **Weekly group prayer**: tick *Repeat eve
 ## Home: this Sunday's Scripture (from your preaching calendar)
 
 The Home card shows the title and Scripture for the coming Sunday (today, if it is Sunday). The Hub script reads your Google Doc named like "2026 Preaching Calendar" (any doc with "Preaching Cal" and the year in its name; it picks the newest) and treats Week 1-4 as the 1st to 4th Sunday of each month. If you edit the calendar in Drive, the app follows within about 6 hours. A 5th Sunday has no entry, so Home shows the usual Verse of the Day. If the Hub cannot read the doc, the app falls back to `data/preaching.json` (a copy of the 2026 calendar). Run `checkPreachingCalendar` once in the Hub editor to approve the permission and see what it found.
+
+### Youth games
+Youth Shine has a Games tab with nine games that earn stars, harder than the Kids versions and paying one more star: Verse Builder, Name That Verse, Missing Word (five choices), Type the Word (no choices), Verse Rush (60 seconds), Who Am I (five names), Books in Order (six books), Which Section and Memory Match (five pairs). Game verses for Youth are in `data/shine.json` under `youth.gameVerses`. A wrong answer costs 1 star, once per question.

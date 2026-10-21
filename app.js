@@ -113,7 +113,7 @@ const SECTIONS = {
   prayer: { label: 'Prayer',      icon: '🙏', tabs: [['chain', 'Prayer Chain']] },
   worship: { label: 'Worship',    icon: '🎵', tabs: [['songs', 'Songs'], ['news', 'Announcements'], ['cal', 'Calendar'], ['fellow', 'Fellowship']] },
   kids:   { label: 'Kids Shine',  icon: '🧒', tabs: [['verse', 'Memory Verse'], ['games', 'Games'], ['fun', 'Fun Zone'], ['lesson', 'Lesson'], ['hw', 'Assignments'], ['chat', 'Chat'], ['news', 'Announcements'], ['me', 'My Kids'], ['teach', 'Teacher']] },
-  youth:  { label: 'Youth Shine', icon: '🔥', tabs: [['verse', 'Memory Verse'], ['fun', 'Fun Zone'], ['lesson', 'Teaching'], ['hw', 'Assignments'], ['notes', 'Notes'], ['chat', 'Chat'], ['news', 'Announcements'], ['me', 'My Profile'], ['teach', 'Teacher']] },
+  youth:  { label: 'Youth Shine', icon: '🔥', tabs: [['verse', 'Memory Verse'], ['games', 'Games'], ['fun', 'Fun Zone'], ['lesson', 'Teaching'], ['hw', 'Assignments'], ['notes', 'Notes'], ['chat', 'Chat'], ['news', 'Announcements'], ['me', 'My Profile'], ['teach', 'Teacher']] },
   bible:  { label: 'Bible',       icon: '📖', tabs: [['read', 'Read'], ['find', 'Find a Verse'], ['notes', 'My Notes']] },
   leaders: { label: 'Leaders',    icon: '🛡️', tabs: [['post', 'Post'], ['res', 'Resources'], ['lboard', 'Leader Board'], ['team', 'Team'], ['fam', 'Families']] }
 };
@@ -520,8 +520,9 @@ function blanksStep(v, body, note, done) {
   });
 }
 
-/* ---------- Kids games ---------- */
-let gMode = null, gs = null;
+/* ---------- Kids and Youth games ---------- */
+let gMode = null, gs = null, gG = 'kids';
+const GP = n => gG === 'youth' ? n + 1 : n;   // Youth games are harder, so they pay one more star
 const GAME_LIST = [
   ['order', '🧩', 'Word Order', 'Tap the words in the right order.'],
   ['match', '🔎', 'Which Verse Is It?', 'Read the words, pick the reference.'],
@@ -531,16 +532,29 @@ const GAME_LIST = [
   ['testament', '⚖️', 'Old or New?', 'Is the book in the Old or New Testament?'],
   ['pairs', '🃏', 'Memory Match', 'Match each verse to its reference.']
 ];
-function kidsGames(v) {
-  if (!needProfile(v, 'kids')) return;
+const kidsGames = v => gamesView(v, 'kids'), youthGames = v => gamesView(v, 'youth');
+const YOUTH_GAME_LIST = [
+  ['order', '🧩', 'Verse Builder', 'Put a whole verse back in order. Longer verses, more stars.'],
+  ['match', '🔎', 'Name That Verse', 'Read the words, pick the right reference.'],
+  ['missing', '❓', 'Missing Word', 'Five choices, one right word.'],
+  ['type', '⌨️', 'Type the Word', 'No choices. Type the missing word yourself.'],
+  ['rush', '⏱️', 'Verse Rush', '60 seconds. Name as many verses as you can.'],
+  ['who', '🕵️', 'Who Am I?', 'Guess the Bible person from five names.'],
+  ['books', '📚', 'Books in Order', 'Put six Bible books in the right order.'],
+  ['section', '🗂️', 'Which Section?', 'Law, History, Poetry, Prophets, Gospels or Letters?'],
+  ['pairs', '🃏', 'Memory Match', 'Match five verses to their references.']
+];
+function gamesView(v, g) {
+  if (gG !== g) { gG = g; gMode = null; gs = null; }
+  if (!needProfile(v, g)) return;
   if (!gMode) {
-    v.innerHTML = profileBar('kids') + GAME_LIST.map(([k, i, n, d]) => `<div class="card gold"><h2>${i} ${n}</h2><p>${d}</p><button class="btn" data-g="${k}">Play</button></div>`).join('') + '<p class="muted">Verse games use the public-domain World English Bible.</p>';
-    wireBar('kids'); v.querySelectorAll('[data-g]').forEach(b => b.onclick = () => { gMode = b.dataset.g; gs = null; render(); });
+    v.innerHTML = profileBar(g) + (g === 'youth' ? YOUTH_GAME_LIST : GAME_LIST).map(([k, i, n, d]) => `<div class="card gold"><h2>${i} ${n}</h2><p>${d}</p><button class="btn" data-g="${k}">Play</button></div>`).join('') + '<p class="muted">Verse games use the public-domain World English Bible.</p>';
+    wireBar(g); v.querySelectorAll('[data-g]').forEach(b => b.onclick = () => { gMode = b.dataset.g; gs = null; render(); });
     return;
   }
   v.innerHTML = '<div class="card">Loading…</div>';
-  const list = (SHINE.kids || {}).gameVerses || [];
-  const fn = { order: gameOrder, match: gameMatch, missing: gameMissing, who: gameWho, books: gameBooks, testament: gameTestament, pairs: gamePairs }[gMode];
+  const list = (SHINE[g] || {}).gameVerses || [];
+  const fn = { order: gameOrder, match: gameMatch, missing: gameMissing, who: gameWho, books: gameBooks, testament: gameTestament, pairs: gamePairs, section: gameSection, rush: gameRush, type: gameType }[gMode];
   fn(v, list).catch(() => { v.innerHTML = `<button class="btn ghost small" id="gb">← Games</button><div class="card">Could not load verses. Check your connection.</div>`; $('#gb').onclick = gBack; });
 }
 const gBack = () => { gMode = null; gs = null; render(); };
@@ -550,9 +564,9 @@ async function gameOrder(v, list) {
   if (!list.length) { v.innerHTML = '<div class="card">No game verses yet.</div>'; return; }
   if (!gs) { const ref = pick(list); const words = (await webText(ref)).split(' '); gs = { ref, words, bank: shuffle(words.map((w, i) => ({ w, i }))), picked: [] }; }
   const left = gs.bank.filter(b => !gs.picked.includes(b)), done = gs.picked.length === gs.words.length;
-  if (done && !gs.paid) { gs.paid = true; awardStars('kids', 2); }
+  if (done && !gs.paid) { gs.paid = true; awardStars(gG, GP(2)); }
   v.innerHTML = `${gTop}<div class="card gold"><div class="ref">${esc(gs.ref)}</div><div class="verse" style="min-height:60px">${gs.picked.map(p => esc(p.w)).join(' ') || '<span class="muted">Tap the first word…</span>'}</div></div>
-    <div class="card">${left.map(b => `<span class="chip" data-w="${b.i}">${esc(b.w)}</span>`).join('')}<div id="msg" style="min-height:28px">${done ? '<span class="good">You did it! +2 ⭐</span>' : ''}</div>
+    <div class="card">${left.map(b => `<span class="chip" data-w="${b.i}">${esc(b.w)}</span>`).join('')}<div id="msg" style="min-height:28px">${done ? '<span class="good">You did it! +' + GP(2) + ' ⭐</span>' : ''}</div>
     ${done ? '<button class="btn small" id="again">Next verse</button>' : '<button class="btn ghost small" id="undo">Undo</button>'}</div>`;
   $('#gb').onclick = gBack;
   v.querySelectorAll('[data-w]').forEach(c => c.onclick = () => {
@@ -569,7 +583,7 @@ async function gameMatch(v, list) {
   $('#gb').onclick = gBack;
   v.querySelectorAll('[data-o]').forEach(b => b.onclick = () => {
     if (gs.ok) return;
-    if (b.dataset.o === gs.ref) { gs.ok = true; awardStars('kids', 1); $('#msg').innerHTML = '<span class="good">Correct! +1 ⭐</span>'; nextBtn(); } else $('#msg').innerHTML = '<span class="bad">Not quite — try again.' + (missStar('kids', gs) ? ' −1 ⭐' : '') + '</span>';
+    if (b.dataset.o === gs.ref) { gs.ok = true; awardStars(gG, GP(1)); $('#msg').innerHTML = '<span class="good">Correct! +' + GP(1) + ' ⭐</span>'; nextBtn(); } else $('#msg').innerHTML = '<span class="bad">Not quite — try again.' + (missStar(gG, gs) ? ' −1 ⭐' : '') + '</span>';
   });
 }
 async function gameMissing(v, list) {
@@ -579,8 +593,8 @@ async function gameMissing(v, list) {
     const cand = words.map((w, i) => [w.replace(/[^\p{L}\p{N}]/gu, ''), i]).filter(([w]) => w.length > 3);
     const [ans, at] = cand.length ? pick(cand) : [words[0], 0];
     const pool = list.length ? [] : [];
-    const others = shuffle(cand.map(c => c[0]).filter(w => w.toLowerCase() !== ans.toLowerCase())).slice(0, 2);
-    while (others.length < 2) others.push(['love', 'grace', 'peace', 'light'][others.length]);
+    const others = shuffle(cand.map(c => c[0]).filter(w => w.toLowerCase() !== ans.toLowerCase())).slice(0, gG === 'youth' ? 4 : 2);
+    while (others.length < (gG === 'youth' ? 4 : 2)) others.push(['love', 'grace', 'peace', 'light', 'mercy', 'truth'][others.length]);
     gs = { ref, words, at, ans, opts: shuffle([ans, ...others]), ok: false };
   }
   const shown = gs.words.map((w, i) => i === gs.at ? '<span class="blank">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>' : esc(w)).join(' ');
@@ -588,26 +602,26 @@ async function gameMissing(v, list) {
   $('#gb').onclick = gBack;
   v.querySelectorAll('[data-o]').forEach(b => b.onclick = () => {
     if (gs.ok) return;
-    if (b.dataset.o === gs.ans) { gs.ok = true; awardStars('kids', 1); $('#msg').innerHTML = '<span class="good">Yes! +1 ⭐</span>'; nextBtn(); } else $('#msg').innerHTML = '<span class="bad">Try another word.' + (missStar('kids', gs) ? ' −1 ⭐' : '') + '</span>';
+    if (b.dataset.o === gs.ans) { gs.ok = true; awardStars(gG, GP(1)); $('#msg').innerHTML = '<span class="good">Yes! +' + GP(1) + ' ⭐</span>'; nextBtn(); } else $('#msg').innerHTML = '<span class="bad">Try another word.' + (missStar(gG, gs) ? ' −1 ⭐' : '') + '</span>';
   });
 }
 async function gameWho(v) {
   const list = GAMES.whoAmI || [];
   if (!list.length) { v.innerHTML = '<div class="card">No questions yet.</div>'; return; }
-  if (!gs) { const q = pick(list); gs = { q, opts: shuffle(q.options), ok: false }; }
+  if (!gs) { const q = pick(list); gs = { q, opts: shuffle(gG === 'youth' ? [...q.options, ...shuffle(list.filter(x => x !== q).map(x => x.answer)).filter(a => !q.options.includes(a)).slice(0, 2)] : q.options), ok: false }; }
   v.innerHTML = `${gTop}<div class="card gold"><h2>Who am I?</h2><p class="bigword">${esc(gs.q.clue)}</p></div><div class="card">${gs.opts.map(o => `<button class="btn ghost" data-o="${esc(o)}">${esc(o)}</button>`).join('')}<div id="msg" style="min-height:28px"></div><button class="btn small" id="again" style="display:none">Next</button></div>`;
   $('#gb').onclick = gBack;
   v.querySelectorAll('[data-o]').forEach(b => b.onclick = () => {
     if (gs.ok) return;
-    if (b.dataset.o === gs.q.answer) { gs.ok = true; awardStars('kids', 1); $('#msg').innerHTML = '<span class="good">Yes, it is ' + esc(gs.q.answer) + '! +1 ⭐</span>'; nextBtn(); } else $('#msg').innerHTML = '<span class="bad">Not quite — try again.' + (missStar('kids', gs) ? ' −1 ⭐' : '') + '</span>';
+    if (b.dataset.o === gs.q.answer) { gs.ok = true; awardStars(gG, GP(1)); $('#msg').innerHTML = '<span class="good">Yes, it is ' + esc(gs.q.answer) + '! +' + GP(1) + ' ⭐</span>'; nextBtn(); } else $('#msg').innerHTML = '<span class="bad">Not quite — try again.' + (missStar(gG, gs) ? ' −1 ⭐' : '') + '</span>';
   });
 }
 async function gameBooks(v) {
-  if (!gs) { const start = Math.floor(Math.random() * (BOOKS.length - 4)); const idx = shuffle([...Array(66).keys()]).slice(0, 4).sort((a, b) => a - b); gs = { order: idx, bank: shuffle(idx), picked: [] }; }
-  const done = gs.picked.length === 4;
-  if (done && !gs.paid) { gs.paid = true; awardStars('kids', 2); }
+  if (!gs) { const start = Math.floor(Math.random() * (BOOKS.length - 4)); const idx = shuffle([...Array(66).keys()]).slice(0, gG === 'youth' ? 6 : 4).sort((a, b) => a - b); gs = { order: idx, bank: shuffle(idx), picked: [] }; }
+  const done = gs.picked.length === gs.order.length;
+  if (done && !gs.paid) { gs.paid = true; awardStars(gG, GP(2)); }
   v.innerHTML = `${gTop}<div class="card gold"><h2>Which comes first?</h2><p class="muted">Tap the books in the order they appear in the Bible.</p><div class="verse">${gs.picked.map((i, n) => `${n + 1}. ${esc(BOOKS[i])}`).join('<br>') || '<span class="muted">Tap the first book…</span>'}</div></div>
-    <div class="card">${gs.bank.filter(i => !gs.picked.includes(i)).map(i => `<span class="chip" data-i="${i}">${esc(BOOKS[i])}</span>`).join('')}<div id="msg" style="min-height:28px">${done ? '<span class="good">Great! +2 ⭐</span>' : ''}</div>${done ? '<button class="btn small" id="again">Next</button>' : ''}</div>`;
+    <div class="card">${gs.bank.filter(i => !gs.picked.includes(i)).map(i => `<span class="chip" data-i="${i}">${esc(BOOKS[i])}</span>`).join('')}<div id="msg" style="min-height:28px">${done ? '<span class="good">Great! +' + GP(2) + ' ⭐</span>' : ''}</div>${done ? '<button class="btn small" id="again">Next</button>' : ''}</div>`;
   $('#gb').onclick = gBack;
   v.querySelectorAll('[data-i]').forEach(c => c.onclick = () => {
     const i = +c.dataset.i;
@@ -622,20 +636,20 @@ async function gameTestament(v) {
   $('#gb').onclick = gBack;
   v.querySelectorAll('[data-o]').forEach(b => b.onclick = () => {
     if (gs.ok) return;
-    if ((b.dataset.o === 'OT') === ot) { gs.ok = true; awardStars('kids', 1); $('#msg').innerHTML = '<span class="good">Right! +1 ⭐</span>'; nextBtn(); } else $('#msg').innerHTML = '<span class="bad">Not quite — try again.' + (missStar('kids', gs) ? ' −1 ⭐' : '') + '</span>';
+    if ((b.dataset.o === 'OT') === ot) { gs.ok = true; awardStars(gG, GP(1)); $('#msg').innerHTML = '<span class="good">Right! +' + GP(1) + ' ⭐</span>'; nextBtn(); } else $('#msg').innerHTML = '<span class="bad">Not quite — try again.' + (missStar(gG, gs) ? ' −1 ⭐' : '') + '</span>';
   });
 }
 async function gamePairs(v, list) {
   if (list.length < 3) { v.innerHTML = '<div class="card">Add at least 3 game verses in data/shine.json.</div>'; return; }
   if (!gs) {
-    const refs = shuffle(list).slice(0, 3), cards = [];
+    const refs = shuffle(list).slice(0, gG === 'youth' ? 5 : 3), cards = [];
     for (const r of refs) { const w = (await webText(r)).split(' ').slice(0, 5).join(' ') + '…'; cards.push({ id: uid(), pair: r, label: r }, { id: uid(), pair: r, label: w }); }
     gs = { cards: shuffle(cards), up: [], gone: [], moves: 0, paid: false };
   }
   const won = gs.gone.length === gs.cards.length;
-  if (won && !gs.paid) { gs.paid = true; awardStars('kids', 3); }
+  if (won && !gs.paid) { gs.paid = true; awardStars(gG, GP(3)); }
   v.innerHTML = `${gTop}<div class="card gold"><h2>Memory Match</h2><p class="muted">Match each reference to the start of its verse. Moves: ${gs.moves}</p></div><div class="card">${gs.cards.map(c => `<div class="memcard ${gs.up.includes(c.id) ? 'up' : ''} ${gs.gone.includes(c.id) ? 'gone' : ''}" data-c="${c.id}">${gs.up.includes(c.id) ? esc(c.label) : '⭐'}</div>`).join('')}
-    <div id="msg" style="min-height:28px">${won ? '<span class="good">You matched them all! +3 ⭐</span>' : ''}</div>${won ? '<button class="btn small" id="again">Play again</button>' : ''}</div>`;
+    <div id="msg" style="min-height:28px">${won ? '<span class="good">You matched them all! +' + GP(3) + ' ⭐</span>' : ''}</div>${won ? '<button class="btn small" id="again">Play again</button>' : ''}</div>`;
   $('#gb').onclick = gBack;
   v.querySelectorAll('[data-c]').forEach(el => el.onclick = () => {
     const id = el.dataset.c; if (gs.up.includes(id) || gs.gone.includes(id) || gs.up.length >= 2) return;
@@ -649,6 +663,58 @@ async function gamePairs(v, list) {
     } else gameRedraw(v, list);
   });
   const a = $('#again'); if (a) a.onclick = () => { gs = null; render(); };
+}
+const BSECT = [['Law', 0, 4], ['History', 5, 16], ['Poetry & Wisdom', 17, 21], ['Prophets', 22, 38], ['Gospels & Acts', 39, 43], ['Letters', 44, 64]];
+const sectOf = i => (BSECT.find(([, a, b]) => i >= a && i <= b) || [])[0];
+async function gameSection(v) {
+  if (!gs) { let i; do { i = Math.floor(Math.random() * 65); } while (!sectOf(i)); gs = { i, ok: false }; }
+  const right = sectOf(gs.i);
+  v.innerHTML = `${gTop}<div class="card gold"><h2>Which section of the Bible?</h2><p class="bigword">${esc(BOOKS[gs.i])}</p></div><div class="card">${BSECT.map(([n]) => `<button class="btn ghost" data-o="${esc(n)}">${esc(n)}</button>`).join('')}<div id="msg" style="min-height:28px"></div><button class="btn small" id="again" style="display:none">Next</button></div>`;
+  $('#gb').onclick = gBack;
+  v.querySelectorAll('[data-o]').forEach(b => b.onclick = () => {
+    if (gs.ok) return;
+    if (b.dataset.o === right) { gs.ok = true; awardStars(gG, GP(1)); $('#msg').innerHTML = '<span class="good">Yes! ' + esc(BOOKS[gs.i]) + ' is in ' + esc(right) + '. +' + GP(1) + ' ⭐</span>'; nextBtn(); } else $('#msg').innerHTML = '<span class="bad">Not quite — try again.' + (missStar(gG, gs) ? ' −1 ⭐' : '') + '</span>';
+  });
+}
+async function gameType(v, list) {
+  if (!list.length) { v.innerHTML = '<div class="card">No game verses yet.</div>'; return; }
+  if (!gs) {
+    const ref = pick(list), words = (await webText(ref)).split(' ');
+    const cand = words.map((w, i) => [w.replace(/[^\p{L}\p{N}]/gu, ''), i]).filter(([w]) => w.length > 3), [ans, at] = cand.length ? pick(cand) : [words[0], 0];
+    gs = { ref, words, at, ans, ok: false };
+  }
+  const shown = gs.words.map((w, i) => i === gs.at ? '<span class="blank">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>' : esc(w)).join(' ');
+  v.innerHTML = `${gTop}<div class="card gold"><div class="ref">${esc(gs.ref)}</div><div class="verse">${shown}</div></div><div class="card"><input id="tw" type="text" autocomplete="off" autocapitalize="none" placeholder="Type the missing word" aria-label="Missing word" style="width:100%;font-size:18px;padding:10px;border-radius:10px;border:1px solid #c9d3e0"><div class="seg" style="margin-top:8px"><button class="btn" id="tg">Check</button><button class="btn ghost small" id="ts">Hint</button></div><div id="msg" style="min-height:28px"></div><button class="btn small" id="again" style="display:none">Next</button></div>`;
+  $('#gb').onclick = gBack;
+  const chk = () => {
+    if (gs.ok) return; const a = $('#tw').value.trim().toLowerCase().replace(/[^\p{L}\p{N}]/gu, ''); if (!a) return;
+    if (a === gs.ans.toLowerCase()) { gs.ok = true; awardStars(gG, GP(2) - (gs.hint ? 1 : 0)); $('#msg').innerHTML = '<span class="good">Yes, “' + esc(gs.ans) + '”! +' + (GP(2) - (gs.hint ? 1 : 0)) + ' ⭐</span>'; nextBtn(); }
+    else $('#msg').innerHTML = '<span class="bad">Not quite — try again.' + (missStar(gG, gs) ? ' −1 ⭐' : '') + '</span>';
+  };
+  $('#tg').onclick = chk; $('#tw').onkeydown = e => { if (e.key === 'Enter') chk(); };
+  $('#ts').onclick = () => { gs.hint = 1; $('#msg').innerHTML = '<span class="muted">Starts with “' + esc(gs.ans.charAt(0)) + '” and has ' + gs.ans.length + ' letters. (Hint costs 1 ⭐ of the prize.)</span>'; };
+}
+async function gameRush(v, list) {
+  if (list.length < 4) { v.innerHTML = '<div class="card">Add at least 4 game verses in data/shine.json.</div>'; return; }
+  const G0 = gs = { rush: true, score: 0, wrong: 0, tm: 60, done: false, paid: false }, gen = (window.__rushGen = (window.__rushGen || 0) + 1);
+  const alive = () => v.isConnected && gs === G0 && window.__rushGen === gen;
+  v.innerHTML = `${gTop}<div class="card gold"><h2>⏱️ Verse Rush</h2><p>Name the verse before the 60 seconds run out. Each right answer is a point. Earn 1 ⭐ for every 2 points, up to 8 ⭐.</p><button class="btn" id="rs">Start</button></div>`;
+  $('#gb').onclick = () => { window.__rushGen++; gBack(); };
+  $('#rs').onclick = async () => {
+    let tick = null;
+    const finish = () => { clearInterval(tick); if (!alive() || G0.done) return; G0.done = true; const stars = Math.min(8, Math.floor(G0.score / 2)); if (stars) awardStars(gG, stars); v.innerHTML = `${gTop}<div class="card gold"><h2>⏱️ Time!</h2><p class="bigword">${G0.score} right</p><p>${stars ? '<span class="good">+' + stars + ' ⭐</span>' : 'Get 2 right to earn a star. Try again!'}</p><button class="btn" id="ra">Play again</button></div>`; $('#gb').onclick = gBack; $('#ra').onclick = () => { gs = null; render(); }; };
+    const ask = async () => {
+      if (!alive() || G0.done) return;
+      let ref, text; try { ref = pick(list); text = await webText(ref); } catch (e) { v.innerHTML = '<div class="card">Could not load verses. Check your connection.</div>'; return; }
+      if (!alive() || G0.done) return;
+      const opts = shuffle([ref, ...shuffle(list.filter(r => r !== ref)).slice(0, 3)]), short = text.split(' ').slice(0, 22).join(' ') + (text.split(' ').length > 22 ? '…' : '');
+      v.innerHTML = `${gTop}<div class="card gold"><p>Points: <b>${G0.score}</b> · ⏱ <b id="rt">${G0.tm}</b>s</p><div class="verse">${esc(short)}</div></div><div class="card">${opts.map(o => `<button class="btn ghost" data-o="${esc(o)}">${esc(o)}</button>`).join('')}<div id="msg" style="min-height:24px"></div></div>`;
+      $('#gb').onclick = () => { window.__rushGen++; clearInterval(tick); gBack(); };
+      v.querySelectorAll('[data-o]').forEach(b => b.onclick = () => { if (G0.done) return; if (b.dataset.o === ref) { G0.score++; ask(); } else { G0.tm = Math.max(0, G0.tm - 5); if (G0.tm <= 0) return finish(); b.disabled = true; $('#msg').innerHTML = '<span class="bad">Not that one. −5 seconds</span>'; } });
+    };
+    tick = setInterval(() => { if (!alive()) return clearInterval(tick); G0.tm--; const el = $('#rt'); if (el) el.textContent = Math.max(0, G0.tm); if (G0.tm <= 0) finish(); }, 1000);
+    ask();
+  };
 }
 const gameRedraw = (v, list) => { if (gMode === 'pairs') gamePairs(v, list); };
 
@@ -1214,7 +1280,7 @@ const VIEWS = {
   'home.today': homeToday, 'home.mv': homeMV, 'home.e4': homeE4,
   'prayer.chain': prayerEmbed, 'worship.songs': worshipSongs, 'worship.news': worshipNews, 'worship.cal': worshipCal, 'worship.fellow': worshipFellow,
   'leaders.post': leadersPost, 'leaders.res': leadersRes, 'leaders.lboard': leadersBoard, 'leaders.team': leadersTeam, 'leaders.fam': leadersFam,
-  'kids.verse': v => memorize(v, 'kids'), 'kids.games': kidsGames, 'kids.fun': v => funView(v, 'kids'), 'youth.fun': v => funView(v, 'youth'), 'kids.lesson': shineText('kids', 'lesson', DEFAULT_LESSON.kids), 'kids.hw': v => assignView(v, 'kids'), 'kids.teach': v => teacherView(v, 'kids'),
+  'kids.verse': v => memorize(v, 'kids'), 'kids.games': kidsGames, 'kids.fun': v => funView(v, 'kids'), 'youth.fun': v => funView(v, 'youth'), 'youth.games': youthGames, 'kids.lesson': shineText('kids', 'lesson', DEFAULT_LESSON.kids), 'kids.hw': v => assignView(v, 'kids'), 'kids.teach': v => teacherView(v, 'kids'),
   'kids.chat': v => chatView(v, 'kids'), 'kids.news': v => groupNews(v, 'kids'), 'kids.me': v => profilesTab(v, 'kids'),
   'youth.verse': v => memorize(v, 'youth'), 'youth.lesson': shineText('youth', 'lesson', DEFAULT_LESSON.youth), 'youth.hw': v => assignView(v, 'youth'), 'youth.teach': v => teacherView(v, 'youth'), 'youth.notes': v => notesView(v, 'youth'),
   'youth.chat': v => chatView(v, 'youth'), 'youth.news': v => groupNews(v, 'youth'), 'youth.me': v => profilesTab(v, 'youth'),
