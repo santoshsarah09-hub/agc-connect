@@ -345,8 +345,9 @@ const chainTitle = d => 'Saturday, ' + d.toLocaleDateString('en-US', { month: 'l
 const slotKey = (d, h) => dateKey(d) + '-' + String(h).padStart(2, '0');
 const previewNote = () => '<div class="preview">Preview: sign-ups are saved on this phone only until the shared sign-up sheet is connected.</div>';
 
+window.addEventListener('message', e => { if (e.origin !== location.origin || !e.data || e.data.agc !== 'pfull') return; const f = $('#pframe'); if (f) f.classList.toggle('pfull', !!e.data.on); });
 function prayerEmbed(v) {
-  v.innerHTML = '<iframe class="pframe" id="pframe" title="Prayer Chain" src="prayer/index.html?embed=1" loading="eager"></iframe>';
+  v.innerHTML = '<iframe class="pframe" id="pframe" title="Prayer Chain" src="prayer/index.html?embed=1" loading="eager" allow="fullscreen" allowfullscreen></iframe>';
   const f = $('#pframe'), fit = () => { if (!f.isConnected) return window.removeEventListener('resize', fit); f.style.height = Math.max(320, window.innerHeight - f.getBoundingClientRect().top - $('#tabs').offsetHeight) + 'px'; };
   fit(); window.addEventListener('resize', fit); setTimeout(fit, 300);
 }

@@ -90,6 +90,27 @@ a.btn{display:flex;align-items:center;justify-content:center;text-align:center;t
 .req>div+div{border-left:1px solid var(--line)}
 .req .n{display:inline-block;min-width:22px;height:22px;border-radius:99px;background:var(--navy);color:#fff;text-align:center;font-size:.75rem;line-height:22px;margin-right:6px}
 .req.ans{opacity:.8;border-style:dashed}
+.plb{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin:6px 0 12px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--card)}
+.seg button{border:0;background:transparent;padding:10px 16px;font:inherit;font-weight:600;color:inherit;min-height:44px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--navy);color:#fff}
+.req1{border:1px solid var(--line);border-radius:14px;background:var(--card);margin-bottom:10px;padding:14px;font-size:1.08rem;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere}
+.req1 .n{display:inline-block;min-width:22px;height:22px;border-radius:99px;background:var(--navy);color:#fff;text-align:center;font-size:.75rem;line-height:22px;margin-right:8px}
+.req1.ans{opacity:.8;border-style:dashed}
+.req1 .mt{font-size:.72rem;opacity:.7;margin-top:6px}
+body.pfo{overflow:hidden}
+#pfull{position:fixed;inset:0;z-index:1000;background:#0b1530;color:#fff;display:flex;flex-direction:column;padding:max(12px,env(safe-area-inset-top)) 16px max(14px,env(safe-area-inset-bottom))}
+#pfull .seg{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.3)}
+#pfull .seg button[aria-pressed="true"]{background:#fff;color:#0b1530}
+.pf-top{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.pf-x{border:0;background:rgba(255,255,255,.12);color:#fff;font-size:1.4rem;width:48px;height:48px;border-radius:99px;cursor:pointer}
+.pf-body{flex:1;overflow:auto;display:flex;flex-direction:column;justify-content:center;padding:12px 4px}
+.pf-n{opacity:.7;margin-bottom:10px;font-size:1rem}
+.pf-t{font-size:clamp(1.5rem,6.2vw,2.8rem);line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}
+.pf-mt{opacity:.6;font-size:.85rem;margin-top:14px}
+.pf-nav{display:flex;gap:12px}
+.pf-nav button{flex:1;min-height:60px;border-radius:14px;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.1);color:#fff;font:inherit;font-size:1.1rem;font-weight:600;cursor:pointer}
+.pf-nav button:disabled{opacity:.35}
 textarea,input[type=text],input[type=password]{width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:10px;min-height:48px}
 textarea{min-height:92px;resize:vertical}
 label.f{display:block;font-size:.8rem;color:var(--muted);margin:6px 0 4px}
@@ -228,6 +249,11 @@ const I = {
   installBtn: ['Install the app', 'एप इन्स्टल गर्नुहोस्'],
   tryAgain:   ['Could not load. Check your internet and try again.', 'लोड गर्न सकिएन। इन्टरनेट जाँचेर फेरि प्रयास गर्नुहोस्।'],
   retry:      ['Try again', 'फेरि प्रयास गर्नुहोस्'],
+  fullScr:    ['Full screen', 'पूर्ण स्क्रिन'],
+  prevB:      ['Previous', 'अघिल्लो'],
+  nextB:      ['Next', 'अर्को'],
+  noActive:   ['No requests to pray for right now.', 'अहिले प्रार्थना गर्ने कुनै विषय छैन।'],
+  mtNote:     ['Machine translated', 'मेसिनद्वारा अनुवादित'],
   moveUp:     ['Move up', 'माथि सार्नुहोस्'],
   moveDown:   ['Move down', 'तल सार्नुहोस्'],
   hours:      ['hours', 'घण्टा'],
@@ -526,7 +552,9 @@ const S = {
   pin: (() => { try { return sessionStorage.getItem('agc_pin') || ''; } catch (e) { return ''; } })(),
   draft: null, draftMonth: null, sdraft: null, sdraftMonth: null, tr: { dir: 'en-ne', input: '', output: '' },
   vtz: validTz(LS.get('agc_vtz', null)) || validTz((() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (e) { return null; } })()) || DEFAULT_TZ,
-  now: tzNow(DEFAULT_TZ), flashHour: null, showArchived: false, installEvt: null
+  now: tzNow(DEFAULT_TZ), flashHour: null, showArchived: false, installEvt: null,
+  pl: (() => { const v = LS.get('agc_pl', null); if (v === 'ne' || v === 'en') return v; try { return localStorage.getItem('agc.lang') === 'ne' ? 'ne' : 'en'; } catch (e) { return 'en'; } })(),
+  full: { on: false, i: 0 }, wl: null
 };
 const isDemo = () => !API_URL;
 const cfg = () => (S.data && S.data.config) || { tz: S.tz, startHour: 0, endHour: 24, months: [S.month, nextMonthOf(S.month)] };
@@ -712,6 +740,58 @@ function slotsHtml() {
   return html;
 }
 
+/* ---- pray in one language, translate inside the app, full-screen prayer mode ---- */
+const PLANG = () => (S.pl === 'ne' ? 'ne' : 'en');
+let TRC = LS.get('agc_trc', {}); if (!TRC || typeof TRC !== 'object') TRC = {};
+const TRQ = {}, TRL = []; let trRun = false;
+function langBar() {
+  return `<div class="plb"><div class="seg" role="group" aria-label="Language"><button data-act="pl" data-l="en" aria-pressed="${PLANG() === 'en'}">English</button><button data-act="pl" data-l="ne" lang="ne" aria-pressed="${PLANG() === 'ne'}">नेपाली</button></div><button class="btn gold sm" data-act="pfull">⛶ ${bi('fullScr')}</button></div>`;
+}
+function reqText(q) {
+  const l = PLANG(), o = l === 'en' ? 'ne' : 'en';
+  if (q[l] && String(q[l]).trim()) return { t: q[l], mt: false };
+  const src = String(q[o] || '').trim(); if (!src) return { t: '', mt: false };
+  const k = l + '|' + src; if (TRC[k]) return { t: TRC[k], mt: true };
+  if (!TRQ[k] && !isDemo() && src.length <= 1000) { TRQ[k] = 1; TRL.push({ k, src, from: o, to: l }); setTimeout(trPump, 0); }
+  return { t: src, mt: false };
+}
+async function trPump() {
+  if (trRun) return; trRun = true;
+  try {
+    while (TRL.length) {
+      const j = TRL.shift();
+      try {
+        const r = await Api.post({ action: 'translate', text: j.src, from: j.from, to: j.to, pin: S.pin || undefined });
+        if (r && r.text) { TRC[j.k] = r.text; const ks = Object.keys(TRC); if (ks.length > 80) delete TRC[ks[0]]; LS.set('agc_trc', TRC); render(); renderFull(); }
+      } catch (e) { /* limit reached or offline: the original text stays on screen */ }
+    }
+  } finally { trRun = false; }
+}
+function fullList() { return S.data ? S.data.requests.filter((q) => q.status !== 'answered') : []; }
+function pfSignal(on) { if (/[?&]embed=1/.test(location.search) && window.parent !== window) { try { window.parent.postMessage({ agc: 'pfull', on }, location.origin); } catch (e) { /* not embedded */ } } }
+function renderFull() {
+  let o = document.getElementById('pfull');
+  if (!S.full.on) { if (o) o.remove(); return; }
+  if (!o) { o = document.createElement('div'); o.id = 'pfull'; o.setAttribute('role', 'dialog'); o.setAttribute('aria-modal', 'true'); document.body.appendChild(o); }
+  const L = fullList(), n = L.length, l = PLANG(), k = l === 'ne' ? 1 : 0; S.full.i = Math.max(0, Math.min(S.full.i, n - 1));
+  const r = n ? reqText(L[S.full.i]) : null;
+  o.innerHTML = `<div class="pf-top"><div class="seg" role="group" aria-label="Language"><button data-act="pl" data-l="en" aria-pressed="${l === 'en'}">English</button><button data-act="pl" data-l="ne" lang="ne" aria-pressed="${l === 'ne'}">नेपाली</button></div><button class="pf-x" data-act="pfullClose" aria-label="${esc(I.close[k])}">✕</button></div>
+    <div class="pf-body" lang="${l}">${n ? `<div class="pf-n">${S.full.i + 1} / ${n}</div><div class="pf-t">${esc(r.t)}</div>${r.mt ? `<div class="pf-mt">${esc(I.mtNote[k])}</div>` : ''}` : `<div class="pf-t">${esc(I.noActive[k])}</div>`}</div>
+    <div class="pf-nav"><button data-act="pfPrev" ${S.full.i <= 0 ? 'disabled' : ''}>◀ ${esc(I.prevB[k])}</button><button data-act="pfNext" ${S.full.i >= n - 1 ? 'disabled' : ''}>${esc(I.nextB[k])} ▶</button></div>`;
+}
+function openFull() {
+  S.full = { on: true, i: 0 }; document.body.classList.add('pfo'); renderFull(); pfSignal(true);
+  try { const e = document.documentElement, f = e.requestFullscreen || e.webkitRequestFullscreen; const pr = f && f.call(e); if (pr && pr.catch) pr.catch(() => {}); } catch (e) { /* the overlay still fills the screen */ }
+  try { if (navigator.wakeLock) navigator.wakeLock.request('screen').then((w) => { S.wl = w; }).catch(() => {}); } catch (e) { /* optional */ }
+}
+function closeFull() {
+  S.full.on = false; document.body.classList.remove('pfo'); renderFull(); pfSignal(false);
+  try { if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {}); } catch (e) { /* ignore */ }
+  try { if (S.wl) { S.wl.release(); S.wl = null; } } catch (e) { /* ignore */ }
+}
+document.addEventListener('keydown', (e) => { if (!S.full.on) return; if (e.key === 'Escape') closeFull(); else if (e.key === 'ArrowRight' && S.full.i < fullList().length - 1) { S.full.i++; renderFull(); } else if (e.key === 'ArrowLeft' && S.full.i > 0) { S.full.i--; renderFull(); } });
+(() => { let x0 = null; document.addEventListener('touchstart', (e) => { x0 = S.full.on && e.touches.length === 1 ? e.touches[0].clientX : null; }, { passive: true }); document.addEventListener('touchend', (e) => { if (x0 == null || !S.full.on) return; const dx = e.changedTouches[0].clientX - x0; x0 = null; if (Math.abs(dx) < 70) return; if (dx < 0 && S.full.i < fullList().length - 1) S.full.i++; else if (dx > 0 && S.full.i > 0) S.full.i--; else return; renderFull(); }, { passive: true }); })();
+
 function requestsHtml() {
   const [en, ne] = monthLabel(S.month);
   const list = S.data.requests, act = list.filter((q) => q.status !== 'answered'), ans = list.filter((q) => q.status === 'answered');
@@ -724,8 +804,9 @@ function requestsHtml() {
     <label class="f" for="askText">${esc(I.askText[0])} · <span lang="ne">${esc(I.askText[1])}</span></label>
     <textarea id="askText" maxlength="300" rows="3"></textarea>
     <button class="btn gold block" style="margin-top:10px" data-act="askSend">${bi('askSend')}</button></div>`;
+  if (list.length) html += langBar();
   if (!list.length) return html + `<div class="empty">${esc(I.noReq[0])}<br><span lang="ne">${esc(I.noReq[1])}</span></div>` + ask;
-  const card = (q, i, cls) => `<div class="req ${cls}"><div><span class="n">${i}</span>${esc(q.en)}</div><div lang="ne">${esc(q.ne)}</div></div>`;
+  const card = (q, i, cls) => { const r = reqText(q), L = PLANG(); return `<div class="req1 ${cls}" lang="${L}"><span class="n">${i}</span>${esc(r.t)}${r.mt ? `<div class="mt">${esc(I.mtNote[L === 'ne' ? 1 : 0])}</div>` : ''}</div>`; };
   act.forEach((q, i) => { html += card(q, i + 1, ''); });
   if (ans.length) {
     html += cols(`<span class="h2">🙌 ${esc(I.answered[0])}</span>`, `<span class="h2">${esc(I.answered[1])}</span>`);
@@ -880,6 +961,7 @@ function render() {
     if (row) row.scrollIntoView({ block: 'center' });
     S.flashHour = null;
   } else window.scrollTo(0, sy);
+  if (S.full && S.full.on) renderFull();
 }
 
 /* ====================================================================
@@ -916,6 +998,11 @@ async function onAct(act, el, ev) {
     case 'month': S.month = el.dataset.m; S.day = null; S.draftMonth = null; S.sdraftMonth = null; S.data = null; await load(); break;
     case 'day': S.day = d; render(); break;
     case 'retry': await load(); break;
+    case 'pl': S.pl = el.dataset.l === 'ne' ? 'ne' : 'en'; LS.set('agc_pl', S.pl); render(); renderFull(); break;
+    case 'pfull': openFull(); break;
+    case 'pfullClose': closeFull(); break;
+    case 'pfPrev': if (S.full.i > 0) { S.full.i--; renderFull(); } break;
+    case 'pfNext': if (S.full.i < fullList().length - 1) { S.full.i++; renderFull(); } break;
     case 'refresh': if (!S.busy) { S.busy = true; try { await load(true); } finally { S.busy = false; } render(); } break;
     case 'dismissIos': LS.set('agc_ios_dismissed', true); render(); break;
     case 'install': if (S.installEvt) { S.installEvt.prompt(); S.installEvt = null; render(); } break;

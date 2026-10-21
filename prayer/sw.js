@@ -1,6 +1,6 @@
 // Caches the app shell so the app opens instantly and works offline (showing the last saved view).
 // Prayer-chain data is never cached here; the app itself keeps its own last-seen copy.
-const CACHE = 'agc-prayer-v2';
+const CACHE = 'agc-prayer-v3';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png', './icons/icon-32.png'];
 
 self.addEventListener('install', (e) => {
