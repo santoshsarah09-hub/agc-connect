@@ -582,7 +582,7 @@ const S = {
   full: { on: false, i: 0 }, wl: null
 };
 const isDemo = () => !API_URL;
-const cfg = () => (S.data && S.data.config) || { tz: S.tz, startHour: 0, endHour: 24, months: [S.month, nextMonthOf(S.month)] };
+const cfg = () => (S.data && S.data.config) || { tz: S.tz, startHour: 0, endHour: 24, months: [curMonth(), nextMonthOf(curMonth())] };
 const hoursList = () => { const c = cfg(), a = []; for (let h = c.startHour; h < c.endHour; h++) a.push(h); return a; };
 const slotIndex = () => { const m = new Map(); (S.data ? S.data.slots : []).forEach((s) => m.set(`${s.d}|${s.h}`, s)); return m; };
 const isPast = (date, h) => date < S.now.date || (date === S.now.date && h < S.now.hour);
