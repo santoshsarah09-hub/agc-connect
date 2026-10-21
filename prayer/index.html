@@ -1043,7 +1043,16 @@ async function translateInto(text, from, to, done) {
 async function onAct(act, el, ev) {
   const d = el.dataset.d, h = Number(el.dataset.h), i = Number(el.dataset.i);
   switch (act) {
-    case 'tab': S.view = el.dataset.v; if (S.view === 'admin' && S.pin && S.data) { if (S.draftMonth !== S.month) startReqDraft(); if (S.sdraftMonth !== S.month) startSesDraft(); } render(); window.scrollTo(0, 0); break;
+    case 'tab': S.view = el.dataset.v; if (S.view === 'admin' && S.pin && S.data) { if (S.draftMonth !== S.month) startReqDraft(); if (S.sdraftMonth !== S.month) startSesDraft(); } render(); window.scrollTo(0, 0);
+      // Pray together: if this month still has an upcoming group prayer, open on it (e.g. Oct 23) instead of next month.
+      if (S.view === 'together' && !S.togetherChecked && S.month !== curMonth()) {
+        S.togetherChecked = true;
+        try {
+          const cm = curMonth(), d = await Api.state(cm);
+          if ((d.sessions || []).some((q) => Date.now() < sessionTimes(q).end)) { S.month = cm; S.day = null; S.draftMonth = null; S.sdraftMonth = null; S.data = null; await load(); }
+        } catch (e) { /* stay on the current month view */ }
+      }
+      break;
     case 'month': S.month = el.dataset.m; S.day = null; S.draftMonth = null; S.sdraftMonth = null; S.data = null; await load(); break;
     case 'day': S.day = d; render(); break;
     case 'retry': await load(); break;
