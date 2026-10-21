@@ -468,7 +468,7 @@ function drawSteps(v) {
   $('#stepper').innerHTML = STEPS.map(([id, label]) => `<button data-st="${id}" class="${m.step === id ? 'on' : ''} ${stepDone(p, m.ref, id) ? 'done' : ''}">${stepDone(p, m.ref, id) ? '✓ ' : id + '. '}${label}</button>`).join('');
   $('#stepper').querySelectorAll('button').forEach(b => b.onclick = () => { m.celebrate = false; m.step = +b.dataset.st; m.reads = 0; m.ci = 0; m.hid = false; m.lvl = 0; m.solve = null; drawSteps(v); });
   const body = $('#stepbody');
-  const note = m.t.fallback ? `<p class="muted">Practicing with the ${esc(m.t.label)}. To practice in ${esc(m.t.want)}, a leader can paste its verse text into data/shine.json.</p>` : `<p class="muted">${esc(m.t.label)}</p>`;
+  const note = m.t.fallback ? `<p class="muted">The ${esc(m.t.want)} text for this verse has not been added yet, so this shows the World English Bible. A leader can add it in Teacher, under the weekly verse.</p>` : `<p class="muted">${esc(m.t.label)}${/NASB/i.test(m.t.label) ? '. Scripture quotations are from the New American Standard Bible® (NASB 1995), © The Lockman Foundation. Used by permission.' : ''}</p>`;
   const done = id => { const all = finishStep(m.g, m.ref, id); const nxt = STEPS.find(s => !stepDone(curProfile(m.g), m.ref, s[0])); if (all) { m.celebrate = true; } else if (nxt) m.step = nxt[0]; m.reads = 0; m.ci = 0; m.hid = false; m.lvl = 0; m.solve = null; drawSteps(v); };
   if (m.celebrate) { body.innerHTML = `<div class="bigword">🎉 You learned ${esc(m.ref)}!</div><p style="text-align:center"><span class="good">+5 ⭐ Now say it to a parent or leader.</span></p>`; return; }
   const verse = `<div class="verse">${esc(m.t.text)}</div>`;
