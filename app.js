@@ -1309,7 +1309,7 @@ async function afterGate() {
 /* ---------- Fun Zone: earn stars by learning verses, spend them on a timed play session ---------- */
 const FUNCFG = g => Object.assign({ cost: g === 'youth' ? 40 : 50, minutes: 30 }, ((CFG.fun || {})[g]) || {});
 let FUNT = null;
-const FUNGAMES = [['race', '🛻 Truck Race'], ['catch', '⭐ Star Catch'], ['ttt', '⭕ Tic-Tac-Toe'], ['scramble', '🔤 Word Scramble'], ['simon', '🎵 Simon Pattern'], ['puzzle', '🧩 Puzzle'], ['memory', '🃏 Memory Match']];
+const FUNGAMES = [['race', '🛻 Truck Race'], ['catch', '⭐ Star Catch'], ['ttt', '⭕ Tic-Tac-Toe'], ['scramble', '🔤 Word Scramble'], ['simon', '🎵 Simon Pattern'], ['puzzle', '🧩 Puzzle'], ['memory', '🃏 Memory Match'], ['quiz', '❓ Quiz Rush'], ['dove', '🕊️ Dove Tap']];
 const monthKey = () => todayKey().slice(0, 7);
 const spentNow = p => (p.spentWk && String(p.spentWk.wk).startsWith(monthKey()) ? p.spentWk.n : 0);
 const monthStars = p => Math.max(0, (Array.isArray(p.log) ? p.log : []).filter(x => String(x.d).startsWith(monthKey())).reduce((a, x) => a + (x.n || 0), 0));
@@ -1325,7 +1325,7 @@ function funView(v, g) {
       <div class="card"><div class="tabs2">${FUNGAMES.map(([k, n]) => `<button class="btn small ${k === 'race' ? '' : 'ghost'}" data-fg="${k}">${n}</button>`).join(' ')}</div><div id="funarea"></div></div>`;
     wireBar(g); $('#funmute').onclick = e => { lsSet('agc.mute', FUNMUTE() ? '' : '1'); e.target.textContent = FUNMUTE() ? '🔇 Sound off' : '🔊 Sound on'; funSnd('ok'); };
     const area = $('#funarea'); let cur = 'race';
-    const open = k => { window.__funGen = (window.__funGen || 0) + 1; cur = k; v.querySelectorAll('[data-fg]').forEach(b => b.classList.toggle('ghost', b.dataset.fg !== k)); window.__funRaf && cancelAnimationFrame(window.__funRaf); window.__funRaf = 0; ({ race: funRace, catch: funCatch, ttt: funTtt, scramble: funScramble, simon: funSimon, puzzle: funPuzzle, memory: funMemory })[k](area, g); applyLang(); if (k === 'race' || k === 'catch') setTimeout(() => { const c = area.querySelector('canvas'); if (c && c.scrollIntoView) c.scrollIntoView({ block: 'center', behavior: 'smooth' }); }, 60); };
+    const open = k => { window.__funGen = (window.__funGen || 0) + 1; cur = k; v.querySelectorAll('[data-fg]').forEach(b => b.classList.toggle('ghost', b.dataset.fg !== k)); window.__funRaf && cancelAnimationFrame(window.__funRaf); window.__funRaf = 0; ({ race: funRace, catch: funCatch, ttt: funTtt, scramble: funScramble, simon: funSimon, puzzle: funPuzzle, memory: funMemory, quiz: funQuiz, dove: funDove })[k](area, g); applyLang(); if (k === 'race' || k === 'catch') setTimeout(() => { const c = area.querySelector('canvas'); if (c && c.scrollIntoView) c.scrollIntoView({ block: 'center', behavior: 'smooth' }); }, 60); };
     v.querySelectorAll('[data-fg]').forEach(b => b.onclick = () => open(b.dataset.fg));
     open(cur);
     FUNT = setInterval(() => {
@@ -1359,15 +1359,21 @@ function funPuzzle(area, g) {
   };
   draw();
 }
+// Memory Match: match a Bible picture with its story or verse. Kids find 8 pairs, Youth 12.
+const MEMPAIRS = [['⛵', 'Noah'], ['🦁', 'Daniel'], ['🐋', 'Jonah'], ['🪨', 'David'], ['🔥', 'Burning bush'], ['🪜', 'Jacob'], ['🧥', 'Joseph'], ['🍞', 'Feeding 5,000'],
+  ['🐑', 'Psalm 23'], ['🌈', 'Genesis 9'], ['⭐', 'Wise men'], ['🌊', 'Red Sea']];
 function funMemory(area, g) {
-  const pairs = g === 'youth' ? 10 : 6, em = ['🐑', '🕊️', '⭐', '✝️', '📖', '🌈', '🙏', '👑', '🔥', '⛵', '🍞', '🦁'].slice(0, pairs);
-  const deck = [...em, ...em].map((e, i) => ({ e, id: i })).sort(() => Math.random() - .5); let open = [], found = 0, tries = 0, lock = false; const G = window.__funGen;
+  const pairs = g === 'youth' ? 12 : 8, cols = g === 'youth' ? 4 : 4, flip = g === 'youth' ? 650 : 800, G = window.__funGen;
+  const deck = []; MEMPAIRS.slice(0, pairs).forEach(([e, n], k) => { deck.push({ k, t: e, big: true }, { k, t: n }); });
+  deck.sort(() => Math.random() - .5); let open = [], found = 0, tries = 0, lock = false; const key = 'memory', rec = () => +lsGet('agc.bestlow.' + key + '.' + g, 0) || 0;
   const draw = () => {
-    area.innerHTML = `<p>Find the matching pairs. Tries: <b>${tries}</b></p><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;max-width:320px">${deck.map((c, i) => `<button class="btn ${c.up || open.includes(i) ? '' : 'ghost'}" data-i="${i}" style="min-height:56px;font-size:24px;padding:0" aria-label="card">${c.up || open.includes(i) ? c.e : '?'}</button>`).join('')}</div>${found === pairs ? `<p class="good"><b>All pairs found in ${tries} tries! 🎉</b></p>` : ''}<button class="btn ghost small" id="mm" style="margin-top:10px">New game</button>`;
-    $('#mm').onclick = () => funMemory(area, g); if (found === pairs) funWin(area);
+    const best = rec();
+    area.innerHTML = `<p>Match each picture with its Bible story or verse. Tries: <b>${tries}</b>${best ? ` · 🏆 Best ${best}` : ''}</p><div style="display:grid;grid-template-columns:repeat(${cols},1fr);gap:6px;max-width:340px">${deck.map((c, i) => { const up = c.up || open.includes(i); return `<button class="btn ${up ? '' : 'ghost'}" data-i="${i}" style="min-height:62px;font-size:${up && !c.big ? 12 : 26}px;padding:2px;line-height:1.1;overflow-wrap:anywhere" aria-label="card">${up ? esc(c.t) : '?'}</button>`; }).join('')}</div>${found === pairs ? `<p class="good"><b>All ${pairs} pairs found in ${tries} tries! 🎉</b></p>` : ''}<button class="btn ghost small" id="mm" style="margin-top:10px">New game</button>`;
+    $('#mm').onclick = () => funMemory(area, g);
+    if (found === pairs) { if (!best || tries < best) lsSet('agc.bestlow.' + key + '.' + g, String(tries)); funWin(area); }
     area.querySelectorAll('[data-i]').forEach(b => b.onclick = () => {
       const i = +b.dataset.i; if (lock || deck[i].up || open.includes(i)) return; open.push(i);
-      if (open.length === 2) { tries++; const [a, c] = open; if (deck[a].e === deck[c].e) { deck[a].up = deck[c].up = true; found++; funSnd('ok'); open = []; } else { lock = true; funSnd('bad'); draw(); return void setTimeout(() => { open = []; lock = false; if (area.isConnected && G === window.__funGen) draw(); }, 800); } }
+      if (open.length === 2) { tries++; const [x, y] = open; if (deck[x].k === deck[y].k) { deck[x].up = deck[y].up = true; found++; funSnd('ok'); open = []; } else { lock = true; funSnd('bad'); draw(); return void setTimeout(() => { open = []; lock = false; if (area.isConnected && G === window.__funGen) draw(); }, flip); } }
       draw();
     });
   };
@@ -1552,7 +1558,7 @@ function funTtt(area, g) {
 }
 /* ---------- Word Scramble: race the clock, build a streak ---------- */
 function funScramble(area, g) {
-  const W = g === 'youth' ? ['COVENANT', 'REDEEMER', 'SALVATION', 'SCRIPTURE', 'DISCIPLE', 'FORGIVEN', 'RIGHTEOUS', 'FELLOWSHIP', 'RESURRECTION', 'PROPHECY', 'MERCIFUL', 'SANCTIFIED'] : ['GRACE', 'FAITH', 'PRAYER', 'JESUS', 'DAVID', 'MOSES', 'NOAH', 'LOVE', 'HOPE', 'ANGEL', 'PSALM', 'SHEEP', 'SAVIOR', 'BIBLE', 'CHURCH', 'PEACE'], LIM = g === 'youth' ? 25 : 40;
+  const W = g === 'youth' ? ['COVENANT', 'REDEEMER', 'SALVATION', 'SCRIPTURE', 'DISCIPLE', 'FORGIVEN', 'RIGHTEOUS', 'FELLOWSHIP', 'RESURRECTION', 'PROPHECY', 'MERCIFUL', 'SANCTIFIED'] : ['GRACE', 'FAITH', 'PRAYER', 'JESUS', 'DAVID', 'MOSES', 'NOAH', 'LOVE', 'HOPE', 'ANGEL', 'PSALM', 'SHEEP', 'SAVIOR', 'BIBLE', 'CHURCH', 'PEACE', 'MIRACLE', 'DISCIPLE', 'PARABLE', 'SHEPHERD', 'FORGIVE', 'BLESSING'], LIM = g === 'youth' ? 20 : 30;
   let score = 0, streak = 0, w, sc, hint = 0, msg = '', tm = 0, timer = null, best = funBest('scramble', g);
   const stop = () => { if (timer) { clearInterval(timer); timer = null; } };
   const next = () => { w = W[Math.floor(Math.random() * W.length)]; do { sc = w.split('').sort(() => Math.random() - .5).join(''); } while (sc === w); hint = 0; tm = LIM; };
@@ -1566,12 +1572,50 @@ function funScramble(area, g) {
   };
   next(); draw();
 }
+/* ---------- Quiz Rush: answer Bible questions fast; 3 lives ---------- */
+function funQuiz(area, g) {
+  const list = GAMES.whoAmI || []; if (list.length < 3) { area.innerHTML = '<p>No questions yet.</p>'; return; }
+  const G = window.__funGen; let score = 0, lives = 3, streak = 0, q, opts, tm, timer = null, best = funBest('quiz', g); const LIM = g === 'youth' ? 8 : 12;
+  const stop = () => { if (timer) { clearInterval(timer); timer = null; } };
+  const next = () => { q = list[Math.floor(Math.random() * list.length)]; opts = q.options.slice().sort(() => Math.random() - .5); tm = LIM; };
+  const miss = txt => { stop(); streak = 0; lives--; funSnd('crash'); funBuzz(120); if (lives <= 0) { if (funSetBest('quiz', g, score)) { best = score; funWin(area); } draw(txt + ' <b>Game over!</b>', true); } else { next(); draw(txt); } };
+  const draw = (msg, over) => {
+    stop();
+    area.innerHTML = `<p>Score: <b>${score}</b> · ${'❤️'.repeat(Math.max(0, lives))} · 🔥 ${streak} · 🏆 Best ${Math.max(best, score)}</p>${over ? `<p>${msg}</p><button class="btn" id="qa">Play again</button>` : `<div style="background:#e3e8ef;border-radius:8px;height:10px;overflow:hidden"><div id="qb" style="background:var(--gold);height:100%;width:${tm / LIM * 100}%"></div></div><div class="card gold" style="margin-top:8px"><p><b>Who am I?</b> ${esc(q.clue)}</p></div>${opts.map(o => `<button class="btn ghost" data-o="${esc(o)}">${esc(o)}</button>`).join('')}<p style="min-height:22px">${msg || ''}</p>`}`;
+    if (over) { $('#qa').onclick = () => funQuiz(area, g); return; }
+    area.querySelectorAll('[data-o]').forEach(b => b.onclick = () => {
+      if (b.dataset.o === q.answer) { stop(); streak++; score += 5 + Math.ceil(tm / 2) + streak; funSnd(streak % 3 === 0 ? 'level' : 'coin'); funSetBest('quiz', g, score); next(); draw('<span class="good">Correct! 🎉</span>'); } else miss(`<span class="bad">It was ${esc(q.answer)}.</span>`);
+    });
+    timer = setInterval(() => { if (!area.isConnected || G !== window.__funGen || !$('#qb')) return stop(); tm--; $('#qb').style.width = Math.max(0, tm / LIM * 100) + '%'; if (tm <= 3 && tm > 0) funSnd('tick'); if (tm <= 0) miss(`<span class="bad">⏰ Time's up! It was ${esc(q.answer)}.</span>`); }, 1000);
+  };
+  next(); draw('');
+}
+/* ---------- Dove Tap: tap the doves, not the storm clouds ---------- */
+function funDove(area, g) {
+  const G = window.__funGen, N = g === 'youth' ? 20 : 12; let score = 0, miss = 0, left = 30, timer = null, cell = -1, kind = '', best = funBest('dove', g), over = false, mv = null;
+  const stop = () => { clearInterval(timer); clearTimeout(mv); timer = null; };
+  const alive = () => area.isConnected && G === window.__funGen;
+  const show = () => { if (!alive() || over) return stop(); const i = Math.floor(Math.random() * 9); cell = i; kind = Math.random() < (g === 'youth' ? .3 : .2) ? 'cloud' : 'dove'; draw(); mv = setTimeout(() => { if (alive() && !over) { if (kind === 'dove') miss++; show(); } }, (g === 'youth' ? 750 : 950) - Math.min(300, score * 6)); };
+  const end = () => { over = true; stop(); if (funSetBest('dove', g, score)) { best = score; funWin(area); } draw(); };
+  const draw = () => {
+    area.innerHTML = `<p>Tap the 🕊️ doves, not the ⛈️ clouds! Score: <b>${score}</b> · ⏱ <b>${left}</b>s · 🏆 Best ${Math.max(best, score)}</p><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:270px">${[...Array(9).keys()].map(i => `<button class="btn ${i === cell && !over ? '' : 'ghost'}" data-i="${i}" style="min-height:76px;font-size:34px;padding:0" aria-label="tile">${i === cell && !over ? (kind === 'dove' ? '🕊️' : '⛈️') : ''}</button>`).join('')}</div>${over ? `<p class="good"><b>Time! You scored ${score}.</b></p>` : ''}<button class="btn small" id="da" style="margin-top:10px">${over ? 'Play again' : 'Restart'}</button>`;
+    $('#da').onclick = () => { stop(); funDove(area, g); };
+    area.querySelectorAll('[data-i]').forEach(b => b.onclick = () => {
+      if (over || +b.dataset.i !== cell) return; clearTimeout(mv);
+      if (kind === 'dove') { score++; funSnd('coin'); } else { score = Math.max(0, score - 3); funSnd('crash'); funBuzz(80); }
+      cell = -1; draw(); mv = setTimeout(show, 250);
+    });
+  };
+  draw(); setTimeout(show, 400);
+  timer = setInterval(() => { if (!alive() || over) return stop(); left--; const el = area.querySelector('b:nth-of-type(2)'); if (left <= 0) end(); else if (el) el.textContent = left; }, 1000);
+}
+
 /* ---------- Simon Pattern: each colour plays a note ---------- */
 function funSimon(area, g) {
   const hard = g === 'youth', cols = ['#e53935', '#43a047', '#1e88e5', '#fdd835'], snd = ['c', 'd', 'e', 'f'], seq = [], G = window.__funGen, alive = () => area.isConnected && G === window.__funGen; let pos = 0, busy = true, best = funBest('simon', g);
   const flash = (i, ms) => { const b = area.querySelector(`[data-p="${i}"]`); if (!b) return; funSnd(snd[i]); b.style.opacity = '1'; b.style.transform = 'scale(1.06)'; b.style.outline = '4px solid #fff'; setTimeout(() => { if (b.isConnected) { b.style.opacity = '.55'; b.style.transform = ''; b.style.outline = ''; } }, ms); };
   const draw = m => { area.innerHTML = `<p>Watch, listen, then repeat the pattern. Round: <b>${seq.length}</b> · 🏆 Best <b>${best}</b></p><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:240px">${cols.map((c, i) => `<button data-p="${i}" aria-label="colour ${i + 1}" style="height:90px;border:0;border-radius:12px;background:${c};opacity:.55;transition:transform .1s"></button>`).join('')}</div><p>${m || ''}</p>`; area.querySelectorAll('[data-p]').forEach(b => b.onclick = () => press(+b.dataset.p)); };
-  const play = () => { busy = true; pos = 0; seq.push(Math.floor(Math.random() * 4)); draw('Watch…'); const gap = hard ? 450 : 750; seq.forEach((c, k) => setTimeout(() => { if (alive()) flash(c, gap - 150); }, 700 + k * gap)); setTimeout(() => { if (alive()) { busy = false; draw('Your turn! 👆'); } }, 700 + seq.length * gap); };
+  const play = () => { busy = true; pos = 0; seq.push(Math.floor(Math.random() * 4)); draw('Watch…'); const gap = hard ? 380 : 600; seq.forEach((c, k) => setTimeout(() => { if (alive()) flash(c, gap - 150); }, 700 + k * gap)); setTimeout(() => { if (alive()) { busy = false; draw('Your turn! 👆'); } }, 700 + seq.length * gap); };
   const press = i => {
     if (busy) return; flash(i, 200);
     if (i !== seq[pos]) { busy = true; funSnd('crash'); funBuzz(120); const n = seq.length - 1; if (funSetBest('simon', g, n)) { best = n; funWin(area); } seq.length = 0; draw(`<b>Oops! You got ${n} round${n === 1 ? '' : 's'}.</b> <button class="btn small" id="sa">Play again</button>`); $('#sa').onclick = play; return; }
