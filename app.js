@@ -136,6 +136,7 @@ function render() {
   const fn = VIEWS[sec + '.' + tabOf[sec]];
   fn ? fn(v) : (v.innerHTML = '<div class="card">Coming soon.</div>');
   applyLang();
+  if (typeof askFabSync === 'function') askFabSync();
   if (hubOn()) refreshBadge();
 }
 
@@ -2180,28 +2181,50 @@ function funSimon(area, g) {
 let ASK = { items: [] }, WEBB = null;
 const ASK_STOP = new Set('a an the of to and or in on is it i me my am are be do does what how can for with that this you your we'.split());
 const askTok = t => String(t).toLowerCase().match(/[a-z0-9]+/g)?.filter(w => !ASK_STOP.has(w)).map(w => w.length > 4 ? w.replace(/(ing|ed|es|s)$/, '') : w) || [];
+const NE_STOP = new Set('र को का की कि मा लाई ले हो छ छु छौं हुन् हुन्छ के कसरी म मेरो मेरी तपाईं तपाईंको यो त्यो पनि वा तर भने भन्ने गर्न सक्छ'.split(' '));
+const neTok = t => (String(t).match(/[ऀ-ॿ]+/g) || []).filter(w => w.length > 1 && !NE_STOP.has(w));
 function askSearch(q) {
+  if (/[ऀ-ॿ]/.test(q)) {
+    const qs = neTok(q).map(w => w.slice(0, Math.max(2, w.length - 2))); if (!qs.length) return [];
+    return (ASK.items || []).filter(it => it.q_ne).map(it => {
+      const head = neTok(it.q_ne), body = neTok(it.a_ne.join(' '));
+      let sc = 0, hh = 0; qs.forEach(w => { if (head.some(h => h.startsWith(w))) { sc += 3; hh++; } else if (body.some(h => h.startsWith(w))) sc += 1; });
+      sc += head.length ? 4 * hh / head.length : 0;
+      if (q.replace(/[?\s]/g, '') === it.q_ne.replace(/[?\s]/g, '')) sc += 20;
+      return [sc, it];
+    }).filter(x => x[0] > 0).sort((a, b) => b[0] - a[0]).slice(0, 3).map(x => x[1]);
+  }
   const qs = askTok(q); if (!qs.length) return [];
   return (ASK.items || []).map(it => {
     const head = new Set(askTok(it.q + ' ' + it.cat)), body = new Set(askTok(it.a.join(' ')));
-    let sc = 0; qs.forEach(w => { if (head.has(w)) sc += 3; else if (body.has(w)) sc += 1; });
+    let sc = 0, hh = 0; qs.forEach(w => { if (head.has(w)) { sc += 3; hh++; } else if (body.has(w)) sc += 1; });
+    sc += head.size ? 4 * hh / head.size : 0;
+    if (q.toLowerCase().replace(/[?\s]/g, '') === it.q.toLowerCase().replace(/[?\s]/g, '')) sc += 20;
     return [sc, it];
   }).filter(x => x[0] > 0).sort((a, b) => b[0] - a[0]).slice(0, 3).map(x => x[1]);
 }
 const askSpeakLang = () => LANG === 'ne' ? 'ne-NP' : 'en-US';
+const NE_NOTE = 'यो नेपाली उत्तर नेपाली पाठकको जाँचको प्रतीक्षामा छ। बाइबलका पदहरू सन्दर्भद्वारा देखाइएका छन्, NNRV बाट सारिएका होइनन्। पद पढ्न सन्दर्भ टाइप गर्नुहोस्, जस्तै यूहन्ना ३:१६।';
 function askShow(it) {
-  return `<div class="card gold"><h2>${esc(it.q)}</h2>${it.a.map(p => `<p>${esc(p).replace(/\*([^*]+)\*/g, '<i>$1</i>')}</p>`).join('')}${it.src && it.src.length ? `<p class="muted"><span>Go deeper:</span> ${it.src.map(esc).join(' · ')}</p>` : ''}<button type="button" class="btn small ghost asklisten" data-i="${it.id}"><span>🔊</span> <span>Listen</span></button></div>`;
+  const ne = LANG === 'ne' && it.q_ne, q = ne ? it.q_ne : it.q, a = ne ? it.a_ne : it.a;
+  return `<div class="card gold"><h2>${esc(q)}</h2>${a.map(p => `<p>${esc(p).replace(/\*([^*]+)\*/g, '<i>$1</i>')}</p>`).join('')}${!ne && it.src && it.src.length ? `<p class="muted"><span>Go deeper:</span> ${it.src.map(esc).join(' · ')}</p>` : ''}${ne ? `<p class="muted" data-keep>${NE_NOTE}</p>` : ''}<button type="button" class="btn small ghost asklisten" data-i="${it.id}"><span>🔊</span> <span>Listen</span></button></div>`;
 }
 async function askLoadBible() {
   if (WEBB) return WEBB;
   const j = await getJson('data/bible-web.json'); WEBB = j && j.b ? j.b : null; return WEBB;
 }
 /* "John 3:16", "Psalm 23", "1 Cor 13:4-7" -> { b, c, v1, v2 } */
+const NE_BOOKS = ['उत्पत्ति','प्रस्थान','लेवी','गन्ती','व्यवस्था','यहोशू','न्यायकर्ता','रूथ','१ शमूएल','२ शमूएल','१ राजा','२ राजा','१ इतिहास','२ इतिहास','एज्रा','नहेमायाह','एस्तर','अय्यूब','भजन','हितोपदेश','उपदेशक','श्रेष्ठगीत','यशैया','यर्मिया','विलाप','इजकिएल','दानियल','होशे','योएल','आमोस','ओबदिया','योना','मीका','नहूम','हबकूक','सपन्याह','हाग्गै','जकरिया','मलाकी','मत्ती','मर्कूस','लूका','यूहन्ना','प्रेरित','रोमी','१ कोरिन्थी','२ कोरिन्थी','गलाती','एफिसी','फिलिप्पी','कलस्सी','१ थिस्सलोनिकी','२ थिस्सलोनिकी','१ तिमोथी','२ तिमोथी','तीतस','फिलेमोन','हिब्रू','याकूब','१ पत्रुस','२ पत्रुस','१ यूहन्ना','२ यूहन्ना','३ यूहन्ना','यहूदा','प्रकाश'];
+const deva = t => String(t).replace(/[०-९]/g, c => '०१२३४५६७८९'.indexOf(c));
 function askParseRef(q) {
-  const m = String(q).trim().match(/^(\d?\s*[A-Za-z][A-Za-z .]*?)\s+(\d+)(?:\s*:\s*(\d+)(?:\s*[-–]\s*(\d+))?)?$/);
+  const m = String(q).trim().match(/^(\d?\s*[A-Za-z][A-Za-z .]*?|[०-९0-9]?\s*[ऀ-ॿ]+)\s+([०-९0-9]+)(?:\s*[:：]\s*([०-९0-9]+)(?:\s*[-–]\s*([०-९0-9]+))?)?$/);
   if (!m) return null;
-  const b = bookIdx(m[1]); if (b < 0) return null;
-  return { b, c: +m[2], v1: m[3] ? +m[3] : 0, v2: m[4] ? +m[4] : (m[3] ? +m[3] : 0) };
+  let b = -1;
+  if (/[ऀ-ॿ]/.test(m[1])) { const nm = m[1].replace(/\s+/g, ' ').trim().replace(/[0-9]/g, c => '०१२३४५६७८९'[c]); b = NE_BOOKS.findIndex(x => x === nm || x.replace(/^[०-९] /, '') === nm && !/^[०-९]/.test(nm) && !/^[०-९]/.test(x)); }
+  else b = bookIdx(m[1]);
+  if (b < 0) return null;
+  const n = k => (k ? +deva(k) : 0);
+  return { b, c: n(m[2]), v1: n(m[3]), v2: m[4] ? n(m[4]) : n(m[3]) };
 }
 async function askPassage(r) {
   const B = await askLoadBible(); if (!B) return '<div class="card">The Bible text could not load. Check your connection and try again.</div>';
@@ -2286,16 +2309,15 @@ function askOpen() {
   let p = $('#askpanel'); if (p) { p.hidden = false; $('#askq').focus(); return; }
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   p = document.createElement('div'); p.id = 'askpanel'; p.setAttribute('role', 'dialog'); p.setAttribute('aria-label', 'Ask Pastor Santosh');
+  const EX = LANG === 'ne' ? ['म कसरी प्रार्थना गरूँ?', 'ख्रीष्टमा म को हुँ?', 'के परमेश्वरले आज पनि निको पार्नुहुन्छ?', 'यूहन्ना ३:१६', 'John 3:16'] : ['How do I pray?', 'Who am I in Christ?', 'Does God heal today?', 'John 3:16', 'grace', 'G26'];
   p.innerHTML = `<div class="askbox"><div class="askhead"><b>Ask Pastor Santosh</b><button class="btn small ghost" id="askx" aria-label="Close">Close</button></div>
-    <p class="muted">Type or speak a question. You will see the closest prepared answer. This is not a live chat, and it does not replace talking with a pastor.</p>
-    <p class="muted">To read a passage, type it, for example John 3:16. To find where a word appears in the Bible, and the Greek or Hebrew word behind it, type the word, for example grace. You can also type a Strong's number, for example G26.</p>
-    <p class="muted">Answers are in English for now. Nepali answers will come after a Nepali reader checks them.</p><div class="askrow"><input id="askq" type="search" placeholder="Type your question" autocomplete="off">${SR ? '<button type="button" class="btn small" id="askmic" aria-label="Speak"><span>🎤</span> <span>Speak</span></button>' : ''}</div>
-    <div id="askres"></div></div>`;
+    <div class="askrow"><input id="askq" type="search" placeholder="Type or speak a question" autocomplete="off">${SR ? '<button type="button" class="btn small" id="askmic" aria-label="Speak"><span>🎤</span> <span>Speak</span></button>' : ''}</div>
+    <div id="askres"><p class="muted askexh">Examples:</p><div class="askex">${EX.map(x => `<button type="button" class="askchip" data-x="${esc(x)}">${esc(x)}</button>`).join('')}</div></div></div>`;
   document.body.appendChild(p);
-  let limit = 40, lastQ = '';
+  let limit = 40, lastQ = ''; const exHtml = $('#askres').innerHTML;
   const run = async () => {
     const v = $('#askq').value.trim(); lastQ = v; limit = 40;
-    if (!v) { $('#askres').innerHTML = ''; return; }
+    if (!v) { $('#askres').innerHTML = exHtml; return; }
     const ref = askParseRef(v);
     if (ref) { $('#askres').innerHTML = await askPassage(ref); return; }
     if (/^[GgHh]\s*\d{1,4}$/.test(v)) { $('#askres').innerHTML = await askWordStudy(v); return; }
@@ -2307,7 +2329,8 @@ function askOpen() {
   let tm; $('#askq').oninput = () => { clearTimeout(tm); tm = setTimeout(run, 250); };
   $('#askq').onkeydown = e => { if (e.key === 'Enter') { clearTimeout(tm); run(); } };
   $('#askres').onclick = async e => {
-    const lb = e.target.closest('.asklisten'); if (lb) { const it = (ASK.items || []).find(x => String(x.id) === lb.dataset.i); if (it) askSpeak(it.q + '. ' + it.a.join(' '), it.id); return; }
+    const ch = e.target.closest('.askchip'); if (ch) { $('#askq').value = ch.dataset.x; run(); return; }
+    const lb = e.target.closest('.asklisten'); if (lb) { const it = (ASK.items || []).find(x => String(x.id) === lb.dataset.i); if (it) { const ne = LANG === 'ne' && it.q_ne; askSpeak((ne ? it.q_ne : it.q) + '. ' + (ne ? it.a_ne : it.a).join(' '), ne ? null : it.id); } return; }
     const sp = e.target.closest('.askspeak'); if (sp) { askSpeak(sp.dataset.t); return; }
     if (e.target.closest('#askfind')) { $('#askconc').innerHTML = '<p class="muted">Searching…</p>'; $('#askconc').innerHTML = (await askWordStudy(lastQ)) + (await askConcordance(lastQ, limit)); applyLang(); return; }
     const mb = e.target.closest('#askmore'); if (mb) { limit = +mb.dataset.n; $('#askconc').innerHTML = await askConcordance(lastQ, limit); }
@@ -2328,8 +2351,33 @@ function askOpen() {
   document.addEventListener('keydown', e => { if (e.key === 'Escape') p.hidden = true; });
   applyLang(); $('#askq').focus();
 }
+let askHeroSeen = false, askObs = null;
+function askFabSync() {
+  const b = $('#askfab'); if (!b) return;
+  const app = $('#app'), shown = app && !app.hidden;
+  if (askObs) { askObs.disconnect(); askObs = null; }
+  const hero = $('#askhero');
+  askHeroSeen = false;
+  if (hero && 'IntersectionObserver' in window) {
+    askObs = new IntersectionObserver(es => { askHeroSeen = es[es.length - 1].isIntersecting; b.hidden = !shown || askHeroSeen; }, { threshold: 0.2 });
+    askObs.observe(hero);
+  }
+  b.hidden = !shown || !!(hero && 'IntersectionObserver' in window && askHeroSeen);
+}
 (function askButton() {
-  const b = document.createElement('button'); b.id = 'askfab'; b.type = 'button'; b.innerHTML = '<span>💬</span> <span>Ask Pastor Santosh</span>'; b.hidden = true; b.onclick = askOpen;
+  const b = document.createElement('button'); b.id = 'askfab'; b.type = 'button'; b.innerHTML = '<span>💬</span> <span>Ask Pastor Santosh</span>'; b.hidden = true;
   document.body.appendChild(b);
-  const t = setInterval(() => { const app = $('#app'); if (app && !app.hidden) { b.hidden = false; clearInterval(t); } }, 500);
+  const KEY = 'agc.askpos';
+  const clamp = (x, y) => ({ x: Math.max(4, Math.min(innerWidth - b.offsetWidth - 4, x)), y: Math.max(4, Math.min(innerHeight - b.offsetHeight - 4, y)) });
+  const place = (x, y) => { const c = clamp(x, y); b.style.left = c.x + 'px'; b.style.top = c.y + 'px'; b.style.right = 'auto'; b.style.bottom = 'auto'; return c; };
+  const restore = () => { try { const p = JSON.parse(localStorage.getItem(KEY) || 'null'); if (p && b.offsetWidth) { place(p.x * innerWidth, p.y * innerHeight); } } catch (e) {} };
+  let sx, sy, ox, oy, moved = false, down = false;
+  b.addEventListener('pointerdown', e => { down = true; moved = false; sx = e.clientX; sy = e.clientY; const r = b.getBoundingClientRect(); ox = r.left; oy = r.top; try { b.setPointerCapture(e.pointerId); } catch (x) {} });
+  b.addEventListener('pointermove', e => { if (!down) return; const dx = e.clientX - sx, dy = e.clientY - sy; if (!moved && Math.hypot(dx, dy) < 8) return; moved = true; place(ox + dx, oy + dy); e.preventDefault(); });
+  const end = () => { if (!down) return; down = false; if (moved) { try { const r = b.getBoundingClientRect(); localStorage.setItem(KEY, JSON.stringify({ x: r.left / innerWidth, y: r.top / innerHeight })); } catch (x) {} } };
+  b.addEventListener('pointerup', end); b.addEventListener('pointercancel', end);
+  b.addEventListener('click', e => { if (moved) { moved = false; e.preventDefault(); return; } askOpen(); });
+  b.style.touchAction = 'none';
+  addEventListener('resize', () => { if (b.style.left) { const r = b.getBoundingClientRect(); place(r.left, r.top); } });
+  const t = setInterval(() => { const app = $('#app'); if (app && !app.hidden) { clearInterval(t); askFabSync(); restore(); } }, 400);
 })();

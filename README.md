@@ -120,4 +120,4 @@ The Kids Games tab now has 12 games that earn stars. New: Count the Animals, Tru
 - `data/ask.json`: prepared answers (reviewed by Pastor Santosh; entries marked "review" were drafted by Claude from Scripture and need his confirmation).
 - `data/bible-web.json`: World English Bible, public domain, used for passage lookup and the word search.
 - `data/strongs.json`: Strong's dictionary of Greek and Hebrew words (James Strong, 1890, public domain). The JSON compilation is by Open Scriptures, licensed CC-BY-SA, so this file stays under that license. The `c` list holds key words mapped to their main Strong's numbers.
-- Nepali: panel labels are in `data/i18n.json` and need a native Nepali reader's check. The answers are English only for now.
+- Nepali: panel labels and the Nepali answers (`q_ne`, `a_ne` in `data/ask.json`) were drafted by Claude and are waiting for a native Nepali reader. Bible verses in the Nepali answers are shown by reference, not copied from NNRV.
