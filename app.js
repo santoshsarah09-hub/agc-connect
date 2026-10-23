@@ -2179,8 +2179,8 @@ function funSimon(area, g) {
 
 /* ---------- Ask Pastor Santosh: prepared answers, voice, passages and a word concordance (World English Bible) ---------- */
 let ASK = { items: [] }, WEBB = null;
-const ASK_STOP = new Set('a an the of to and or in on is it i me my am are be do does what how can for with that this you your we who why when where should could would about'.split(' '));
-const askTok = t => String(t).toLowerCase().match(/[a-z0-9]+/g)?.filter(w => !ASK_STOP.has(w)).map(w => w.length > 4 ? w.replace(/(ing|ed|es|er|s)$/, '') : w) || [];
+const ASK_STOP = new Set('a an the of to and or in on is it i me my am are be do does what how can for with that this you your we who why when where should could would about god need want did so not'.split(' '));
+const askTok = t => String(t).toLowerCase().match(/[a-z0-9]+/g)?.filter(w => !ASK_STOP.has(w)).map(w => w.length > 4 ? w.replace(/(ing|ed|es|er|s)$/, '').replace(/e$/, '') : w.replace(/e$/, '')) || [];
 const NE_STOP = new Set('र को का की कि मा लाई ले हो छ छु छौं हुन् हुन्छ के कसरी म मेरो मेरी तपाईं तपाईंको यो त्यो पनि वा तर भने भन्ने गर्न सक्छ'.split(' '));
 const neTok = t => (String(t).match(/[ऀ-ॿ]+/g) || []).filter(w => w.length > 1 && !NE_STOP.has(w));
 function askSearch(q) {
@@ -2192,7 +2192,7 @@ function askSearch(q) {
       sc += head.length ? 4 * hh / head.length : 0;
       if (q.replace(/[?\s]/g, '') === it.q_ne.replace(/[?\s]/g, '')) sc += 20;
       return [sc, it];
-    }).filter(x => x[0] > 0).sort((a, b) => b[0] - a[0]).filter((x, i, arr) => i === 0 || x[0] >= arr[0][0] * 0.75).slice(0, 3).map(x => x[1]);
+    }).filter(x => x[0] >= 3).sort((a, b) => b[0] - a[0]).filter((x, i, arr) => i === 0 || x[0] >= arr[0][0] * 0.75).slice(0, 3).map(x => x[1]);
   }
   const qs = askTok(q); if (!qs.length) return [];
   return (ASK.items || []).map(it => {
@@ -2201,7 +2201,7 @@ function askSearch(q) {
     sc += head.size ? 4 * hh / head.size : 0;
     if (q.toLowerCase().replace(/[?\s]/g, '') === it.q.toLowerCase().replace(/[?\s]/g, '')) sc += 20;
     return [sc, it];
-  }).filter(x => x[0] > 0).sort((a, b) => b[0] - a[0]).filter((x, i, arr) => i === 0 || x[0] >= arr[0][0] * 0.75).slice(0, 3).map(x => x[1]);
+  }).filter(x => x[0] >= 3).sort((a, b) => b[0] - a[0]).filter((x, i, arr) => i === 0 || x[0] >= arr[0][0] * 0.75).slice(0, 3).map(x => x[1]);
 }
 const askSpeakLang = () => LANG === 'ne' ? 'ne-NP' : 'en-US';
 const NE_NOTE = 'यो नेपाली उत्तर नेपाली पाठकको जाँचको प्रतीक्षामा छ। बाइबलका पदहरू सन्दर्भद्वारा देखाइएका छन्, NNRV बाट सारिएका होइनन्। पद पढ्न सन्दर्भ टाइप गर्नुहोस्, जस्तै यूहन्ना ३:१६।';
@@ -2295,6 +2295,44 @@ async function askQuestionWords(q) {
   if (!ids.length) return '';
   return `<div class="card"><h2>Behind the words</h2><p class="muted">The Greek and Hebrew words the Bible uses for the key words in your question (Strong's and STEP Bible).</p>${ids.slice(0, 3).map(id => strongsRow(id, D[id])).join('')}</div>`;
 }
+// When there is no prepared answer: Scriptures that speak to the topic, found through STEP Bible's original-word tagging.
+async function askStepVerses(q) {
+  const S = await askLoadStep(), D = await askLoadStrongs(), B = await askLoadBible(); if (!S || !D || !B) return '';
+  const VAGUE = new Set('see look way thing things feel think know make take give get want need seem say tell come go about'.split(' '));
+  const words = [...new Set((String(q).toLowerCase().match(/[a-z']+/g) || []).filter(w => w.length > 2 && !ASK_STOP.has(w) && !VAGUE.has(w)))].slice(0, 5);
+  const groups = [];
+  for (const w of words) {
+    let ids = (STRC[w] || '').split(' ').filter(id => S.v[id]);
+    if (!ids.length) {
+      const stem = w.replace(/(ing|ed|es|s)$/, '');
+      ids = Object.keys(S.l).filter(id => S.v[id] && S.v[id].length < 1500 && S.l[id][0].toLowerCase().replace(/^to /, '').split(/[\s,;/()]+/).some(t => t === w || t === stem)).sort((a, b) => S.v[b].length - S.v[a].length).slice(0, 3);
+    }
+    if (!ids.length && w.length > 6) {
+      const pre = w.slice(0, Math.max(5, w.length - 4));
+      ids = Object.keys(S.l).filter(id => S.v[id] && S.v[id].length < 1500 && S.l[id][0].toLowerCase().split(/[\s,;/()]+/).some(t => t.startsWith(pre))).sort((a, b) => S.v[b].length - S.v[a].length).slice(0, 3);
+    }
+    if (ids.length) groups.push({ w, ids, n: new Set(ids.flatMap(id => S.v[id])).size });
+  }
+  const rare = groups.filter(g => g.n <= 1500);
+  groups.length = 0; groups.push(...rare);
+  if (!groups.length) return '';
+  const score = new Map();
+  groups.forEach((g, gi) => { const seen = new Set(); for (const id of g.ids) for (const k of S.v[id]) if (!seen.has(k)) { seen.add(k); score.set(k, (score.get(k) || 0) + 1); } });
+  const need = Math.max(...score.values());
+  let picks = [...score.entries()].filter(x => x[1] === need).map(x => x[0]);
+  const stems = groups.map(g => g.w.replace(/(ing|ed|es|s)$/, '').slice(0, Math.max(3, g.w.length - 3)));
+  const said = k => { const r = stepRef(k), t = (B[r.b] && B[r.b][r.c - 1] && B[r.b][r.c - 1][r.v - 1] || '').toLowerCase(); return stems.some(st => t.includes(st)); };
+  const lit = picks.filter(said); if (lit.length >= 4) picks = lit;
+  // prefer shorter verses (clearer), then spread across books
+  const len = k => { const r = stepRef(k), t = B[r.b] && B[r.b][r.c - 1] && B[r.b][r.c - 1][r.v - 1]; return t ? t.length : 9999; };
+  picks.sort((a, b) => len(a) - len(b));
+  const perBook = {}, chosen = [];
+  for (const k of picks) { const b = Math.floor(k / 1e6); if ((perBook[b] || 0) >= 2) continue; perBook[b] = (perBook[b] || 0) + 1; chosen.push(k); if (chosen.length >= 8) break; }
+  chosen.sort((a, b) => a - b);
+  const rows = chosen.map(k => { const r = stepRef(k), t = B[r.b][r.c - 1][r.v - 1]; return `<div class="askverse"><b>${esc(r.name)}</b> ${esc(t)}</div>`; }).join('');
+  if (!rows) return '';
+  return `<div class="card"><h2>Scriptures that speak to this</h2><p class="muted">I do not have a prepared answer yet, so here are Bible verses on "${esc(groups.map(g => g.w).join(' ')) }", found through the original Greek and Hebrew words (STEP Bible, Tyndale House, CC BY 4.0). Read each verse in its chapter, and talk with Pastor Santosh about it. Text: World English Bible.</p>${rows}</div>`;
+}
 async function askWordStudy(q) {
   const D = await askLoadStrongs(); if (!D) return '';
   const m = String(q).trim().match(/^([GgHh])\s*0*(\d{1,4})$/);
@@ -2359,7 +2397,7 @@ function askOpen() {
     if (ref) { $('#askres').innerHTML = await askPassage(ref) + await askVerseWords(ref); applyLang(); return; }
     if (/^[GgHh]\s*\d{1,4}$/.test(v)) { $('#askres').innerHTML = await askWordStudy(v); return; }
     const r = askSearch(v);
-    let html = r.length ? r.map(askShow).join('') : '<div class="card">I do not have a prepared answer for that yet. Please talk with Pastor Santosh or one of the church leaders. If you are in danger or thinking of harming yourself, call or text 988 in the US, or call 911. Outside the US, contact your local emergency service and a trusted pastor.</div>';
+    let html = r.length ? r.map(askShow).join('') : (await askStepVerses(v)) + '<div class="card">I do not have a prepared answer for that yet. Please talk with Pastor Santosh or one of the church leaders. If you are in danger or thinking of harming yourself, call or text 988 in the US, or call 911. Outside the US, contact your local emergency service and a trusted pastor.</div>';
     html += await askQuestionWords(v);
     html += `<p><button type="button" class="btn small ghost" id="askfind"><span>📖</span> <span>Find these words in the Bible</span></button></p><div id="askconc"></div>`;
     $('#askres').innerHTML = html; applyLang();
