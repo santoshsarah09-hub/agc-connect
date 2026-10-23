@@ -158,3 +158,6 @@ details.card[open]>summary::after{content:"▴"}
 .askitem{display:block;width:100%;text-align:left;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:12px;padding:12px;margin:0 0 8px;font-size:16px;cursor:pointer;min-height:44px}
 
 .askcat{margin:14px 0 6px;font-size:15px;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
+
+.askhero{display:flex;align-items:center;gap:14px;width:100%;text-align:left;border:0;border-radius:18px;background:var(--gold);color:#2a1d05;padding:16px 18px;margin:0 0 14px;cursor:pointer;box-shadow:0 3px 10px rgba(0,0,0,.18);min-height:64px;font:inherit}
+.askhero b{display:block;font-size:20px}.askhero small{display:block;font-size:14px;opacity:.85}.askhero-i{font-size:32px}

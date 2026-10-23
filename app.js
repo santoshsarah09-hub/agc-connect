@@ -293,12 +293,12 @@ async function weeklyScripture() {
   return list.find(x => x.date === sun) || null;
 }
 async function homeToday(v) {
-  v.innerHTML = `${showcaseHTML()}${tilesHTML()}
+  v.innerHTML = `<button type="button" class="askhero" id="askhero"><span class="askhero-i">💬</span><span><b>Ask Pastor Santosh</b><small>Type a question and get a prepared answer</small></span></button>${showcaseHTML()}${tilesHTML()}
     <div class="card votd"><div class="muted" id="vhead">Verse of the Day</div><div class="ref" id="vref" style="font-size:22px">Loading…</div><div id="vtitle"></div>
       <div class="votd-lang">English</div><div id="ven"></div>
       <div class="votd-lang">नेपाली</div><div id="vne"></div>
       <p class="muted" id="vsrc"></p></div>`;
-  wireShowcase(v); fillNews();
+  wireShowcase(v); fillNews(); $('#askhero').onclick = askOpen;
   const wk = await weeklyScripture(), ref = wk ? wk.ref : await votdRef();
   if (!ref) { $('#vref').textContent = '—'; return; }
   if (wk) { $('#vhead').textContent = "This Sunday's Scripture"; $('#vtitle').innerHTML = `<p><b>${esc(wk.title)}</b>${wk.theme ? ` <span class="muted">· ${esc(wk.theme)}</span>` : ''}</p>`; applyLang(); }
