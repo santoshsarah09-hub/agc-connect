@@ -123,6 +123,9 @@ The Kids Games tab now has 12 games that earn stars. New: Count the Animals, Tru
 - **Text size** A− / A+ (remembered).
 - **Send this question to Pastor Santosh:** shown when there is no prepared answer. If `ask.contactEmail` in `data/config.json` is filled in, it opens an email to that address. If it is empty, it opens the phone's share sheet or copies the text, so nothing is sent anywhere and no address is published. The config file is public, so use a church mailbox, not a private address.
 - Copy with references and Share on every result.
+- **Works with weak or no internet:** a service worker (`sw.js`) keeps the app and the search data on the phone. The Ask panel has a "Save for offline use" button (about 10 MB, started by the person, best on Wi-Fi).
+- **Forgiving search:** fixes typos ("forgivness", "jhon 3:16", "Galations"), and `data/ask-aliases.json` maps everyday words to the closest Bible word (for example depressed to despair, anxiety to anxious). That list is a draft for Pastor Santosh to approve and edit.
+- **Contact:** `ask.whatsapp` in `data/config.json` (digits only, with country code) adds a "Message on WhatsApp" button and makes "Send this question" open WhatsApp. `ask.social` is a list of `{ "label": "...", "url": "https://..." }` links shown under it. Both files are public on GitHub, so the number is visible to anyone.
 
 ## Ask Pastor Santosh: data and credits
 - `data/ask.json`: prepared answers (reviewed by Pastor Santosh; entries marked "review" were drafted by Claude from Scripture and need his confirmation).

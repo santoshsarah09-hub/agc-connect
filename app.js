@@ -1434,6 +1434,7 @@ async function afterGate() {
     startApp();
   });
 }
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 (async function init() {
   CFG = Object.assign(CFG, (await getJson('data/config.json')) || {});
   NE = ((await getJson('data/i18n.json')) || {}).ne || {}; S.lang = LANG; applyLang();
@@ -2217,12 +2218,60 @@ async function askLoadBible() {
 /* "John 3:16", "Psalm 23", "1 Cor 13:4-7" -> { b, c, v1, v2 } */
 const NE_BOOKS = ['उत्पत्ति','प्रस्थान','लेवी','गन्ती','व्यवस्था','यहोशू','न्यायकर्ता','रूथ','१ शमूएल','२ शमूएल','१ राजा','२ राजा','१ इतिहास','२ इतिहास','एज्रा','नहेमायाह','एस्तर','अय्यूब','भजन','हितोपदेश','उपदेशक','श्रेष्ठगीत','यशैया','यर्मिया','विलाप','इजकिएल','दानियल','होशे','योएल','आमोस','ओबदिया','योना','मीका','नहूम','हबकूक','सपन्याह','हाग्गै','जकरिया','मलाकी','मत्ती','मर्कूस','लूका','यूहन्ना','प्रेरित','रोमी','१ कोरिन्थी','२ कोरिन्थी','गलाती','एफिसी','फिलिप्पी','कलस्सी','१ थिस्सलोनिकी','२ थिस्सलोनिकी','१ तिमोथी','२ तिमोथी','तीतस','फिलेमोन','हिब्रू','याकूब','१ पत्रुस','२ पत्रुस','१ यूहन्ना','२ यूहन्ना','३ यूहन्ना','यहूदा','प्रकाश'];
 const deva = t => String(t).replace(/[०-९]/g, c => '०१२३४५६७८९'.indexOf(c));
+// ---- Forgiving search: typos, fuzzy book names, related-word links ----
+function askLev(a, b, max) { // edit distance that counts a swapped pair of letters as one mistake
+  if (Math.abs(a.length - b.length) > max) return max + 1;
+  let p2 = null, p1 = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i]; let min = i;
+    for (let j = 1; j <= b.length; j++) {
+      let v = Math.min(p1[j] + 1, cur[j - 1] + 1, p1[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      if (p2 && i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) v = Math.min(v, p2[j - 2] + 1);
+      cur[j] = v; if (v < min) min = v;
+    }
+    if (min > max && (!p2 || Math.min(...p1) > max)) return max + 1;
+    p2 = p1; p1 = cur;
+  }
+  return p1[b.length];
+}
+let ASK_VOCAB = null, ASK_ALIAS = null;
+async function askVocab() {
+  if (ASK_VOCAB) return ASK_VOCAB;
+  const B = await askLoadBible(), V = new Map(); if (!B) return ASK_VOCAB = V;
+  const add = t => (String(t).toLowerCase().match(/[a-z']+/g) || []).forEach(w => V.set(w, (V.get(w) || 0) + 1));
+  B.forEach(chs => chs.forEach(vs => vs.forEach(add)));
+  (ASK.items || []).forEach(it => { add(it.q); add(it.a.join(' ')); });
+  ASK_ALIAS = (await getJson('data/ask-aliases.json')) || {};
+  Object.keys(ASK_ALIAS).forEach(w => V.set(w, (V.get(w) || 0) + 1));
+  return ASK_VOCAB = V;
+}
+async function askSpell(v) {
+  if (/[^\x00-\x7F]/.test(v)) return null;
+  const V = await askVocab(); if (!V.size) return null;
+  const words = v.match(/[A-Za-z']+|[^A-Za-z']+/g) || []; let changed = false;
+  const out = [];
+  for (const tok of words) {
+    const w = tok.toLowerCase();
+    if (!/^[a-z']{4,}$/.test(w) || V.has(w) || ASK_STOP.has(w) || await askDictFind(w)) { out.push(tok); continue; }
+    const max = w.length <= 5 ? 1 : 2; let best = null, bd = 9, bc = -1;
+    for (const [c, n] of V) { if (c.length < 3) continue; const d = askLev(w, c, max); if (d <= max && (d < bd || (d === bd && n > bc))) { best = c; bd = d; bc = n; } }
+    if (best) { out.push(best); changed = true; } else out.push(tok);
+  }
+  return changed ? out.join('') : null;
+}
+function askBookFuzzy(raw) {
+  const l = String(raw).replace(/\./g, '').replace(/\s+/g, ' ').trim().toLowerCase(); if (l.replace(/^\d\s*/, '').length < 4) return -1;
+  let best = -1, bd = 9, tie = false;
+  BOOKS.forEach((b, i) => { const d = askLev(l, b.toLowerCase(), 2); if (d < bd) { bd = d; best = i; tie = false; } else if (d === bd) tie = true; });
+  return bd <= 2 && !tie ? best : -1;
+}
 function askParseRef(q) {
   const m = String(q).trim().match(/^(\d?\s*[A-Za-z][A-Za-z .]*?|[०-९0-9]?\s*[ऀ-ॿ]+)\s+([०-९0-9]+)(?:\s*[:：]\s*([०-९0-9]+)(?:\s*[-–]\s*([०-९0-9]+))?)?$/);
   if (!m) return null;
   let b = -1;
   if (/[ऀ-ॿ]/.test(m[1])) { const nm = m[1].replace(/\s+/g, ' ').trim().replace(/[0-9]/g, c => '०१२३४५६७८९'[c]); b = NE_BOOKS.findIndex(x => x === nm || x.replace(/^[०-९] /, '') === nm && !/^[०-९]/.test(nm) && !/^[०-९]/.test(x)); }
   else b = bookIdx(m[1]);
+  if (b < 0 && !/[ऀ-ॿ]/.test(m[1])) b = askBookFuzzy(m[1]);
   if (b < 0) return null;
   const n = k => (k ? +deva(k) : 0);
   return { b, c: n(m[2]), v1: n(m[3]), v2: m[4] ? n(m[4]) : n(m[3]) };
@@ -2290,7 +2339,7 @@ async function askDictFind(term) {
 }
 function askDictIntent(v) {
   const t = String(v).trim().replace(/\s+/g, ' ');
-  const m = t.match(/^(?:what is the meaning of|what does (.+?) mean|meaning of|who (?:was|is|were|are)|what (?:is|was|are|were)(?: an?)?|define|tell me about)\s*(?:the\s+)?(.*)$/i);
+  const m = t.match(/^(?:what is the meaning of|what does (.+?) mean|meaning of|who (?:was|is|were|are)|what (?:is|was|are|were)(?:\s+an?(?=\s))?|define|tell me about)\s*(?:the\s+)?(.*)$/i);
   if (!m) return null;
   const term = ((m[1] || m[2] || '').replace(/[?.!]+$/, '')).trim();
   return term && term.split(' ').length <= 4 ? term : null;
@@ -2334,20 +2383,27 @@ function askMineHTML(items) {
 }
 const ASK_CRISIS = /suicid|kill myself|end my life|want to die|self[- ]?harm|hurt myself|abus(e|ed|ing)\b|rape|molest/i;
 const ASK_CARE = '<div class="card gold"><h2>You are not alone</h2><p>If you are in danger or thinking of harming yourself, call or text 988 in the US, or call 911. Outside the US, contact your local emergency service and a trusted pastor. Please also talk with Pastor Santosh or one of the church leaders.</p></div>';
-async function askBuild(v) {
+async function askBuildCore(v) {
   if (ASK_CRISIS.test(v)) return ASK_CARE;
   const mine = askSearch(v), kw = askKeyword(v), dterm = askDictIntent(v);
   if (/[ऀ-ॿ]/.test(v)) return (mine.length ? mine.slice(0, 2).map(askShow).join('') : '<div class="card">यसबारे मसँग तयार उत्तर छैन। कृपया पास्टर सन्तोष वा मण्डलीका अगुवासँग कुरा गर्नुहोस्।</div>' + askSendHTML(v));
   if (kw) {
-    const b = kw.length === 1 ? (await askKeywordView(kw[0]) || await askTopical(kw[0], 1)) : (await askStepVerses(kw.join(' '), true) || await askTopical(kw.join(' '), 1));
-    const dc = kw.length === 1 ? await askDictCard(kw[0]) : '';
-    return (b || '') + dc + askMineHTML(mine) || '<div class="card">I did not find that. Try one word, a verse like John 3:16, or a question.</div>';
+    await askVocab();
+    const al = kw.length === 1 ? ASK_ALIAS[kw[0]] : null, w1 = al || kw[0];
+    const b = kw.length === 1 ? (await askKeywordView(w1) || await askTopical(w1, 1) || await askConcordance(w1, 12, false, true)) : (await askStepVerses(kw.join(' '), true) || await askTopical(kw.join(' '), 1));
+    const dc = kw.length === 1 ? await askDictCard(w1) : '';
+    const note = al && b ? `<p class="muted">Showing results for <b>${esc(al)}</b>, the closest Bible word for "${esc(kw[0])}".</p>` : '';
+    return note + (b || '') + dc + askMineHTML(mine) || '<div class="card">I did not find that. Try one word, a verse like John 3:16, or a question.</div>';
   }
   const dc = dterm ? await askDictCard(dterm) : '';
   if (dc) return dc + (mine.length ? mine.slice(0, 2).map(askShow).join('') : (await askTopical(dterm, 1)));
   if (mine.length) return mine.slice(0, 2).map(askShow).join('');
   const bb = (await askTopical(v, 2)) + (await askStepVerses(v));
   return (bb || '<div class="card">I did not find anything for that. Try one key word (like "faith"), a verse (like John 3:16), or ask in a different way.</div>') + askSendHTML(v);
+}
+async function askBuild(v) {
+  const fix = await askSpell(v), q = fix || v, h = await askBuildCore(q);
+  return (fix ? `<p class="muted">Showing results for <b>${esc(fix)}</b>. You typed "${esc(v)}".</p>` : '') + h;
 }
 // "Where in the Bible does it say ...?" Finds the verses and shows them with references.
 function askFindIntent(v) {
@@ -2365,7 +2421,7 @@ async function askFindVerses(phrase) {
   const step = await askStepVerses(phrase);
   return (top || '') + (conc || '') + (step || '') || '<div class="card">I did not find verses for that wording. Try one or two key words, like "forgive" or "anxious".</div>';
 }
-async function askConcordance(q, limit, phraseFirst) {
+async function askConcordance(q, limit, phraseFirst, noneOk) {
   const B = await askLoadBible(); if (!B) return '<div class="card">The Bible text could not load. Check your connection and try again.</div>';
   const words = (String(q).toLowerCase().match(/[a-z']+/g) || []).filter(w => w.length > 1);
   if (!words.length) return '';
@@ -2374,6 +2430,7 @@ async function askConcordance(q, limit, phraseFirst) {
     const low = ' ' + t.toLowerCase().replace(/[^a-z' ]+/g, ' ') + ' ';
     if (words.every(w => low.includes(' ' + w + ' ') || low.includes(' ' + w + 's ') || low.includes(' ' + w + 'ed ') || low.includes(' ' + w + 'ing ') || low.includes(' ' + w + 'es '))) { res.push([bi, ci, vi, t]); per[bi] = (per[bi] || 0) + 1; }
   })));
+  if (noneOk && !res.length) return '';
   if (phraseFirst) { const ph = String(q).toLowerCase().replace(/[^a-z' ]+/g, ' ').replace(/\s+/g, ' ').trim(); res.sort((a, b) => (b[3].toLowerCase().replace(/[^a-z' ]+/g, ' ').replace(/\s+/g, ' ').includes(ph) ? 1 : 0) - (a[3].toLowerCase().replace(/[^a-z' ]+/g, ' ').replace(/\s+/g, ' ').includes(ph) ? 1 : 0)); }
   const top = Object.entries(per).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([b, n]) => `${esc(BOOKS[b])} ${n}`).join(', ');
   const shown = res.slice(0, limit);
@@ -2561,12 +2618,28 @@ function askSyncSave() {
 async function askSend(btn) {
   const q = btn.dataset.q, text = 'Question for Pastor Santosh (from AGC Connect): ' + q, email = ((CFG.ask || {}).contactEmail || '').trim();
   const lab = btn.lastElementChild, old = lab.textContent;
+  const wa = askWaUrl(text); if (wa) { window.open(wa, '_blank', 'noopener'); return; }
   if (email) { location.href = 'mailto:' + email + '?subject=' + encodeURIComponent('A question from AGC Connect') + '&body=' + encodeURIComponent(text); return; }
   if (navigator.share) { try { await navigator.share({ text }); } catch (e) {} return; }
   let ok = false; try { await navigator.clipboard.writeText(text); ok = true; } catch (e) {}
   lab.textContent = ok ? 'Copied. Paste it in a message to Pastor Santosh.' : 'Press and hold to copy: ' + q; setTimeout(() => lab.textContent = old, 4000);
 }
 const askSendHTML = q => `<p><button type="button" class="btn small ghost asksend" data-q="${esc(q)}"><span>✉️</span> <span>Send this question to Pastor Santosh</span></button></p>`;
+
+function askWaUrl(text) { const n = String((CFG.ask || {}).whatsapp || '').replace(/\D/g, ''); return n ? 'https://wa.me/' + n + (text ? '?text=' + encodeURIComponent(text) : '') : ''; }
+function askContactHTML() {
+  const wa = askWaUrl('Hello Pastor Santosh, I have a question (from AGC Connect): '), soc = ((CFG.ask || {}).social || []).filter(x => x && x.url && x.label);
+  const offline = 'caches' in window ? `<button type="button" class="btn small ghost" id="askoffline"><span>📲</span> <span>${askGet('offline', false) ? 'Saved for offline use' : 'Save for offline use'}</span></button>` : '';
+  if (!wa && !soc.length && !offline) return '';
+  return `<div class="askcontact"><p class="muted askexh"><span>Have more questions? Talk with Pastor Santosh:</span></p><div class="askex">${wa ? linkBtn(wa, '<span>💬</span> <span>Message on WhatsApp</span>') : ''}${soc.map(x => linkBtn(x.url, esc(x.label), 'ghost')).join('')}${offline}</div></div>`;
+}
+async function askSaveOffline(btn) {
+  if (!('caches' in window)) return; const lab = btn.lastElementChild;
+  const files = ['bible-web', 'step', 'strongs', 'topics', 'ask', 'i18n', 'ask-aliases'].map(n => `data/${n}.json`).concat('abcdefghijklmnopqrstuvwxyz'.split('').map(l => `data/dict/${l}.json`));
+  const c = await caches.open('agc-data-v1'); let done = 0, bad = 0;
+  for (const f of files) { lab.textContent = `Saving… ${done}/${files.length}`; try { const r = await fetch(f); if (r.ok) await c.put(new Request(f, { method: 'GET' }), r); else if (!/dict\//.test(f)) bad++; } catch (e) { bad++; } done++; }
+  if (!bad) { askPut('offline', true); lab.textContent = 'Saved for offline use'; } else { lab.textContent = 'Could not save everything. Try again on Wi-Fi.'; }
+}
 // Copy or share an answer together with its references.
 function askCardText(card) {
   const out = [];
@@ -2604,6 +2677,7 @@ function askOpen() {
     <p class="muted askhint"><span>Try: a word (love), a verse (John 3:16), or a question.</span></p>
     <div class="asktoolbar"><button type="button" class="btn small ghost" id="asktopics"><span>🗂️</span> <span>Browse topics</span></button><button type="button" class="btn small ghost" id="asksaved"><span>⭐</span> <span>Saved</span><span id="asksavedn" data-keep></span></button><button type="button" class="btn small ghost" id="asksmall" aria-label="Smaller text" data-keep>A−</button><button type="button" class="btn small ghost" id="askbig" aria-label="Bigger text" data-keep>A+</button></div>
     <div id="askres">${askEmptyHTML()}</div>
+    ${askContactHTML()}
     <p class="muted askfoot"><span>Bible text: World English Bible (public domain). NASB 1995 opens in YouVersion.</span></p></div>`;
   document.body.appendChild(p);
   let limit = 40, lastQ = ''; askSyncSave();
@@ -2614,8 +2688,8 @@ function askOpen() {
     const fi = !ref && askFindIntent(v); if (fi) { $('#askres').innerHTML = '<p class="muted">Searching…</p>'; const h = await askFindVerses(fi.phrase); if ($('#askq').value.trim() === v) { $('#askres').innerHTML = h; askDecor(); askSyncSave(); applyLang(); askRecordRecent(v); } return; }
     if (ref) { $('#askres').innerHTML = await askPassage(ref) + await askVerseWords(ref); askDecor(); askSyncSave(); applyLang(); askRecordRecent(v); return; }
     if (/^[GgHh]\s*\d{1,4}$/.test(v)) { $('#askres').innerHTML = await askWordStudy(v); askDecor(); return; }
-    $('#askres').innerHTML = '<p class="muted">Searching…</p>';
-    const html = await askBuild(v);
+    $('#askres').innerHTML = window.__askWarm ? '<p class="muted">Searching…</p>' : '<p class="muted">Searching… The first search loads the Bible data (about 10 MB). After that it is fast.</p>';
+    const html = await askBuild(v); window.__askWarm = true;
     if ($('#askq').value.trim() === v) { $('#askres').innerHTML = html; askDecor(); askSyncSave(); applyLang(); if (!/I did not find|यसबारे मसँग तयार उत्तर छैन/.test(html)) askRecordRecent(v); }
   };
   let tm; $('#askq').oninput = () => { clearTimeout(tm); tm = setTimeout(run, 1400); }; // wait for the person to finish; Enter or the Search button goes at once
@@ -2623,6 +2697,7 @@ function askOpen() {
   $('#askq').onkeydown = e => { if (e.key === 'Enter') { clearTimeout(tm); run(); } };
   p.addEventListener('click', async e => {
     const t = e.target;
+    const of = t.closest('#askoffline'); if (of) { askSaveOffline(of); return; }
     if (t.closest('#asklang')) { const q = $('#askq').value; p.remove(); setLang(LANG === 'ne' ? 'en' : 'ne'); askOpen(); if (q) { $('#askq').value = q; $('#askgo').click(); } return; }
     if (t.closest('#asktopics')) { $('#askq').value = ''; $('#askres').innerHTML = await askTopicsHTML(''); applyLang(); return; }
     const lt = t.closest('.askletter'); if (lt) { $('#askres').innerHTML = await askTopicsHTML(lt.dataset.l); applyLang(); return; }
