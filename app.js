@@ -2179,8 +2179,8 @@ function funSimon(area, g) {
 
 /* ---------- Ask Pastor Santosh: prepared answers, voice, passages and a word concordance (World English Bible) ---------- */
 let ASK = { items: [] }, WEBB = null;
-const ASK_STOP = new Set('a an the of to and or in on is it i me my am are be do does what how can for with that this you your we'.split());
-const askTok = t => String(t).toLowerCase().match(/[a-z0-9]+/g)?.filter(w => !ASK_STOP.has(w)).map(w => w.length > 4 ? w.replace(/(ing|ed|es|s)$/, '') : w) || [];
+const ASK_STOP = new Set('a an the of to and or in on is it i me my am are be do does what how can for with that this you your we who why when where should could would about'.split(' '));
+const askTok = t => String(t).toLowerCase().match(/[a-z0-9]+/g)?.filter(w => !ASK_STOP.has(w)).map(w => w.length > 4 ? w.replace(/(ing|ed|es|er|s)$/, '') : w) || [];
 const NE_STOP = new Set('र को का की कि मा लाई ले हो छ छु छौं हुन् हुन्छ के कसरी म मेरो मेरी तपाईं तपाईंको यो त्यो पनि वा तर भने भन्ने गर्न सक्छ'.split(' '));
 const neTok = t => (String(t).match(/[ऀ-ॿ]+/g) || []).filter(w => w.length > 1 && !NE_STOP.has(w));
 function askSearch(q) {
@@ -2192,7 +2192,7 @@ function askSearch(q) {
       sc += head.length ? 4 * hh / head.length : 0;
       if (q.replace(/[?\s]/g, '') === it.q_ne.replace(/[?\s]/g, '')) sc += 20;
       return [sc, it];
-    }).filter(x => x[0] > 0).sort((a, b) => b[0] - a[0]).slice(0, 3).map(x => x[1]);
+    }).filter(x => x[0] > 0).sort((a, b) => b[0] - a[0]).filter((x, i, arr) => i === 0 || x[0] >= arr[0][0] * 0.75).slice(0, 3).map(x => x[1]);
   }
   const qs = askTok(q); if (!qs.length) return [];
   return (ASK.items || []).map(it => {
@@ -2201,7 +2201,7 @@ function askSearch(q) {
     sc += head.size ? 4 * hh / head.size : 0;
     if (q.toLowerCase().replace(/[?\s]/g, '') === it.q.toLowerCase().replace(/[?\s]/g, '')) sc += 20;
     return [sc, it];
-  }).filter(x => x[0] > 0).sort((a, b) => b[0] - a[0]).slice(0, 3).map(x => x[1]);
+  }).filter(x => x[0] > 0).sort((a, b) => b[0] - a[0]).filter((x, i, arr) => i === 0 || x[0] >= arr[0][0] * 0.75).slice(0, 3).map(x => x[1]);
 }
 const askSpeakLang = () => LANG === 'ne' ? 'ne-NP' : 'en-US';
 const NE_NOTE = 'यो नेपाली उत्तर नेपाली पाठकको जाँचको प्रतीक्षामा छ। बाइबलका पदहरू सन्दर्भद्वारा देखाइएका छन्, NNRV बाट सारिएका होइनन्। पद पढ्न सन्दर्भ टाइप गर्नुहोस्, जस्तै यूहन्ना ३:१६।';
