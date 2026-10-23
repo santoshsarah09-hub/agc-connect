@@ -156,3 +156,5 @@ details.card[open]>summary::after{content:"▴"}
 .askhead{display:flex;justify-content:space-between;align-items:center;font-size:19px;color:var(--ink)}
 #askq{width:100%;box-sizing:border-box;font-size:17px;padding:12px;border:2px solid var(--blue);border-radius:12px;margin:8px 0 12px;background:var(--card);color:var(--ink)}
 .askitem{display:block;width:100%;text-align:left;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:12px;padding:12px;margin:0 0 8px;font-size:16px;cursor:pointer;min-height:44px}
+
+.askcat{margin:14px 0 6px;font-size:15px;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
