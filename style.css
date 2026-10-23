@@ -169,3 +169,5 @@ details.card[open]>summary::after{content:"▴"}
 
 .askex{display:flex;flex-wrap:wrap;gap:8px}.askchip{border:1px solid var(--blue);background:var(--card);color:var(--ink);border-radius:99px;padding:10px 14px;font-size:16px;cursor:pointer;min-height:44px}
 .askexh{margin:6px 0}
+
+.askbar{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;padding-top:8px;border-top:1px solid rgba(128,128,128,.25)}

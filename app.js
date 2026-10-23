@@ -294,7 +294,7 @@ async function weeklyScripture() {
   return list.find(x => x.date === sun) || null;
 }
 async function homeToday(v) {
-  v.innerHTML = `<button type="button" class="askhero" id="askhero"><span class="askhero-i">💬</span><span><b>Ask Pastor Santosh</b><small>Type or speak a question and get a prepared answer</small></span></button>${showcaseHTML()}${tilesHTML()}
+  v.innerHTML = `<button type="button" class="askhero" id="askhero"><span class="askhero-i">💬</span><span><b>Ask Pastor Santosh</b><small>A question, a Bible verse, or a word. Type or speak.</small></span></button>${showcaseHTML()}${tilesHTML()}
     <div class="card votd"><div class="muted" id="vhead">Verse of the Day</div><div class="ref" id="vref" style="font-size:22px">Loading…</div><div id="vtitle"></div>
       <div class="votd-lang">English</div><div id="ven"></div>
       <div class="votd-lang">नेपाली</div><div id="vne"></div>
@@ -2207,7 +2207,7 @@ const askSpeakLang = () => LANG === 'ne' ? 'ne-NP' : 'en-US';
 const NE_NOTE = 'यो नेपाली उत्तर नेपाली पाठकको जाँचको प्रतीक्षामा छ। बाइबलका पदहरू सन्दर्भद्वारा देखाइएका छन्, NNRV बाट सारिएका होइनन्। पद पढ्न सन्दर्भ टाइप गर्नुहोस्, जस्तै यूहन्ना ३:१६।';
 function askShow(it) {
   const ne = LANG === 'ne' && it.q_ne, q = ne ? it.q_ne : it.q, a = ne ? it.a_ne : it.a;
-  return `<div class="card gold"><h2>${esc(q)}</h2>${a.map(p => `<p>${esc(p).replace(/\*([^*]+)\*/g, '<i>$1</i>')}</p>`).join('')}${!ne && it.src && it.src.length ? `<p class="muted"><span>Go deeper:</span> ${it.src.map(esc).join(' · ')}</p>` : ''}${ne ? `<p class="muted" data-keep>${NE_NOTE}</p>` : ''}<button type="button" class="btn small ghost asklisten" data-i="${it.id}"><span>🔊</span> <span>Listen</span></button></div>`;
+  return `<div class="card gold"><h2>${esc(q)}</h2>${a.map(p => `<p>${esc(p).replace(/\*([^*]+)\*/g, '<i>$1</i>')}</p>`).join('')}${!ne && it.src && it.src.length && it.src.join() !== 'The Bible passages named in the answer' ? `<p class="muted"><span>Go deeper:</span> ${it.src.map(esc).join(' · ')}</p>` : ''}${ne ? `<p class="muted" data-keep>${NE_NOTE}</p>` : ''}<button type="button" class="btn small ghost asklisten" data-i="${it.id}"><span>🔊</span> <span>Listen</span></button></div>`;
 }
 async function askLoadBible() {
   if (WEBB) return WEBB;
@@ -2380,6 +2380,34 @@ function askSpeak(text, id) {
   tts();
 }
 if ('speechSynthesis' in window) speechSynthesis.onvoiceschanged = () => {};
+// Copy or share an answer together with its references.
+function askCardText(card) {
+  const out = [];
+  card.querySelectorAll('h2, p, .askverse').forEach(n => {
+    if (n.closest('.askbar') || n.tagName === 'P' && n.querySelector('button')) return;
+    if (n.tagName === 'P' && n.closest('.askverse')) return;
+    const c = n.cloneNode(true); c.querySelectorAll('button, sup').forEach(b => b.remove());
+    const t = c.textContent.replace(/\s+/g, ' ').trim(); if (t && !/^Read in /.test(t)) out.push(t);
+  });
+  return out.join('\n\n');
+}
+function askDecor() {
+  document.querySelectorAll('#askres .card').forEach(c => {
+    if (c.querySelector('.askbar') || c.id === 'askconc' || !c.querySelector('h2')) return;
+    const bar = document.createElement('div'); bar.className = 'askbar';
+    bar.innerHTML = '<button type="button" class="btn small ghost askcopy"><span>📋</span> <span>Copy with references</span></button>' + (navigator.share ? ' <button type="button" class="btn small ghost askshare"><span>↗️</span> <span>Share</span></button>' : '');
+    c.appendChild(bar);
+  });
+}
+async function askCopyShare(btn, share) {
+  const card = btn.closest('.card'), tail = '\n\n— Ask Pastor Santosh (AGC Connect)\nScripture quoted from the World English Bible (public domain) unless noted.';
+  const txt = askCardText(card) + tail;
+  if (share) { try { await navigator.share({ text: txt }); } catch (e) {} return; }
+  let ok = false;
+  try { await navigator.clipboard.writeText(txt); ok = true; } catch (e) {}
+  if (!ok) { const ta = document.createElement('textarea'); ta.value = txt; ta.style.cssText = 'position:fixed;opacity:0'; document.body.appendChild(ta); ta.select(); try { ok = document.execCommand('copy'); } catch (e) {} ta.remove(); }
+  const lab = btn.lastElementChild, old = lab.textContent; lab.textContent = ok ? 'Copied' : 'Press and hold to copy'; setTimeout(() => lab.textContent = old, 1800);
+}
 function askOpen() {
   let p = $('#askpanel'); if (p) { p.hidden = false; $('#askq').focus(); return; }
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -2394,13 +2422,13 @@ function askOpen() {
     const v = $('#askq').value.trim(); lastQ = v; limit = 40;
     if (!v) { $('#askres').innerHTML = exHtml; return; }
     const ref = askParseRef(v);
-    if (ref) { $('#askres').innerHTML = await askPassage(ref) + await askVerseWords(ref); applyLang(); return; }
-    if (/^[GgHh]\s*\d{1,4}$/.test(v)) { $('#askres').innerHTML = await askWordStudy(v); return; }
+    if (ref) { $('#askres').innerHTML = await askPassage(ref) + await askVerseWords(ref); askDecor(); applyLang(); return; }
+    if (/^[GgHh]\s*\d{1,4}$/.test(v)) { $('#askres').innerHTML = await askWordStudy(v); askDecor(); return; }
     const r = askSearch(v);
     let html = r.length ? r.map(askShow).join('') : (await askStepVerses(v)) + '<div class="card">I do not have a prepared answer for that yet. Please talk with Pastor Santosh or one of the church leaders. If you are in danger or thinking of harming yourself, call or text 988 in the US, or call 911. Outside the US, contact your local emergency service and a trusted pastor.</div>';
     html += await askQuestionWords(v);
     html += `<p><button type="button" class="btn small ghost" id="askfind"><span>📖</span> <span>Find these words in the Bible</span></button></p><div id="askconc"></div>`;
-    $('#askres').innerHTML = html; applyLang();
+    $('#askres').innerHTML = html; askDecor(); applyLang();
   };
   let tm; $('#askq').oninput = () => { clearTimeout(tm); tm = setTimeout(run, 250); };
   $('#askq').onkeydown = e => { if (e.key === 'Enter') { clearTimeout(tm); run(); } };
@@ -2408,9 +2436,10 @@ function askOpen() {
     const ch = e.target.closest('.askchip'); if (ch) { $('#askq').value = ch.dataset.x; run(); return; }
     const lb = e.target.closest('.asklisten'); if (lb) { const it = (ASK.items || []).find(x => String(x.id) === lb.dataset.i); if (it) { const ne = LANG === 'ne' && it.q_ne; askSpeak((ne ? it.q_ne : it.q) + '. ' + (ne ? it.a_ne : it.a).join(' '), ne ? null : it.id); } return; }
     const ap = e.target.closest('.askappear'); if (ap) { const box = ap.parentElement.querySelector('.askapp') || ap.parentElement; const t = ap.closest('.askverse') ? ap.closest('.askverse').querySelector('.askapp') : box; t.innerHTML = '<p class="muted">Loading…</p>'; t.innerHTML = await askAppearances(ap.dataset.id, +ap.dataset.n); applyLang(); return; }
+    const cp = e.target.closest('.askcopy, .askshare'); if (cp) { askCopyShare(cp, cp.classList.contains('askshare')); return; }
     const sp = e.target.closest('.askspeak'); if (sp) { askSpeak(sp.dataset.t); return; }
-    if (e.target.closest('#askfind')) { $('#askconc').innerHTML = '<p class="muted">Searching…</p>'; $('#askconc').innerHTML = (await askWordStudy(lastQ)) + (await askConcordance(lastQ, limit)); applyLang(); return; }
-    const mb = e.target.closest('#askmore'); if (mb) { limit = +mb.dataset.n; $('#askconc').innerHTML = await askConcordance(lastQ, limit); }
+    if (e.target.closest('#askfind')) { $('#askconc').innerHTML = '<p class="muted">Searching…</p>'; $('#askconc').innerHTML = (await askWordStudy(lastQ)) + (await askConcordance(lastQ, limit)); askDecor(); applyLang(); return; }
+    const mb = e.target.closest('#askmore'); if (mb) { limit = +mb.dataset.n; $('#askconc').innerHTML = await askConcordance(lastQ, limit); askDecor(); }
   };
   if (SR) {
     const mic = $('#askmic'); let rec = null, on = false;
