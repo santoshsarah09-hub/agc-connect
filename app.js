@@ -2213,7 +2213,7 @@ function askOpen() {
   $('#askq').focus();
 }
 (function askButton() {
-  const b = document.createElement('button'); b.id = 'askfab'; b.type = 'button'; b.innerHTML = '💬 Ask Pastor'; b.hidden = true; b.onclick = askOpen;
+  const b = document.createElement('button'); b.id = 'askfab'; b.type = 'button'; b.innerHTML = '💬 Ask Pastor Santosh'; b.hidden = true; b.onclick = askOpen;
   document.body.appendChild(b);
   const t = setInterval(() => { const app = $('#app'); if (app && !app.hidden) { b.hidden = false; clearInterval(t); } }, 500);
 })();
