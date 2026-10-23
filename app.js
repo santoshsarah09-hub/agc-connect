@@ -2255,11 +2255,33 @@ async function askWordStudy(q) {
   if (!top.length) return '';
   return `<div class="card"><h2>Original words behind "${esc(word)}"</h2><p class="muted">Strong's dictionary lists these Greek and Hebrew words that the King James Version translated with this word. A different Bible version may use other words. This is a starting point for study, so read the verse in its context.</p>${top.map(([, id, e]) => strongsRow(id, e)).join('')}<p class="muted">Source: ${esc("James Strong's dictionary (1890), data from Open Scriptures, CC-BY-SA.")}</p></div>`;
 }
-function askSpeak(text) {
-  if (!('speechSynthesis' in window)) return;
-  speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(text); u.lang = askSpeakLang(); u.rate = 0.95; speechSynthesis.speak(u);
+let ASK_AUDIO = null;
+function askPickVoice() {
+  const vs = (window.speechSynthesis && speechSynthesis.getVoices()) || [], want = askSpeakLang().toLowerCase();
+  const inLang = vs.filter(v => (v.lang || '').toLowerCase().replace('_', '-').startsWith(want.slice(0, 2)));
+  const male = /\b(male|man|daniel|david|mark|guy|alex|fred|george|james|ryan|aaron|arthur|tom|oliver|rishi|matthew|google uk english male)\b/i;
+  const female = /\b(female|woman|samantha|zira|susan|karen|moira|tessa|fiona|victoria|serena|hazel|catherine|sara|siri)\b/i;
+  return inLang.find(v => male.test(v.name) && !female.test(v.name)) || inLang.find(v => !female.test(v.name)) || inLang[0] || null;
 }
+function askStop() { try { if (ASK_AUDIO) { ASK_AUDIO.pause(); ASK_AUDIO = null; } if ('speechSynthesis' in window) speechSynthesis.cancel(); } catch (e) {} }
+function askSpeak(text, id) {
+  askStop();
+  const tts = () => {
+    if (!('speechSynthesis' in window)) return;
+    const u = new SpeechSynthesisUtterance(text); u.lang = askSpeakLang(); u.rate = 0.92;
+    const v = askPickVoice(); if (v) { u.voice = v; u.lang = v.lang; }
+    if (!v || /female|samantha|zira|susan|karen|moira/i.test(v.name)) u.pitch = 0.7; else u.pitch = 0.9;
+    speechSynthesis.speak(u);
+  };
+  if (id) { // Pastor Santosh's own recording, if one has been added: data/audio/ask-<id>.mp3
+    const a = new Audio('data/audio/ask-' + id + '.mp3'); ASK_AUDIO = a;
+    a.onerror = () => { if (ASK_AUDIO === a) { ASK_AUDIO = null; tts(); } };
+    a.play().catch(() => { if (ASK_AUDIO === a) { ASK_AUDIO = null; tts(); } });
+    return;
+  }
+  tts();
+}
+if ('speechSynthesis' in window) speechSynthesis.onvoiceschanged = () => {};
 function askOpen() {
   let p = $('#askpanel'); if (p) { p.hidden = false; $('#askq').focus(); return; }
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -2285,7 +2307,7 @@ function askOpen() {
   let tm; $('#askq').oninput = () => { clearTimeout(tm); tm = setTimeout(run, 250); };
   $('#askq').onkeydown = e => { if (e.key === 'Enter') { clearTimeout(tm); run(); } };
   $('#askres').onclick = async e => {
-    const lb = e.target.closest('.asklisten'); if (lb) { const it = (ASK.items || []).find(x => String(x.id) === lb.dataset.i); if (it) askSpeak(it.q + '. ' + it.a.join(' ')); return; }
+    const lb = e.target.closest('.asklisten'); if (lb) { const it = (ASK.items || []).find(x => String(x.id) === lb.dataset.i); if (it) askSpeak(it.q + '. ' + it.a.join(' '), it.id); return; }
     const sp = e.target.closest('.askspeak'); if (sp) { askSpeak(sp.dataset.t); return; }
     if (e.target.closest('#askfind')) { $('#askconc').innerHTML = '<p class="muted">Searching…</p>'; $('#askconc').innerHTML = (await askWordStudy(lastQ)) + (await askConcordance(lastQ, limit)); applyLang(); return; }
     const mb = e.target.closest('#askmore'); if (mb) { limit = +mb.dataset.n; $('#askconc').innerHTML = await askConcordance(lastQ, limit); }
@@ -2302,7 +2324,7 @@ function askOpen() {
       try { rec.start(); } catch (e) {}
     };
   }
-  $('#askx').onclick = () => { p.hidden = true; if ('speechSynthesis' in window) speechSynthesis.cancel(); };
+  $('#askx').onclick = () => { p.hidden = true; askStop(); };
   document.addEventListener('keydown', e => { if (e.key === 'Escape') p.hidden = true; });
   applyLang(); $('#askq').focus();
 }
