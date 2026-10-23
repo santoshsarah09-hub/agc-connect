@@ -2228,6 +2228,33 @@ async function askConcordance(q, limit) {
   const rows = shown.map(([b, c, v, t]) => `<div class="askverse"><b>${esc(BOOKS[b])} ${c + 1}:${v + 1}</b> ${esc(t)}</div>`).join('');
   return `<div class="card"><h2>"${esc(words.join(' '))}" in the Bible</h2><p class="muted">${res.length} verse${res.length === 1 ? '' : 's'} (World English Bible).${top ? ' Most in: ' + top + '.' : ''}</p>${rows}${res.length > limit ? `<button type="button" class="btn small" id="askmore" data-n="${limit + 40}">Show more</button>` : ''}</div>`;
 }
+
+let STR = null, STRC = {};
+async function askLoadStrongs() { if (STR) return STR; const j = await getJson('data/strongs.json'); STR = j && j.e ? j.e : null; STRC = (j && j.c) || {}; return STR; }
+function strongsRow(id, e) {
+  const gr = id[0] === 'G';
+  return `<div class="askverse"><b>${esc(id)}</b> <span lang="${gr ? 'el' : 'he'}" data-keep>${esc(e[0])}</span> <i>${esc(e[1])}</i> <span class="muted">(${gr ? 'Greek' : 'Hebrew'})</span><br>${esc(e[2])}${e[3] ? `<br><span class="muted">Translated in the KJV as: ${esc(e[3])}</span>` : ''}</div>`;
+}
+async function askWordStudy(q) {
+  const D = await askLoadStrongs(); if (!D) return '';
+  const m = String(q).trim().match(/^([GgHh])\s*0*(\d{1,4})$/);
+  if (m) { const id = m[1].toUpperCase() + m[2], e = D[id]; return e ? `<div class="card"><h2>Strong's ${esc(id)}</h2>${strongsRow(id, e)}</div>` : ''; }
+  const w = (String(q).toLowerCase().match(/[a-z']+/g) || []);
+  if (w.length !== 1 || w[0].length < 3) return '';
+  const word = w[0], hits = [];
+  for (const [id, e] of Object.entries(D)) {
+    const toks = e[3].toLowerCase().replace(/[()\[\]]/g, ' ').split(/[,;\s-]+/).filter(Boolean);
+    const at = toks.findIndex(t => t === word || t === word + 's' || t === word + 'ed' || t === word + 'ing');
+    if (at < 0) continue;
+    const first = at === 0 ? 0 : 1;
+    hits.push([first * 100 + at + e[3].length / 20, id, e]);
+  }
+  hits.sort((a, b) => a[0] - b[0]);
+  const cur = (STRC[word] || '').split(' ').filter(id => D[id]);
+  const top = cur.map(id => [0, id, D[id]]).concat(hits.filter(h => !cur.includes(h[1]))).slice(0, 6);
+  if (!top.length) return '';
+  return `<div class="card"><h2>Original words behind "${esc(word)}"</h2><p class="muted">Strong's dictionary lists these Greek and Hebrew words that the King James Version translated with this word. A different Bible version may use other words. This is a starting point for study, so read the verse in its context.</p>${top.map(([, id, e]) => strongsRow(id, e)).join('')}<p class="muted">Source: ${esc("James Strong's dictionary (1890), data from Open Scriptures, CC-BY-SA.")}</p></div>`;
+}
 function askSpeak(text) {
   if (!('speechSynthesis' in window)) return;
   speechSynthesis.cancel();
@@ -2239,7 +2266,7 @@ function askOpen() {
   p = document.createElement('div'); p.id = 'askpanel'; p.setAttribute('role', 'dialog'); p.setAttribute('aria-label', 'Ask Pastor Santosh');
   p.innerHTML = `<div class="askbox"><div class="askhead"><b>Ask Pastor Santosh</b><button class="btn small ghost" id="askx" aria-label="Close">Close</button></div>
     <p class="muted">Type or speak a question. You will see the closest prepared answer. This is not a live chat, and it does not replace talking with a pastor.</p>
-    <p class="muted">To read a passage, type it, for example John 3:16. To find where a word appears in the Bible, type the word, for example grace.</p>
+    <p class="muted">To read a passage, type it, for example John 3:16. To find where a word appears in the Bible, and the Greek or Hebrew word behind it, type the word, for example grace. You can also type a Strong's number, for example G26.</p>
     <p class="muted">Answers are in English for now. Nepali answers will come after a Nepali reader checks them.</p><div class="askrow"><input id="askq" type="search" placeholder="Type your question" autocomplete="off">${SR ? '<button type="button" class="btn small" id="askmic" aria-label="Speak"><span>🎤</span> <span>Speak</span></button>' : ''}</div>
     <div id="askres"></div></div>`;
   document.body.appendChild(p);
@@ -2249,6 +2276,7 @@ function askOpen() {
     if (!v) { $('#askres').innerHTML = ''; return; }
     const ref = askParseRef(v);
     if (ref) { $('#askres').innerHTML = await askPassage(ref); return; }
+    if (/^[GgHh]\s*\d{1,4}$/.test(v)) { $('#askres').innerHTML = await askWordStudy(v); return; }
     const r = askSearch(v);
     let html = r.length ? r.map(askShow).join('') : '<div class="card">I do not have a prepared answer for that yet. Please talk with Pastor Santosh or one of the church leaders. If you are in danger or thinking of harming yourself, call or text 988 in the US, or call 911. Outside the US, contact your local emergency service and a trusted pastor.</div>';
     html += `<p><button type="button" class="btn small ghost" id="askfind"><span>📖</span> <span>Find these words in the Bible</span></button></p><div id="askconc"></div>`;
@@ -2259,7 +2287,7 @@ function askOpen() {
   $('#askres').onclick = async e => {
     const lb = e.target.closest('.asklisten'); if (lb) { const it = (ASK.items || []).find(x => String(x.id) === lb.dataset.i); if (it) askSpeak(it.q + '. ' + it.a.join(' ')); return; }
     const sp = e.target.closest('.askspeak'); if (sp) { askSpeak(sp.dataset.t); return; }
-    if (e.target.closest('#askfind')) { $('#askconc').innerHTML = '<p class="muted">Searching…</p>'; $('#askconc').innerHTML = await askConcordance(lastQ, limit); applyLang(); return; }
+    if (e.target.closest('#askfind')) { $('#askconc').innerHTML = '<p class="muted">Searching…</p>'; $('#askconc').innerHTML = (await askWordStudy(lastQ)) + (await askConcordance(lastQ, limit)); applyLang(); return; }
     const mb = e.target.closest('#askmore'); if (mb) { limit = +mb.dataset.n; $('#askconc').innerHTML = await askConcordance(lastQ, limit); }
   };
   if (SR) {
