@@ -1438,6 +1438,7 @@ async function afterGate() {
   NE = ((await getJson('data/i18n.json')) || {}).ne || {}; S.lang = LANG; applyLang();
   SHINE = (await getJson('data/shine.json')) || SHINE; PRAYER = (await getJson('data/prayer.json')) || PRAYER;
   WORSHIP = Object.assign({ announcements: [], songs: [], events: [], board: [] }, (await getJson('data/worship.json')) || {});
+  ASK = (await getJson('data/ask.json')) || ASK;
   HOME = (await getJson('data/home.json')) || HOME; VOTD = (await getJson('data/votd.json')) || VOTD; GAMES = (await getJson('data/games.json')) || GAMES;
   if (hubOn()) { await Promise.race([hubFeed(), new Promise(r => setTimeout(r, 2500))]); }
   const hash = (CFG.passwordSha256 || '').toLowerCase();
@@ -2173,3 +2174,46 @@ function funSimon(area, g) {
   };
   draw('<button class="btn" id="sa">▶ Start</button>'); $('#sa').onclick = play;
 }
+
+
+/* ---------- Ask Pastor Santosh: a floating button on every screen that opens a search of approved answers ---------- */
+let ASK = { items: [] };
+const ASK_STOP = new Set('a an the of to and or in on is it i me my am are be do does what how can for with that this you your we'.split());
+const askTok = t => String(t).toLowerCase().match(/[a-z0-9]+/g)?.filter(w => !ASK_STOP.has(w)).map(w => w.length > 4 ? w.replace(/(ing|ed|es|s)$/, '') : w) || [];
+function askSearch(q) {
+  const qs = askTok(q); if (!qs.length) return [];
+  return (ASK.items || []).map(it => {
+    const head = new Set(askTok(it.q + ' ' + it.cat)), body = new Set(askTok(it.a.join(' ')));
+    let sc = 0; qs.forEach(w => { if (head.has(w)) sc += 3; else if (body.has(w)) sc += 1; });
+    return [sc, it];
+  }).filter(x => x[0] > 0).sort((a, b) => b[0] - a[0]).slice(0, 3).map(x => x[1]);
+}
+function askShow(it) {
+  return `<div class="card gold"><h2>${esc(it.q)}</h2>${it.a.map(p => `<p>${esc(p).replace(/\*([^*]+)\*/g, '<i>$1</i>')}</p>`).join('')}${it.src && it.src.length ? `<p class="muted">Go deeper: ${it.src.map(esc).join(' · ')}</p>` : ''}</div>`;
+}
+function askOpen() {
+  let p = $('#askpanel'); if (p) { p.hidden = false; $('#askq').focus(); return; }
+  p = document.createElement('div'); p.id = 'askpanel'; p.setAttribute('role', 'dialog'); p.setAttribute('aria-label', 'Ask Pastor Santosh');
+  p.innerHTML = `<div class="askbox"><div class="askhead"><b>Ask Pastor Santosh</b><button class="btn small ghost" id="askx" aria-label="Close">Close</button></div>
+    <p class="muted">Type a question. You will see the closest prepared answer. This is not a live chat, and it does not replace talking with a pastor.</p>
+    <input id="askq" type="search" placeholder="For example: Who am I in Christ?" autocomplete="off">
+    <div id="askres"></div><div id="asklist"></div></div>`;
+  document.body.appendChild(p);
+  const list = ASK.items || [];
+  $('#asklist').innerHTML = list.length ? `<p class="muted">Or tap a question:</p>` + [...new Set(list.map(i => i.cat))].map(c => `<h3 class="askcat">${esc(c)}</h3>` + list.filter(i => i.cat === c).map(it => `<button class="askitem" data-i="${it.id}">${esc(it.q)}</button>`).join('')).join('') : '';
+  const byId = id => list.find(x => String(x.id) === String(id));
+  $('#asklist').onclick = e => { const b = e.target.closest('.askitem'); if (b) { $('#askres').innerHTML = askShow(byId(b.dataset.i)); $('#askres').scrollIntoView({ behavior: 'smooth' }); } };
+  $('#askq').oninput = e => {
+    const v = e.target.value.trim(); if (!v) { $('#askres').innerHTML = ''; return; }
+    const r = askSearch(v);
+    $('#askres').innerHTML = r.length ? r.map(askShow).join('') : '<div class="card">I do not have a prepared answer for that yet. Please talk with Pastor Santosh or one of the church leaders. If you are in danger or thinking of harming yourself, call or text 988 in the US, or call 911.</div>';
+  };
+  $('#askx').onclick = () => { p.hidden = true; };
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') p.hidden = true; });
+  $('#askq').focus();
+}
+(function askButton() {
+  const b = document.createElement('button'); b.id = 'askfab'; b.type = 'button'; b.innerHTML = '💬 Ask Pastor Santosh'; b.hidden = true; b.onclick = askOpen;
+  document.body.appendChild(b);
+  const t = setInterval(() => { const app = $('#app'); if (app && !app.hidden) { b.hidden = false; clearInterval(t); } }, 500);
+})();
