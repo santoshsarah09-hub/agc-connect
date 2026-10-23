@@ -116,6 +116,14 @@ A special Fun Zone game (100 stars for 30 minutes, same as Calm Bubbles and Bibl
 ### More Kids games
 The Kids Games tab now has 12 games that earn stars. New: Count the Animals, True or False, Who Did It?, Picture Story and Spell It. The questions are in app.js (KTF, KWHO, KSPELL) and Picture Story uses the same pictures as Memory Match.
 
+### Ask Pastor Santosh: search bar features
+- **Language switch** inside the panel (English / नेपाली); it keeps your question and searches again.
+- **Browse topics:** A–Z letters and a Common topics list, from the topical index.
+- **Recent searches** (last 8, with Clear) and **Saved answers** (star Save, up to 100). Both are stored only in the person's own browser (localStorage).
+- **Text size** A− / A+ (remembered).
+- **Send this question to Pastor Santosh:** shown when there is no prepared answer. If `ask.contactEmail` in `data/config.json` is filled in, it opens an email to that address. If it is empty, it opens the phone's share sheet or copies the text, so nothing is sent anywhere and no address is published. The config file is public, so use a church mailbox, not a private address.
+- Copy with references and Share on every result.
+
 ## Ask Pastor Santosh: data and credits
 - `data/ask.json`: prepared answers (reviewed by Pastor Santosh; entries marked "review" were drafted by Claude from Scripture and need his confirmation).
 - `data/bible-web.json`: World English Bible, public domain, used for passage lookup and the word search.

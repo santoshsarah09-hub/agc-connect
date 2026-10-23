@@ -1,5 +1,6 @@
 {
   "appName": "AGC Connect",
+  "ask": { "contactEmail": "" },
   "passwordSha256": "",
   "leaderPinSha256": "",
   "youversion": {

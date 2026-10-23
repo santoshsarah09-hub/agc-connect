@@ -172,3 +172,14 @@ details.card[open]>summary::after{content:"▴"}
 
 .askbar{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;padding-top:8px;border-top:1px solid rgba(128,128,128,.25)}
 .asktop{margin:6px 0;border-top:1px solid rgba(128,128,128,.25);padding-top:6px}.asktop summary{cursor:pointer;font-weight:600;min-height:36px;display:flex;align-items:center}
+
+.asktools{display:flex;gap:8px;align-items:center}
+.askhint{margin:0 0 8px;font-size:14px}
+.asktoolbar{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}
+.askfoot{margin:16px 0 0;font-size:13px}
+.askletters{margin:8px 0}.askletter{min-width:44px;padding:8px 10px;text-align:center;justify-content:center}.askletter.on{background:var(--blue);color:#fff}
+.askbox.sz1 .askverse,.askbox.sz1 .card p,.askbox.sz1 .asktop summary,.askbox.sz1 .askchip{font-size:19px}
+.askbox.sz2 .askverse,.askbox.sz2 .card p,.askbox.sz2 .asktop summary,.askbox.sz2 .askchip{font-size:22px}
+.askbox.sz1 .card h2{font-size:23px}.askbox.sz2 .card h2{font-size:26px}
+.askrow #askq{min-width:0}.askrow .btn{padding-left:12px;padding-right:12px}.asktoolbar{flex-wrap:nowrap;gap:6px}.asktoolbar .btn{padding:8px 9px;font-size:14px;white-space:nowrap}
+#askq::placeholder{font-size:15px}
