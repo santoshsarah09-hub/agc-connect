@@ -1,6 +1,6 @@
 {
   "appName": "AGC Connect",
-  "ask": { "contactEmail": "", "whatsapp": "16053235933", "social": [] },
+  "ask": { "contactEmail": "", "whatsapp": "16053235933", "social": [ { "label": "Facebook", "url": "https://www.facebook.com/SsharmainChrist" }, { "label": "YouTube", "url": "https://www.youtube.com/@psSantoshSharma" } ] },
   "passwordSha256": "",
   "leaderPinSha256": "",
   "youversion": {
