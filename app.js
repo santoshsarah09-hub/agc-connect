@@ -2179,7 +2179,7 @@ function funSimon(area, g) {
 
 /* ---------- Ask Pastor Santosh: prepared answers, voice, passages and a word concordance (World English Bible) ---------- */
 let ASK = { items: [] }, WEBB = null;
-const ASK_STOP = new Set('a an the of to and or in on is it i me my am are be do does what how can for with that this you your we who why when where should could would about god need want did so not'.split(' '));
+const ASK_STOP = new Set('a an the of to and or in on is it i me my am are be do does what how can for with that this you your we who why when where should could would about god need want did so not bible say says said feel'.split(' '));
 const askTok = t => String(t).toLowerCase().match(/[a-z0-9]+/g)?.filter(w => !ASK_STOP.has(w)).map(w => w.length > 4 ? w.replace(/(ing|ed|es|er|s)$/, '').replace(/e$/, '') : w.replace(/e$/, '')) || [];
 const NE_STOP = new Set('र को का की कि मा लाई ले हो छ छु छौं हुन् हुन्छ के कसरी म मेरो मेरी तपाईं तपाईंको यो त्यो पनि वा तर भने भन्ने गर्न सक्छ'.split(' '));
 const neTok = t => (String(t).match(/[ऀ-ॿ]+/g) || []).filter(w => w.length > 1 && !NE_STOP.has(w));
@@ -2237,7 +2237,60 @@ async function askPassage(r) {
   const link = nasb && nasb.type === 'youversion' ? `<p>${linkBtn(yvUrl(ref, nasb), 'Read in NASB 1995')}</p>` : '';
   return `<div class="card gold"><h2>${esc(ref)}</h2>${body}<p class="muted">World English Bible (public domain).</p>${link}<button type="button" class="btn small ghost askspeak" data-t="${esc(ch.slice(a - 1, z).join(' '))}"><span>🔊</span> <span>Listen</span></button></div>`;
 }
-async function askConcordance(q, limit) {
+// Topical Bible index (Nave's and Torrey's topical headings, public domain; compiled in MetaV, CC BY-SA 3.0).
+let TOP = null;
+async function askLoadTopics() {
+  if (TOP) return TOP;
+  const j = await getJson('data/topics.json'); if (!j || !j.t) return null;
+  TOP = j.t.map(([name, subs]) => ({ name, subs: subs.map(([sub, d]) => { let a = 0; return { sub, keys: d.map(x => (a += x)) }; }) }));
+  TOP.forEach(t => { t.tok = askStem(t.name); t.n = t.subs.reduce((n, x) => n + x.keys.length, 0); });
+  return TOP;
+}
+const askStem = t => (String(t).toLowerCase().match(/[a-z]+/g) || []).map(w => w.length > 4 ? w.replace(/(ing|ed|es|er|ness|s)$/, '').replace(/e$/, '') : w.replace(/e$/, ''));
+const TOP_SKIP = new Set('someone something anyone people person way thing things really bible verse verses scripture scriptures say says said mean means about where what which who why when how does did the and for with that this you your'.split(' '));
+function askTopicMatches(q, max) {
+  const ws = askStem((String(q).toLowerCase().match(/[a-z']+/g) || []).filter(w => w.length > 2 && !ASK_STOP.has(w) && !TOP_SKIP.has(w)).join(' '));
+  if (!ws.length || !TOP) return [];
+  const scored = [];
+  for (const t of TOP) {
+    const hit = ws.filter(w => t.tok.includes(w) || (w.length > 5 && t.tok.some(x => x.length > 5 && x.slice(0, 5) === w.slice(0, 5)))).length; if (!hit) continue;
+    const all = hit === ws.length, exact = all && t.tok.length === ws.length;
+    scored.push([(exact ? 100 : all ? 50 : 10 * hit) - t.tok.length + Math.min(t.n, 200) / 100, t]);
+  }
+  scored.sort((a, b) => b[0] - a[0]);
+  const best = scored.length ? scored[0][0] : 0;
+  return scored.filter(x => x[0] >= best * 0.5).slice(0, max).map(x => x[1]);
+}
+async function askTopical(q, max, compact) {
+  const T = await askLoadTopics(), B = await askLoadBible(); if (!T || !B) return '';
+  const ms = askTopicMatches(q, max || 2); if (!ms.length) return '';
+  const cards = ms.map(t => {
+    const lim = compact ? 6 : 14, subs = t.subs.slice(0, lim);
+    const rows = subs.map(x => {
+      const vs = x.keys.slice(0, 4).map(k => { const r = stepRef(k), tx = B[r.b] && B[r.b][r.c - 1] && B[r.b][r.c - 1][r.v - 1]; return `<div class="askverse"><b>${esc(r.name)}</b> ${tx ? esc(tx) : ''}</div>`; }).join('');
+      return `<details class="asktop"><summary>${esc(x.sub)} <span class="muted">(${x.keys.length})</span></summary>${vs}${x.keys.length > 4 ? `<p class="muted">Also: ${x.keys.slice(4, 24).map(k => esc(stepRef(k).name)).join(', ')}${x.keys.length > 24 ? ', and more' : ''}</p>` : ''}</details>`;
+    }).join('');
+    return `<div class="card"><h2>Topical Bible: ${esc(t.name)}</h2><p class="muted">Verses gathered under "${esc(t.name)}", grouped by theme. Tap a theme to read.</p>${rows}${t.subs.length > lim ? `<p class="muted">${t.subs.length - lim} more themes under this topic.</p>` : ''}</div>`;
+  }).join('');
+  return cards + '<p class="muted">Topical index: Nave\'s and Torrey\'s topical headings (public domain), compiled in MetaV (CC BY-SA 3.0). Verse text: World English Bible; verse numbers may differ slightly.</p>';
+}
+// "Where in the Bible does it say ...?" Finds the verses and shows them with references.
+function askFindIntent(v) {
+  const m = String(v).trim().match(/^(?:where|which (?:verse|passage|scripture|chapter)|what (?:verse|passage|scripture))\s+(?:in|of|is|are|does|do|can|could)?\s*(?:in\s+)?(?:the\s+)?(?:bible|scripture|scriptures|word)?\s*(?:does\s+it\s+say|it\s+says|says?|is\s+it\s+written|can\s+i\s+find|do\s+(?:i|we)\s+(?:find|read)|talks?\s+about|speaks?\s+(?:of|about)|mentions?|is|are)?\s*(.*)$/i);
+  if (m && /^(where|which|what)/i.test(v)) { const rest = m[1].replace(/[?"“”]/g, '').replace(/^(that|about|of|on)\s+/i, '').trim(); return { hit: true, phrase: rest }; }
+  const m2 = String(v).trim().match(/^(?:verses?|scriptures?|bible verses?|passages?)\s+(?:about|on|for|regarding|that say)\s+(.*)$/i);
+  if (m2) return { hit: true, phrase: m2[1].replace(/[?"“”]/g, '').trim() };
+  return null;
+}
+async function askFindVerses(phrase) {
+  const w = (phrase.toLowerCase().match(/[a-z']+/g) || []).filter(x => !ASK_STOP.has(x) || x === 'god');
+  if (w.length === 0) return '<div class="card"><h2>Where in the Bible?</h2><p class="muted">Finish your question, for example: <i>Where in the Bible does it say "love your enemies"?</i> or <i>Where in the Bible is forgiveness?</i></p></div>';
+  const top = await askTopical(phrase, 2);
+  const conc = await askConcordance(phrase, 12, true);
+  const step = await askStepVerses(phrase);
+  return (top || '') + (conc || '') + (step || '') || '<div class="card">I did not find verses for that wording. Try one or two key words, like "forgive" or "anxious".</div>';
+}
+async function askConcordance(q, limit, phraseFirst) {
   const B = await askLoadBible(); if (!B) return '<div class="card">The Bible text could not load. Check your connection and try again.</div>';
   const words = (String(q).toLowerCase().match(/[a-z']+/g) || []).filter(w => w.length > 1);
   if (!words.length) return '';
@@ -2246,6 +2299,7 @@ async function askConcordance(q, limit) {
     const low = ' ' + t.toLowerCase().replace(/[^a-z' ]+/g, ' ') + ' ';
     if (words.every(w => low.includes(' ' + w + ' ') || low.includes(' ' + w + 's ') || low.includes(' ' + w + 'ed ') || low.includes(' ' + w + 'ing ') || low.includes(' ' + w + 'es '))) { res.push([bi, ci, vi, t]); per[bi] = (per[bi] || 0) + 1; }
   })));
+  if (phraseFirst) { const ph = String(q).toLowerCase().replace(/[^a-z' ]+/g, ' ').replace(/\s+/g, ' ').trim(); res.sort((a, b) => (b[3].toLowerCase().replace(/[^a-z' ]+/g, ' ').replace(/\s+/g, ' ').includes(ph) ? 1 : 0) - (a[3].toLowerCase().replace(/[^a-z' ]+/g, ' ').replace(/\s+/g, ' ').includes(ph) ? 1 : 0)); }
   const top = Object.entries(per).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([b, n]) => `${esc(BOOKS[b])} ${n}`).join(', ');
   const shown = res.slice(0, limit);
   const rows = shown.map(([b, c, v, t]) => `<div class="askverse"><b>${esc(BOOKS[b])} ${c + 1}:${v + 1}</b> ${esc(t)}</div>`).join('');
@@ -2414,7 +2468,7 @@ function askOpen() {
   p = document.createElement('div'); p.id = 'askpanel'; p.setAttribute('role', 'dialog'); p.setAttribute('aria-label', 'Ask Pastor Santosh');
   const EX = LANG === 'ne' ? ['म कसरी प्रार्थना गरूँ?', 'ख्रीष्टमा म को हुँ?', 'के परमेश्वरले आज पनि निको पार्नुहुन्छ?', 'यूहन्ना ३:१६', 'John 3:16'] : ['How do I pray?', 'Who am I in Christ?', 'Does God heal today?', 'John 3:16', 'grace', 'G26'];
   p.innerHTML = `<div class="askbox"><div class="askhead"><b>Ask Pastor Santosh</b><button class="btn small ghost" id="askx" aria-label="Close">Close</button></div>
-    <div class="askrow"><input id="askq" type="search" placeholder="Type or speak a question" autocomplete="off">${SR ? '<button type="button" class="btn small" id="askmic" aria-label="Speak"><span>🎤</span> <span>Speak</span></button>' : ''}</div>
+    <div class="askrow"><input id="askq" type="search" placeholder="Type or speak a question" autocomplete="off" enterkeyhint="search"><button type="button" class="btn small" id="askgo" aria-label="Search"><span>Search</span></button>${SR ? '<button type="button" class="btn small" id="askmic" aria-label="Speak"><span>🎤</span> <span>Speak</span></button>' : ''}</div>
     <div id="askres"><p class="muted askexh">Examples:</p><div class="askex">${EX.map(x => `<button type="button" class="askchip" data-x="${esc(x)}">${esc(x)}</button>`).join('')}</div></div></div>`;
   document.body.appendChild(p);
   let limit = 40, lastQ = ''; const exHtml = $('#askres').innerHTML;
@@ -2422,15 +2476,18 @@ function askOpen() {
     const v = $('#askq').value.trim(); lastQ = v; limit = 40;
     if (!v) { $('#askres').innerHTML = exHtml; return; }
     const ref = askParseRef(v);
+    const fi = !ref && askFindIntent(v); if (fi) { $('#askres').innerHTML = '<p class="muted">Searching…</p>'; const h = await askFindVerses(fi.phrase); if ($('#askq').value.trim() === v) { $('#askres').innerHTML = h; askDecor(); applyLang(); } return; }
     if (ref) { $('#askres').innerHTML = await askPassage(ref) + await askVerseWords(ref); askDecor(); applyLang(); return; }
     if (/^[GgHh]\s*\d{1,4}$/.test(v)) { $('#askres').innerHTML = await askWordStudy(v); askDecor(); return; }
     const r = askSearch(v);
-    let html = r.length ? r.map(askShow).join('') : (await askStepVerses(v)) + '<div class="card">I do not have a prepared answer for that yet. Please talk with Pastor Santosh or one of the church leaders. If you are in danger or thinking of harming yourself, call or text 988 in the US, or call 911. Outside the US, contact your local emergency service and a trusted pastor.</div>';
+    let html = r.length ? r.map(askShow).join('') : (await askTopical(v, 2)) + (await askStepVerses(v)) + '<div class="card">I do not have a prepared answer for that yet. Please talk with Pastor Santosh or one of the church leaders. If you are in danger or thinking of harming yourself, call or text 988 in the US, or call 911. Outside the US, contact your local emergency service and a trusted pastor.</div>';
+    if (r.length) html += await askTopical(v, 1, true);
     html += await askQuestionWords(v);
     html += `<p><button type="button" class="btn small ghost" id="askfind"><span>📖</span> <span>Find these words in the Bible</span></button></p><div id="askconc"></div>`;
     $('#askres').innerHTML = html; askDecor(); applyLang();
   };
-  let tm; $('#askq').oninput = () => { clearTimeout(tm); tm = setTimeout(run, 250); };
+  let tm; $('#askq').oninput = () => { clearTimeout(tm); tm = setTimeout(run, 1400); }; // wait for the person to finish; Enter or the Search button goes at once
+  $('#askgo').onclick = () => { clearTimeout(tm); run(); };
   $('#askq').onkeydown = e => { if (e.key === 'Enter') { clearTimeout(tm); run(); } };
   $('#askres').onclick = async e => {
     const ch = e.target.closest('.askchip'); if (ch) { $('#askq').value = ch.dataset.x; run(); return; }
