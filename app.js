@@ -2254,9 +2254,46 @@ async function askConcordance(q, limit) {
 
 let STR = null, STRC = {};
 async function askLoadStrongs() { if (STR) return STR; const j = await getJson('data/strongs.json'); STR = j && j.e ? j.e : null; STRC = (j && j.c) || {}; return STR; }
+// STEP Bible (Tyndale House, CC BY 4.0): original-language word tags and brief lexicons, used quietly in the background.
+let STEP = null, STEPREV = null;
+async function askLoadStep() {
+  if (STEP) return STEP;
+  const j = await getJson('data/step.json'); if (!j || !j.v) return null;
+  const V = {};
+  for (const id in j.v) { let a = 0; V[id] = j.v[id].map(d => (a += d)); }
+  STEP = { v: V, l: j.l || {} }; return STEP;
+}
+function stepRef(k) { const b = Math.floor(k / 1e6), c = Math.floor(k % 1e6 / 1e3), v = k % 1000; return { b, c, v, name: BOOKS[b] + ' ' + c + ':' + v }; }
 function strongsRow(id, e) {
-  const gr = id[0] === 'G';
-  return `<div class="askverse"><b>${esc(id)}</b> <span lang="${gr ? 'el' : 'he'}" data-keep>${esc(e[0])}</span> <i>${esc(e[1])}</i> <span class="muted">(${gr ? 'Greek' : 'Hebrew'})</span><br>${esc(e[2])}${e[3] ? `<br><span class="muted">Translated in the KJV as: ${esc(e[3])}</span>` : ''}</div>`;
+  const gr = id[0] === 'G', st = STEP && STEP.l[id], n = STEP && STEP.v[id] ? STEP.v[id].length : 0;
+  const def = st && st[1] && !/^\d\)/.test(st[1]) ? st[1].replace(/[,;\s]+$/, '') : '';
+  return `<div class="askverse"><b>${esc(id)}</b> <span lang="${gr ? 'el' : 'he'}" data-keep>${esc(e[0])}</span> <i>${esc(e[1])}</i> <span class="muted">(${gr ? 'Greek' : 'Hebrew'})</span><br>${esc(e[2])}${def && def.toLowerCase() !== String(e[2]).toLowerCase() ? `<br><span class="muted">STEP Bible: ${esc(def)}</span>` : ''}${e[3] ? `<br><span class="muted">Translated in the KJV as: ${esc(e[3])}</span>` : ''}${n ? `<br><button type="button" class="btn small ghost askappear" data-id="${esc(id)}" data-n="12"><span>📖</span> <span>Appears in ${n} verse${n === 1 ? '' : 's'}: show</span></button><div class="askapp" data-for="${esc(id)}"></div>` : ''}</div>`;
+}
+async function askAppearances(id, n) {
+  const S = await askLoadStep(), B = await askLoadBible(); if (!S || !B || !S.v[id]) return '';
+  const all = S.v[id], rows = all.slice(0, n).map(k => { const r = stepRef(k), t = B[r.b] && B[r.b][r.c - 1] && B[r.b][r.c - 1][r.v - 1]; return `<div class="askverse"><b>${esc(r.name)}</b> ${t ? esc(t) : ''}</div>`; }).join('');
+  return rows + (all.length > n ? `<button type="button" class="btn small askappear" data-id="${esc(id)}" data-n="${n + 25}">Show more (${all.length - n} left)</button>` : '') + `<p class="muted">Word tagging and lexicon: STEP Bible (Tyndale House, Cambridge), CC BY 4.0, stepbible.org. Verse numbers can differ slightly between Bible versions.</p>`;
+}
+// Key original words in a short passage, drawn from STEP's tagging. Skips very common words.
+async function askVerseWords(r) {
+  const S = await askLoadStep(), D = await askLoadStrongs(); if (!S || !D || !r.v1 || Math.min(r.v2, 999) - r.v1 > 2) return '';
+  if (!STEPREV) { STEPREV = new Map(); for (const id in S.v) for (const k of S.v[id]) { let a = STEPREV.get(k); if (!a) STEPREV.set(k, a = []); a.push(id); } }
+  const seen = new Set(), ids = [];
+  for (let v = r.v1; v <= r.v2; v++) for (const id of (STEPREV.get(r.b * 1e6 + r.c * 1e3 + v) || [])) {
+    const n = S.v[id].length; if (seen.has(id) || n > 1500 || !D[id] || !S.l[id]) continue; seen.add(id); ids.push([n, id]);
+  }
+  ids.sort((a, b) => a[0] - b[0]);
+  const top = ids.slice(0, 5).map(x => x[1]); if (!top.length) return '';
+  return `<div class="card"><h2>Words behind this passage</h2><p class="muted">Original Greek or Hebrew words in this passage (from STEP Bible). Tap a word to see where else it appears.</p>${top.map(id => strongsRow(id, D[id])).join('')}</div>`;
+}
+// For a question, quietly find the key Bible words in it and offer their original-language background.
+async function askQuestionWords(q) {
+  const D = await askLoadStrongs(); if (!D) return '';
+  await askLoadStep();
+  const ids = [];
+  for (const w of (String(q).toLowerCase().match(/[a-z']+/g) || [])) for (const id of (STRC[w] || '').split(' ').slice(0, 2)) if (D[id] && !ids.includes(id)) ids.push(id);
+  if (!ids.length) return '';
+  return `<div class="card"><h2>Behind the words</h2><p class="muted">The Greek and Hebrew words the Bible uses for the key words in your question (Strong's and STEP Bible).</p>${ids.slice(0, 3).map(id => strongsRow(id, D[id])).join('')}</div>`;
 }
 async function askWordStudy(q) {
   const D = await askLoadStrongs(); if (!D) return '';
@@ -2319,10 +2356,11 @@ function askOpen() {
     const v = $('#askq').value.trim(); lastQ = v; limit = 40;
     if (!v) { $('#askres').innerHTML = exHtml; return; }
     const ref = askParseRef(v);
-    if (ref) { $('#askres').innerHTML = await askPassage(ref); return; }
+    if (ref) { $('#askres').innerHTML = await askPassage(ref) + await askVerseWords(ref); applyLang(); return; }
     if (/^[GgHh]\s*\d{1,4}$/.test(v)) { $('#askres').innerHTML = await askWordStudy(v); return; }
     const r = askSearch(v);
     let html = r.length ? r.map(askShow).join('') : '<div class="card">I do not have a prepared answer for that yet. Please talk with Pastor Santosh or one of the church leaders. If you are in danger or thinking of harming yourself, call or text 988 in the US, or call 911. Outside the US, contact your local emergency service and a trusted pastor.</div>';
+    html += await askQuestionWords(v);
     html += `<p><button type="button" class="btn small ghost" id="askfind"><span>📖</span> <span>Find these words in the Bible</span></button></p><div id="askconc"></div>`;
     $('#askres').innerHTML = html; applyLang();
   };
@@ -2331,6 +2369,7 @@ function askOpen() {
   $('#askres').onclick = async e => {
     const ch = e.target.closest('.askchip'); if (ch) { $('#askq').value = ch.dataset.x; run(); return; }
     const lb = e.target.closest('.asklisten'); if (lb) { const it = (ASK.items || []).find(x => String(x.id) === lb.dataset.i); if (it) { const ne = LANG === 'ne' && it.q_ne; askSpeak((ne ? it.q_ne : it.q) + '. ' + (ne ? it.a_ne : it.a).join(' '), ne ? null : it.id); } return; }
+    const ap = e.target.closest('.askappear'); if (ap) { const box = ap.parentElement.querySelector('.askapp') || ap.parentElement; const t = ap.closest('.askverse') ? ap.closest('.askverse').querySelector('.askapp') : box; t.innerHTML = '<p class="muted">Loading…</p>'; t.innerHTML = await askAppearances(ap.dataset.id, +ap.dataset.n); applyLang(); return; }
     const sp = e.target.closest('.askspeak'); if (sp) { askSpeak(sp.dataset.t); return; }
     if (e.target.closest('#askfind')) { $('#askconc').innerHTML = '<p class="muted">Searching…</p>'; $('#askconc').innerHTML = (await askWordStudy(lastQ)) + (await askConcordance(lastQ, limit)); applyLang(); return; }
     const mb = e.target.closest('#askmore'); if (mb) { limit = +mb.dataset.n; $('#askconc').innerHTML = await askConcordance(lastQ, limit); }
