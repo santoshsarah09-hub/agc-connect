@@ -2197,12 +2197,9 @@ function askOpen() {
   p.innerHTML = `<div class="askbox"><div class="askhead"><b>Ask Pastor Santosh</b><button class="btn small ghost" id="askx" aria-label="Close">Close</button></div>
     <p class="muted">Type a question. You will see the closest prepared answer. This is not a live chat, and it does not replace talking with a pastor.</p>
     <input id="askq" type="search" placeholder="For example: Who am I in Christ?" autocomplete="off">
-    <div id="askres"></div><div id="asklist"></div></div>`;
+    <div id="askres"></div></div>`;
   document.body.appendChild(p);
   const list = ASK.items || [];
-  $('#asklist').innerHTML = list.length ? `<p class="muted">Or tap a question:</p>` + [...new Set(list.map(i => i.cat))].map(c => `<h3 class="askcat">${esc(c)}</h3>` + list.filter(i => i.cat === c).map(it => `<button class="askitem" data-i="${it.id}">${esc(it.q)}</button>`).join('')).join('') : '';
-  const byId = id => list.find(x => String(x.id) === String(id));
-  $('#asklist').onclick = e => { const b = e.target.closest('.askitem'); if (b) { $('#askres').innerHTML = askShow(byId(b.dataset.i)); $('#askres').scrollIntoView({ behavior: 'smooth' }); } };
   $('#askq').oninput = e => {
     const v = e.target.value.trim(); if (!v) { $('#askres').innerHTML = ''; return; }
     const r = askSearch(v);
