@@ -2179,7 +2179,7 @@ function funSimon(area, g) {
 
 /* ---------- Ask Pastor Santosh: prepared answers, voice, passages and a word concordance (World English Bible) ---------- */
 let ASK = { items: [] }, WEBB = null;
-const ASK_STOP = new Set('a an the of to and or in on is it i me my am are be do does what how can for with that this you your we who why when where should could would about god need want did so not bible say says said feel'.split(' '));
+const ASK_STOP = new Set('a an the of to and or in on is it i me my am are be do does what how can for with that this you your we who why when where should could would about god need want did so not bible say says said feel was were mean means meaning'.split(' '));
 const askTok = t => String(t).toLowerCase().match(/[a-z0-9]+/g)?.filter(w => !ASK_STOP.has(w)).map(w => w.length > 4 ? w.replace(/(ing|ed|es|er|s)$/, '').replace(/e$/, '') : w.replace(/e$/, '')) || [];
 const NE_STOP = new Set('र को का की कि मा लाई ले हो छ छु छौं हुन् हुन्छ के कसरी म मेरो मेरी तपाईं तपाईंको यो त्यो पनि वा तर भने भन्ने गर्न सक्छ'.split(' '));
 const neTok = t => (String(t).match(/[ऀ-ॿ]+/g) || []).filter(w => w.length > 1 && !NE_STOP.has(w));
@@ -2235,7 +2235,9 @@ async function askPassage(r) {
   const ref = BOOKS[r.b] + ' ' + r.c + (r.v1 ? ':' + a + (z > a ? '-' + z : '') : '');
   const body = ch.slice(a - 1, z).map((t, k) => `<p><sup>${a + k}</sup> ${esc(t)}</p>`).join('');
   const nasb = (CFG.versions || []).find(v => v.id === 'NASB1995');
-  const link = nasb && nasb.type === 'youversion' ? `<p>${linkBtn(yvUrl(ref, nasb), 'Read in NASB 1995')}</p>` : '';
+  const msg = linkBtn('https://www.biblegateway.com/passage/?search=' + encodeURIComponent(ref) + '&version=MSG', 'Read in The Message');
+  const wes = linkBtn(askWesleyUrl(r.b, r.c), "Wesley's Notes on this chapter");
+  const link = `<p>${nasb && nasb.type === 'youversion' ? linkBtn(yvUrl(ref, nasb), 'Read in NASB 1995') + ' ' : ''}${msg} ${wes}</p>`;
   return `<div class="card gold"><h2>${esc(ref)}</h2>${body}<p class="muted">World English Bible (public domain).</p>${link}<button type="button" class="btn small ghost askspeak" data-t="${esc(ch.slice(a - 1, z).join(' '))}"><span>🔊</span> <span>Listen</span></button></div>`;
 }
 // Topical Bible index (Nave's and Torrey's topical headings, public domain; compiled in MetaV, CC BY-SA 3.0).
@@ -2276,6 +2278,35 @@ async function askTopical(q, max, compact) {
   const ms = askTopicMatches(q, max || 2); if (!ms.length) return '';
   return ms.map(t => askTopicCard(t, compact, B)).join('') + ASK_TOPIC_CREDIT;
 }
+// ---- Easton's Bible Dictionary (M. G. Easton, 1897, public domain; data: NEUU dataset, CC BY 4.0) ----
+const DICT = {};
+async function askDictLoad(l) { if (DICT[l]) return DICT[l]; const j = await getJson('data/dict/' + l + '.json'); return DICT[l] = j || {}; }
+const askDictNorm = t => String(t).toUpperCase().replace(/[’']/g, '’').replace(/\s+/g, ' ').trim();
+async function askDictFind(term) {
+  const w = String(term).trim().replace(/^(the|a|an)\s+/i, '').replace(/[?.!,"“”]/g, '').trim(); if (!/^[A-Za-z][A-Za-z’' -]{1,40}$/.test(w)) return null;
+  const forms = [w, w.replace(/ies$/i, 'y'), w.replace(/es$/i, ''), w.replace(/s$/i, ''), w.replace(/ed$/i, ''), w.replace(/ing$/i, '')].filter((x, i, a) => x.length > 2 && a.indexOf(x) === i);
+  for (const f of forms) { const d = await askDictLoad(f[0].toLowerCase()), k = askDictNorm(f); if (d[k]) return d[k]; const k2 = k.replace(/’/g, "'"); for (const key in d) if (key.replace(/’/g, "'") === k2) return d[key]; }
+  return null;
+}
+function askDictIntent(v) {
+  const t = String(v).trim().replace(/\s+/g, ' ');
+  const m = t.match(/^(?:what is the meaning of|what does (.+?) mean|meaning of|who (?:was|is|were|are)|what (?:is|was|are|were)(?: an?)?|define|tell me about)\s*(?:the\s+)?(.*)$/i);
+  if (!m) return null;
+  const term = ((m[1] || m[2] || '').replace(/[?.!]+$/, '')).trim();
+  return term && term.split(' ').length <= 4 ? term : null;
+}
+async function askDictCard(term) {
+  const e = await askDictFind(term); if (!e) return '';
+  const [name, text] = e, long = text.length > 1100;
+  let head = text, rest = '';
+  if (long) { const cut = text.slice(0, 900).lastIndexOf('. '); const at = cut > 400 ? cut + 1 : 900; head = text.slice(0, at); rest = text.slice(at).trim(); }
+  return `<div class="card"><h2>Easton's Bible Dictionary: ${esc(name)}</h2><p>${esc(head)}</p>${rest ? `<details class="asktop"><summary>Read the full entry</summary><p>${esc(rest)}</p></details>` : ''}<p class="muted">Easton's Bible Dictionary (M. G. Easton, 1897, public domain). Text from the NEUU Bible Dictionary Dataset (CC BY 4.0), based on CCEL.</p></div>`;
+}
+// Wesley's Notes: opens the chapter at StudyLight.org (the notes are not copied into this app).
+function askWesleyUrl(b, c) {
+  const slug = (BOOKS[b] || '').toLowerCase().replace(/[^a-z0-9 ]/g, '').trim().replace(/\s+/g, '-').replace(/^song-of-songs$/, 'song-of-solomon');
+  return slug ? `https://www.studylight.org/commentaries/eng/wen/${slug}-${c}.html` : '';
+}
 // ---- Search flow: Bible first (STEP Bible), then anything Pastor Santosh has said, as links at the bottom. ----
 const KW_SKIP = new Set('a an the of to and or in on is it'.split(' '));
 function askKeyword(v) {
@@ -2305,12 +2336,15 @@ const ASK_CRISIS = /suicid|kill myself|end my life|want to die|self[- ]?harm|hur
 const ASK_CARE = '<div class="card gold"><h2>You are not alone</h2><p>If you are in danger or thinking of harming yourself, call or text 988 in the US, or call 911. Outside the US, contact your local emergency service and a trusted pastor. Please also talk with Pastor Santosh or one of the church leaders.</p></div>';
 async function askBuild(v) {
   if (ASK_CRISIS.test(v)) return ASK_CARE;
-  const mine = askSearch(v), kw = askKeyword(v);
-  if (/[ऀ-ॿ]/.test(v)) return mine.length ? mine.slice(0, 2).map(askShow).join('') : '<div class="card">यसबारे मसँग तयार उत्तर छैन। कृपया पास्टर सन्तोष वा मण्डलीका अगुवासँग कुरा गर्नुहोस्।</div>' + askSendHTML(v);
+  const mine = askSearch(v), kw = askKeyword(v), dterm = askDictIntent(v);
+  if (/[ऀ-ॿ]/.test(v)) return (mine.length ? mine.slice(0, 2).map(askShow).join('') : '<div class="card">यसबारे मसँग तयार उत्तर छैन। कृपया पास्टर सन्तोष वा मण्डलीका अगुवासँग कुरा गर्नुहोस्।</div>' + askSendHTML(v));
   if (kw) {
     const b = kw.length === 1 ? (await askKeywordView(kw[0]) || await askTopical(kw[0], 1)) : (await askStepVerses(kw.join(' '), true) || await askTopical(kw.join(' '), 1));
-    return (b || '') + askMineHTML(mine) || '<div class="card">I did not find that. Try one word, a verse like John 3:16, or a question.</div>';
+    const dc = kw.length === 1 ? await askDictCard(kw[0]) : '';
+    return (b || '') + dc + askMineHTML(mine) || '<div class="card">I did not find that. Try one word, a verse like John 3:16, or a question.</div>';
   }
+  const dc = dterm ? await askDictCard(dterm) : '';
+  if (dc) return dc + (mine.length ? mine.slice(0, 2).map(askShow).join('') : (await askTopical(dterm, 1)));
   if (mine.length) return mine.slice(0, 2).map(askShow).join('');
   const bb = (await askTopical(v, 2)) + (await askStepVerses(v));
   return (bb || '<div class="card">I did not find anything for that. Try one key word (like "faith"), a verse (like John 3:16), or ask in a different way.</div>') + askSendHTML(v);
