@@ -2383,13 +2383,43 @@ function askMineHTML(items) {
 }
 const ASK_CRISIS = /suicid|kill myself|end my life|want to die|self[- ]?harm|hurt myself|abus(e|ed|ing)\b|rape|molest/i;
 const ASK_CARE = '<div class="card gold"><h2>You are not alone</h2><p>If you are in danger or thinking of harming yourself, call or text 988 in the US, or call 911. Outside the US, contact your local emergency service and a trusted pastor. Please also talk with Pastor Santosh or one of the church leaders.</p></div>';
+// ---- Bible themes (hand-picked passages per concept; text from the World English Bible) ----
+let THM = null;
+async function askLoadThemes() { if (THM) return THM; const j = await getJson('data/themes.json'); THM = Array.isArray(j) ? j : null; return THM; }
+function askThemeMatch(q, single) {
+  if (!THM) return null;
+  const n = ' ' + String(q).toLowerCase().replace(/^(what|where|how)\b.*?\b(say|says|about|on|for)\s+/, '').replace(/[^a-z' ]+/g, ' ').replace(/\s+/g, ' ').trim() + ' ';
+  const full = n.trim(); let best = null, bl = 0;
+  THM.forEach((t, i) => t.k.forEach(k => {
+    const hit = single ? full === k : (full === k || n.includes(' ' + k + ' '));
+    if (hit && k.length > bl) { bl = k.length; best = i; }
+  }));
+  return best === null ? null : THM[best];
+}
+function askThemeMine(t) {
+  const out = []; (t.m || []).forEach(m => { const it = (ASK.items || []).find(x => x.q.toLowerCase().includes(m.toLowerCase())); if (it && !out.includes(it)) out.push(it); });
+  return out;
+}
+async function askThemeCard(t) {
+  const B = await askLoadBible(); if (!B) return '';
+  const rows = t.r.map(([b, c, v1, v2]) => {
+    const ch = B[b][c - 1], ref = BOOKS[b] + ' ' + c + ':' + v1 + (v2 > v1 ? '-' + v2 : '');
+    return `<div class="askverse"><b>${esc(ref)}</b> ${esc(ch.slice(v1 - 1, v2).join(' '))}</div>`;
+  }).join('');
+  const rel = (t.t || []).map(n => `<button type="button" class="askchip" data-x="${esc(n)}">${esc(n)}</button>`).join('');
+  return `<div class="card gold"><h2>${esc(t.n)} in the Bible</h2><p class="muted">Key passages on this theme (World English Bible).</p>${rows}${rel ? `<p class="muted askexh"><span>Related topics</span></p><div class="askex">${rel}</div>` : ''}</div>`;
+}
 async function askBuildCore(v) {
   if (ASK_CRISIS.test(v)) return ASK_CARE;
+  await askLoadThemes();
   const mine = askSearch(v), kw = askKeyword(v), dterm = askDictIntent(v);
+  const th = askThemeMatch(v, !!kw && kw.length === 1 || (kw && kw.length === 2)), thc = th ? await askThemeCard(th) : '';
+  const thm = th ? askThemeMine(th).filter(x => !mine.includes(x)) : [];
   if (/[ऀ-ॿ]/.test(v)) return (mine.length ? mine.slice(0, 2).map(askShow).join('') : '<div class="card">यसबारे मसँग तयार उत्तर छैन। कृपया पास्टर सन्तोष वा मण्डलीका अगुवासँग कुरा गर्नुहोस्।</div>' + askSendHTML(v));
   if (kw) {
     await askVocab();
     const al = kw.length === 1 ? ASK_ALIAS[kw[0]] : null, w1 = al || kw[0];
+    if (th && (th.c || !(await askKeywordView(w1)))) return thc + (kw.length === 1 ? await askKeywordView(w1) : '') + askMineHTML([...mine, ...thm]);
     const b = kw.length === 1 ? (await askKeywordView(w1) || await askTopical(w1, 1) || await askConcordance(w1, 12, false, true)) : (await askStepVerses(kw.join(' '), true) || await askTopical(kw.join(' '), 1));
     const dc = kw.length === 1 ? await askDictCard(w1) : '';
     const note = al && b ? `<p class="muted">Showing results for <b>${esc(al)}</b>, the closest Bible word for "${esc(kw[0])}".</p>` : '';
@@ -2397,7 +2427,8 @@ async function askBuildCore(v) {
   }
   const dc = dterm ? await askDictCard(dterm) : '';
   if (dc) return dc + (mine.length ? mine.slice(0, 2).map(askShow).join('') : (await askTopical(dterm, 1)));
-  if (mine.length) return mine.slice(0, 2).map(askShow).join('');
+  if (mine.length) return mine.slice(0, 2).map(askShow).join('') + (thc ? thc : '');
+  if (thc) return thc + askMineHTML(thm) + askSendHTML(v);
   const bb = (await askTopical(v, 2)) + (await askStepVerses(v));
   return (bb || '<div class="card">I did not find anything for that. Try one key word (like "faith"), a verse (like John 3:16), or ask in a different way.</div>') + askSendHTML(v);
 }
@@ -2593,7 +2624,9 @@ async function askTopicsHTML(letter) {
     const common = [...new Set(ASK_COMMON.map(n => { let i = T.findIndex(t => t.name.toLowerCase() === n.toLowerCase()); return i >= 0 ? i : T.findIndex(t => t.name.toLowerCase().startsWith(n.toLowerCase())); }).filter(i => i >= 0))];
     body = `<p class="muted askexh"><span>Common topics</span></p><div class="askex">${common.map(i => `<button type="button" class="askchip asktopic" data-t="${i}">${esc(T[i].name)}</button>`).join('')}</div>`;
   }
-  return `<div class="card"><h2>Browse topics</h2><p class="muted">Pick a letter, or a common topic. Verses are gathered under each topic by theme.</p>${strip}${body}</div>`;
+  const thl = (await askLoadThemes()) || [];
+  const thb = !letter && thl.length ? `<p class="muted askexh"><span>Bible themes</span></p><div class="askex">${thl.map((t, i) => `<button type="button" class="askchip askthm" data-th="${i}">${esc(t.n)}</button>`).join('')}</div>` : '';
+  return `<div class="card"><h2>Browse topics</h2><p class="muted">Pick a Bible theme first, or a letter for the full topical index.</p>${thb}${strip}${body}</div>`;
 }
 function askSavedHTML() {
   const sv = askGet('saved', []);
@@ -2700,6 +2733,7 @@ function askOpen() {
     const of = t.closest('#askoffline'); if (of) { askSaveOffline(of); return; }
     if (t.closest('#asklang')) { const q = $('#askq').value; p.remove(); setLang(LANG === 'ne' ? 'en' : 'ne'); askOpen(); if (q) { $('#askq').value = q; $('#askgo').click(); } return; }
     if (t.closest('#asktopics')) { $('#askq').value = ''; $('#askres').innerHTML = await askTopicsHTML(''); applyLang(); return; }
+    const tm = t.closest('.askthm'); if (tm) { const T = await askLoadThemes(); $('#askres').innerHTML = '<p><button type="button" class="btn small ghost" id="asktopics"><span>←</span> <span>Back</span></button></p>' + await askThemeCard(T[+tm.dataset.th]) + askMineHTML(askThemeMine(T[+tm.dataset.th])); askDecor(); askSyncSave(); applyLang(); $('#askres').scrollIntoView({ block: 'start' }); return; }
     const lt = t.closest('.askletter'); if (lt) { $('#askres').innerHTML = await askTopicsHTML(lt.dataset.l); applyLang(); return; }
     const tp = t.closest('.asktopic'); if (tp) { const T = await askLoadTopics(), B = await askLoadBible(); $('#askres').innerHTML = '<p><button type="button" class="btn small ghost" id="asktopics"><span>←</span> <span>Back</span></button></p>' + askTopicCard(T[+tp.dataset.t], false, B) + ASK_TOPIC_CREDIT; askDecor(); askSyncSave(); applyLang(); $('#askres').scrollIntoView({ block: 'start' }); return; }
     if (t.closest('#asksaved')) { $('#askq').value = ''; $('#askres').innerHTML = askSavedHTML(); applyLang(); return; }
@@ -2710,7 +2744,7 @@ function askOpen() {
     const sz = t.closest('#asksmall, #askbig'); if (sz) { const n = Math.max(0, Math.min(2, askGet('size', 0) + (sz.id === 'askbig' ? 1 : -1))); askPut('size', n); const bx = $('.askbox', p); bx.classList.remove('sz0', 'sz1', 'sz2'); bx.classList.add('sz' + n); return; }
   });
   $('#askres').onclick = async e => {
-    const ch = e.target.closest('.askchip:not(.askletter):not(.asktopic)'); if (ch) { $('#askq').value = ch.dataset.x; run(); return; }
+    const ch = e.target.closest('.askchip:not(.askletter):not(.asktopic):not(.askthm)'); if (ch) { $('#askq').value = ch.dataset.x; run(); return; }
     const lb = e.target.closest('.asklisten'); if (lb) { const it = (ASK.items || []).find(x => String(x.id) === lb.dataset.i); if (it) { const ne = LANG === 'ne' && it.q_ne; askSpeak((ne ? it.q_ne : it.q) + '. ' + (ne ? it.a_ne : it.a).join(' '), ne ? null : it.id); } return; }
     const ap = e.target.closest('.askappear'); if (ap) { const box = ap.parentElement.querySelector('.askapp') || ap.parentElement; const t = ap.closest('.askverse') ? ap.closest('.askverse').querySelector('.askapp') : box; t.innerHTML = '<p class="muted">Loading…</p>'; t.innerHTML = await askAppearances(ap.dataset.id, +ap.dataset.n); applyLang(); return; }
     const cp = e.target.closest('.askcopy, .askshare'); if (cp) { askCopyShare(cp, cp.classList.contains('askshare')); return; }

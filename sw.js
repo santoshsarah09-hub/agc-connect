@@ -1,6 +1,6 @@
 /* AGC Connect service worker: keeps the app and the Ask Pastor Santosh data on the phone so they open fast and work with weak or no internet. */
 const SHELL = 'agc-shell-v1', DATA = 'agc-data-v1';
-const BIG = /\/data\/(bible-web|step|strongs|topics|ask|i18n)\.json$|\/data\/dict\/[a-z]\.json$/;
+const BIG = /\/data\/(bible-web|step|strongs|topics|themes|ask|i18n)\.json$|\/data\/dict\/[a-z]\.json$/;
 self.addEventListener('install', e => { self.skipWaiting(); });
 self.addEventListener('activate', e => {
   e.waitUntil((async () => { for (const k of await caches.keys()) if (![SHELL, DATA].includes(k)) await caches.delete(k); await self.clients.claim(); })());
